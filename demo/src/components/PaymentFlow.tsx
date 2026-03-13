@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { Transaction } from "@solana/web3.js";
@@ -18,9 +18,18 @@ interface MarketData {
   change_24h_pct: number;
 }
 
+interface SolanaStats {
+  tps: number;
+  slot: number;
+  validator_count: number;
+  epoch: number;
+}
+
 interface ServiceResult {
+  service_type: "crypto-prices" | "solana-stats";
   result: string;
-  market_data: MarketData[];
+  market_data?: MarketData[];
+  solana_stats?: SolanaStats;
   timestamp: string;
   delivered_to: string;
 }
@@ -34,10 +43,75 @@ type PaymentState =
   | { status: "success"; service: ServiceResult; signature: string }
   | { status: "error"; message: string };
 
+interface HealthStatus {
+  ready: boolean;
+  issues: string[];
+}
+
+type ServiceType = "crypto-prices" | "solana-stats";
+
+const SERVICE_OPTIONS: { id: ServiceType; label: string; description: string; price: string }[] = [
+  {
+    id: "crypto-prices",
+    label: "Crypto Market Prices",
+    description: "Live BTC, ETH, and SOL prices with 24h change",
+    price: "1 USDC",
+  },
+  {
+    id: "solana-stats",
+    label: "Solana Network Stats",
+    description: "Current TPS, slot, epoch, and validator count",
+    price: "1 USDC",
+  },
+];
+
+/** Mock market data used in the demo tour and as a fallback. */
+const MOCK_MARKET_DATA: MarketData[] = [
+  { symbol: "BTC", price_usd: 83241, change_24h_pct: 2.14 },
+  { symbol: "ETH", price_usd: 1972, change_24h_pct: -0.87 },
+  { symbol: "SOL", price_usd: 132.5, change_24h_pct: 3.41 },
+];
+
+const MOCK_SOLANA_STATS: SolanaStats = {
+  tps: 3847,
+  slot: 318_204_512,
+  validator_count: 1847,
+  epoch: 741,
+};
+
+const MOCK_SIGNATURE =
+  "5KtPn3...xR7qW2 (simulated — no real transaction in tour mode)";
+
+function buildTourSteps(serviceType: ServiceType): PaymentState[] {
+  const mockService: ServiceResult =
+    serviceType === "crypto-prices"
+      ? {
+          service_type: "crypto-prices",
+          result: "BTC $83,241 (+2.14% 24h) | ETH $1,972 (-0.87% 24h) | SOL $132.5 (+3.41% 24h)",
+          market_data: MOCK_MARKET_DATA,
+          timestamp: new Date().toISOString(),
+          delivered_to: "Demo1234...abcd",
+        }
+      : {
+          service_type: "solana-stats",
+          result: "TPS: 3,847 | Slot: 318,204,512 | Epoch: 741 | Validators: 1,847",
+          solana_stats: MOCK_SOLANA_STATS,
+          timestamp: new Date().toISOString(),
+          delivered_to: "Demo1234...abcd",
+        };
+
+  return [
+    { status: "building" },
+    { status: "signing" },
+    { status: "confirming" },
+    { status: "verifying" },
+    { status: "success", service: mockService, signature: MOCK_SIGNATURE },
+  ];
+}
+
 /**
  * Signs a base64-encoded unsigned transaction and submits it.
  * Returns the signature without waiting for on-chain confirmation.
- * Extracted from component so it doesn't call hooks in async context.
  */
 async function signAndSubmitTransaction(
   txBase64: string,
@@ -69,6 +143,18 @@ export default function PaymentFlow() {
   const { publicKey, signTransaction, connected } = useWallet();
   const { connection } = useConnection();
   const [state, setState] = useState<PaymentState>({ status: "idle" });
+  const [health, setHealth] = useState<HealthStatus | null>(null);
+  const [tourStep, setTourStep] = useState<number>(-1);
+  const [isTourRunning, setIsTourRunning] = useState(false);
+  const [selectedService, setSelectedService] = useState<ServiceType>("crypto-prices");
+
+  // Fetch health status on mount
+  useEffect(() => {
+    fetch("/api/health")
+      .then((r) => r.json())
+      .then((data: HealthStatus) => setHealth(data))
+      .catch(() => setHealth(null));
+  }, []);
 
   const handlePay = async () => {
     if (!publicKey || !signTransaction) return;
@@ -79,7 +165,7 @@ export default function PaymentFlow() {
       const invoiceRes = await fetch("/api/invoice", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userWallet: publicKey.toBase58() }),
+        body: JSON.stringify({ userWallet: publicKey.toBase58(), serviceType: selectedService }),
       });
 
       if (!invoiceRes.ok) {
@@ -109,6 +195,7 @@ export default function PaymentFlow() {
           userWallet: publicKey.toBase58(),
           invoiceParams,
           signature,
+          serviceType: selectedService,
         }),
       });
 
@@ -127,8 +214,32 @@ export default function PaymentFlow() {
     }
   };
 
+  /** Runs an animated tour of the payment flow states with mock data. */
+  const runTour = async () => {
+    if (isTourRunning) return;
+    const tourSteps = buildTourSteps(selectedService);
+    setIsTourRunning(true);
+    setTourStep(0);
+
+    for (let i = 0; i < tourSteps.length; i++) {
+      setTourStep(i);
+      setState(tourSteps[i]);
+      const delay = i === tourSteps.length - 1 ? 0 : 1200;
+      if (delay > 0) await new Promise((r) => setTimeout(r, delay));
+    }
+
+    setIsTourRunning(false);
+    setTourStep(-1);
+  };
+
+  const resetTour = () => {
+    setState({ status: "idle" });
+    setTourStep(-1);
+    setIsTourRunning(false);
+  };
+
   const statusLabel: Record<string, string> = {
-    idle: "Pay 1 USDC for Market Data",
+    idle: "Pay 1 USDC",
     building: "Building transaction...",
     signing: "Sign in wallet...",
     confirming: "Confirming on-chain...",
@@ -139,20 +250,148 @@ export default function PaymentFlow() {
     state.status
   );
 
+  const notConfigured = health && !health.ready;
+  const tourStepCount = buildTourSteps(selectedService).length;
+  const selectedOption = SERVICE_OPTIONS.find(o => o.id === selectedService);
+
   return (
     <div style={{ maxWidth: 520, margin: "60px auto", fontFamily: "system-ui, sans-serif", padding: "0 16px" }}>
       <h1 style={{ fontSize: 26, marginBottom: 6, fontWeight: 700 }}>
         Pump Tokenized Agent Demo
       </h1>
-      <p style={{ color: "#555", marginBottom: 8, fontSize: 15 }}>
-        This agent delivers live crypto market data after payment is verified on-chain.
+      <p style={{ color: "#555", marginBottom: 16, fontSize: 15 }}>
+        Select a service, connect your wallet, and pay 1 USDC. Data is delivered only after payment is verified on-chain.
       </p>
-      <div style={{ background: "#f5f5f5", borderRadius: 8, padding: "10px 14px", marginBottom: 28, fontSize: 13, color: "#444" }}>
-        <strong>Service:</strong> Real-time prices for BTC, ETH, and SOL
-        &nbsp;|&nbsp; <strong>Price:</strong> 1 USDC
-        &nbsp;|&nbsp; <strong>Network:</strong> Solana Mainnet
+
+      {/* Service selector */}
+      <div style={{ marginBottom: 20 }}>
+        <p style={{ fontSize: 13, fontWeight: 600, color: "#333", marginBottom: 8 }}>
+          Choose a service:
+        </p>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {SERVICE_OPTIONS.map((opt) => (
+            <label
+              key={opt.id}
+              style={{
+                display: "flex",
+                alignItems: "flex-start",
+                gap: 10,
+                padding: "10px 14px",
+                background: selectedService === opt.id ? "#e8f0ff" : "#f5f5f5",
+                border: selectedService === opt.id ? "1.5px solid #2244aa" : "1.5px solid transparent",
+                borderRadius: 8,
+                cursor: isTourRunning || isLoading ? "not-allowed" : "pointer",
+                transition: "background 0.15s, border-color 0.15s",
+              }}
+              onClick={() => {
+                if (!isTourRunning && !isLoading) {
+                  setSelectedService(opt.id);
+                  if (state.status !== "idle") resetTour();
+                }
+              }}
+            >
+              <input
+                type="radio"
+                name="service"
+                value={opt.id}
+                checked={selectedService === opt.id}
+                onChange={() => {}}
+                style={{ marginTop: 2 }}
+              />
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 600, color: "#222" }}>{opt.label}</div>
+                <div style={{ fontSize: 12, color: "#666", marginTop: 2 }}>{opt.description}</div>
+                <div style={{ fontSize: 11, color: "#2244aa", marginTop: 3, fontWeight: 600 }}>
+                  {opt.price}
+                </div>
+              </div>
+            </label>
+          ))}
+        </div>
       </div>
 
+      {/* Configuration warning banner */}
+      {notConfigured && (
+        <div style={{ background: "#fff8e1", border: "1px solid #ffe082", borderRadius: 8, padding: "10px 14px", marginBottom: 20, fontSize: 13 }}>
+          <strong style={{ color: "#7b5800" }}>⚠ Not fully configured</strong>
+          <ul style={{ margin: "6px 0 0 0", paddingLeft: 18, color: "#5d4200" }}>
+            {health.issues.map((issue) => (
+              <li key={issue}>{issue}</li>
+            ))}
+          </ul>
+          <p style={{ margin: "8px 0 0 0", color: "#777" }}>
+            Payments will fail until resolved. Use the{" "}
+            <strong>Preview tour</strong> below to see how the flow works.
+          </p>
+        </div>
+      )}
+
+      {/* Demo tour section */}
+      <div style={{ background: "#f0f4ff", borderRadius: 8, padding: "12px 14px", marginBottom: 24, fontSize: 13 }}>
+        <strong style={{ color: "#2244aa" }}>Preview the payment flow</strong>
+        <p style={{ margin: "4px 0 10px 0", color: "#555" }}>
+          No wallet needed — animated walkthrough for <strong>{selectedOption?.label}</strong>.
+        </p>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button
+            onClick={runTour}
+            disabled={isTourRunning}
+            style={{
+              padding: "7px 16px",
+              background: isTourRunning ? "#aaa" : "#2244aa",
+              color: "white",
+              border: "none",
+              borderRadius: 5,
+              fontSize: 13,
+              cursor: isTourRunning ? "not-allowed" : "pointer",
+              fontWeight: 600,
+            }}
+          >
+            {isTourRunning ? "Playing..." : "▶ Run Preview Tour"}
+          </button>
+          {(isTourRunning || state.status !== "idle") && (
+            <button
+              onClick={resetTour}
+              style={{
+                padding: "7px 14px",
+                background: "white",
+                color: "#555",
+                border: "1px solid #ccc",
+                borderRadius: 5,
+                fontSize: 13,
+                cursor: "pointer",
+              }}
+            >
+              Reset
+            </button>
+          )}
+        </div>
+
+        {/* Tour progress indicator */}
+        {isTourRunning && (
+          <div style={{ display: "flex", gap: 6, marginTop: 10, alignItems: "center" }}>
+            {Array.from({ length: tourStepCount }).map((_, i) => (
+              <div
+                key={i}
+                style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: "50%",
+                  background: i <= tourStep ? "#2244aa" : "#ccc",
+                  transition: "background 0.3s",
+                }}
+              />
+            ))}
+            <span style={{ fontSize: 11, color: "#888", marginLeft: 4 }}>
+              {tourStep >= 0 && tourStep < tourStepCount - 1
+                ? `Step ${tourStep + 1}/${tourStepCount}`
+                : "Complete"}
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* Live payment section */}
       <div style={{ marginBottom: 24 }}>
         <WalletMultiButton />
       </div>
@@ -165,7 +404,7 @@ export default function PaymentFlow() {
 
           <button
             onClick={handlePay}
-            disabled={isLoading || state.status === "success"}
+            disabled={isLoading || state.status === "success" || isTourRunning}
             style={{
               padding: "12px 24px",
               background: isLoading ? "#aaa" : state.status === "success" ? "#2d8653" : "#0052cc",
@@ -182,7 +421,7 @@ export default function PaymentFlow() {
               ? statusLabel[state.status] || "Processing..."
               : state.status === "success"
               ? "Paid — Data Delivered"
-              : statusLabel.idle}
+              : `${statusLabel.idle} for ${selectedOption?.label}`}
           </button>
 
           {isLoading && (
@@ -206,53 +445,77 @@ export default function PaymentFlow() {
               </button>
             </div>
           )}
+        </div>
+      )}
 
-          {state.status === "success" && (
-            <div style={{ marginTop: 16, borderRadius: 8, overflow: "hidden", border: "1px solid #c3e6cb" }}>
-              <div style={{ background: "#d4edda", padding: "10px 14px", color: "#155724", fontWeight: 600, fontSize: 14 }}>
-                Payment verified — market data delivered
-              </div>
-              <div style={{ background: "#f9fffe", padding: 14 }}>
-                {state.service.market_data.length > 0 ? (
-                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 15 }}>
-                    <thead>
-                      <tr style={{ borderBottom: "1px solid #eee" }}>
-                        <th style={{ textAlign: "left", padding: "4px 8px", color: "#777", fontWeight: 500, fontSize: 12 }}>Asset</th>
-                        <th style={{ textAlign: "right", padding: "4px 8px", color: "#777", fontWeight: 500, fontSize: 12 }}>Price (USD)</th>
-                        <th style={{ textAlign: "right", padding: "4px 8px", color: "#777", fontWeight: 500, fontSize: 12 }}>24h</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {state.service.market_data.map((m) => (
-                        <tr key={m.symbol} style={{ borderBottom: "1px solid #f0f0f0" }}>
-                          <td style={{ padding: "8px 8px", fontWeight: 700 }}>{m.symbol}</td>
-                          <td style={{ padding: "8px 8px", textAlign: "right" }}>
-                            ${m.price_usd.toLocaleString()}
-                          </td>
-                          <td style={{
-                            padding: "8px 8px",
-                            textAlign: "right",
-                            color: m.change_24h_pct >= 0 ? "#1a7a3e" : "#c00",
-                            fontWeight: 600,
-                          }}>
-                            {m.change_24h_pct >= 0 ? "+" : ""}{m.change_24h_pct}%
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                ) : (
-                  <p style={{ color: "#555", fontSize: 14 }}>{state.service.result}</p>
-                )}
-                <p style={{ fontSize: 11, color: "#aaa", marginTop: 10, marginBottom: 0 }}>
-                  Delivered to {state.service.delivered_to} &middot; {new Date(state.service.timestamp).toLocaleTimeString()}
-                </p>
-                <p style={{ fontSize: 11, color: "#bbb", wordBreak: "break-all", marginTop: 4, marginBottom: 0 }}>
-                  Tx: {state.signature}
-                </p>
-              </div>
-            </div>
-          )}
+      {/* Success state */}
+      {state.status === "success" && (
+        <div style={{ marginTop: 16, borderRadius: 8, overflow: "hidden", border: "1px solid #c3e6cb" }}>
+          <div style={{ background: "#d4edda", padding: "10px 14px", color: "#155724", fontWeight: 600, fontSize: 14, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span>Payment verified — data delivered</span>
+            {state.signature === MOCK_SIGNATURE && (
+              <span style={{ fontSize: 11, fontWeight: 400, background: "#a8d5b5", padding: "2px 7px", borderRadius: 4 }}>
+                Preview mode
+              </span>
+            )}
+          </div>
+          <div style={{ background: "#f9fffe", padding: 14 }}>
+            {state.service.service_type === "crypto-prices" && state.service.market_data && state.service.market_data.length > 0 ? (
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 15 }}>
+                <thead>
+                  <tr style={{ borderBottom: "1px solid #eee" }}>
+                    <th style={{ textAlign: "left", padding: "4px 8px", color: "#777", fontWeight: 500, fontSize: 12 }}>Asset</th>
+                    <th style={{ textAlign: "right", padding: "4px 8px", color: "#777", fontWeight: 500, fontSize: 12 }}>Price (USD)</th>
+                    <th style={{ textAlign: "right", padding: "4px 8px", color: "#777", fontWeight: 500, fontSize: 12 }}>24h</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {state.service.market_data.map((m) => (
+                    <tr key={m.symbol} style={{ borderBottom: "1px solid #f0f0f0" }}>
+                      <td style={{ padding: "8px 8px", fontWeight: 700 }}>{m.symbol}</td>
+                      <td style={{ padding: "8px 8px", textAlign: "right" }}>
+                        ${m.price_usd.toLocaleString()}
+                      </td>
+                      <td style={{
+                        padding: "8px 8px",
+                        textAlign: "right",
+                        color: m.change_24h_pct >= 0 ? "#1a7a3e" : "#c00",
+                        fontWeight: 600,
+                      }}>
+                        {m.change_24h_pct >= 0 ? "+" : ""}{m.change_24h_pct}%
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : state.service.service_type === "solana-stats" && state.service.solana_stats ? (
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 15 }}>
+                <tbody>
+                  {[
+                    { label: "Transactions / sec (TPS)", value: state.service.solana_stats.tps.toLocaleString() },
+                    { label: "Current Slot", value: state.service.solana_stats.slot.toLocaleString() },
+                    { label: "Current Epoch", value: state.service.solana_stats.epoch.toLocaleString() },
+                    { label: "Active Validators", value: state.service.solana_stats.validator_count.toLocaleString() },
+                  ].map(({ label, value }) => (
+                    <tr key={label} style={{ borderBottom: "1px solid #f0f0f0" }}>
+                      <td style={{ padding: "8px 8px", color: "#666", fontSize: 13 }}>{label}</td>
+                      <td style={{ padding: "8px 8px", textAlign: "right", fontWeight: 700 }}>{value}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <p style={{ color: "#555", fontSize: 14 }}>{state.service.result}</p>
+            )}
+            <p style={{ fontSize: 11, color: "#aaa", marginTop: 10, marginBottom: 0 }}>
+              Delivered to {state.service.delivered_to} &middot; {new Date(state.service.timestamp).toLocaleTimeString()}
+            </p>
+            {state.signature !== MOCK_SIGNATURE && (
+              <p style={{ fontSize: 11, color: "#bbb", wordBreak: "break-all", marginTop: 4, marginBottom: 0 }}>
+                Tx: {state.signature}
+              </p>
+            )}
+          </div>
         </div>
       )}
     </div>

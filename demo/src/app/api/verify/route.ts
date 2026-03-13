@@ -1,21 +1,24 @@
 /**
  * POST /api/verify
- * Body: { userWallet: string, invoiceParams: InvoiceParams, signature: string }
+ * Body: { userWallet: string, invoiceParams: InvoiceParams, signature: string, serviceType?: string }
  *
- * Verifies the payment on-chain and delivers the service if confirmed.
+ * Verifies the payment on-chain and delivers the requested service if confirmed.
  * Always verify server-side — never trust the client alone.
  */
 import { NextRequest, NextResponse } from "next/server";
 import { verifyPayment } from "@/lib/pump-agent";
 import type { InvoiceParams } from "@/lib/pump-agent";
 
+type ServiceType = "crypto-prices" | "solana-stats";
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { userWallet, invoiceParams, signature } = body as {
+    const { userWallet, invoiceParams, signature, serviceType = "crypto-prices" } = body as {
       userWallet: string;
       invoiceParams: InvoiceParams;
       signature: string;
+      serviceType?: ServiceType;
     };
 
     if (!userWallet || !invoiceParams || !signature) {
@@ -34,13 +37,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Payment confirmed — deliver the service
-    const serviceResult = await deliverService(userWallet);
+    // Payment confirmed — deliver the requested service
+    const service = await deliverService(userWallet, serviceType);
 
     return NextResponse.json({
       paid: true,
       signature,
-      service: serviceResult,
+      service,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
@@ -54,19 +57,36 @@ interface MarketData {
   change_24h_pct: number;
 }
 
+interface SolanaStats {
+  tps: number;
+  slot: number;
+  validator_count: number;
+  epoch: number;
+}
+
 interface ServiceResult {
+  service_type: ServiceType;
   result: string;
-  market_data: MarketData[];
+  market_data?: MarketData[];
+  solana_stats?: SolanaStats;
   timestamp: string;
   delivered_to: string;
 }
 
+async function deliverService(userWallet: string, serviceType: ServiceType): Promise<ServiceResult> {
+  const timestamp = new Date().toISOString();
+  const delivered_to = `${userWallet.slice(0, 8)}...${userWallet.slice(-4)}`;
+
+  if (serviceType === "solana-stats") {
+    return deliverSolanaStats(delivered_to, timestamp);
+  }
+  return deliverCryptoPrices(delivered_to, timestamp);
+}
+
 /**
- * Delivers a premium crypto market summary.
- * Fetches live prices for SOL, BTC, and ETH from CoinGecko.
- * Only called after server-side payment verification passes.
+ * Fetches live crypto prices for BTC, ETH, and SOL from CoinGecko.
  */
-async function deliverService(userWallet: string): Promise<ServiceResult> {
+async function deliverCryptoPrices(delivered_to: string, timestamp: string): Promise<ServiceResult> {
   const url =
     "https://api.coingecko.com/api/v3/simple/price" +
     "?ids=solana,bitcoin,ethereum" +
@@ -102,10 +122,10 @@ async function deliverService(userWallet: string): Promise<ServiceResult> {
         }));
     }
   } catch {
-    // Fall through with empty market_data — still deliver the service
+    // Fall through with empty market_data
   }
 
-  const summary =
+  const result =
     market_data.length > 0
       ? market_data
           .map(
@@ -115,10 +135,90 @@ async function deliverService(userWallet: string): Promise<ServiceResult> {
           .join(" | ")
       : "Market data temporarily unavailable";
 
-  return {
-    result: summary,
-    market_data,
-    timestamp: new Date().toISOString(),
-    delivered_to: `${userWallet.slice(0, 8)}...${userWallet.slice(-4)}`,
-  };
+  return { service_type: "crypto-prices", result, market_data, timestamp, delivered_to };
+}
+
+/**
+ * Fetches live Solana network stats via the public RPC.
+ */
+async function deliverSolanaStats(delivered_to: string, timestamp: string): Promise<ServiceResult> {
+  const rpcUrl = process.env.SOLANA_RPC_URL || "https://rpc.solanatracker.io/public";
+  let solana_stats: SolanaStats | undefined;
+
+  try {
+    // Fetch slot, epoch, and recent performance samples in parallel
+    const [slotRes, epochRes, perfRes] = await Promise.all([
+      fetch(rpcUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "getSlot" }),
+        signal: AbortSignal.timeout(8000),
+      }),
+      fetch(rpcUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jsonrpc: "2.0", id: 2, method: "getEpochInfo" }),
+        signal: AbortSignal.timeout(8000),
+      }),
+      fetch(rpcUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: 3,
+          method: "getRecentPerformanceSamples",
+          params: [5],
+        }),
+        signal: AbortSignal.timeout(8000),
+      }),
+    ]);
+
+    const [slotData, epochData, perfData] = await Promise.all([
+      slotRes.json() as Promise<{ result: number }>,
+      epochRes.json() as Promise<{ result: { epoch: number; slotIndex: number } }>,
+      perfRes.json() as Promise<{ result: Array<{ numTransactions: number; samplePeriodSecs: number }> }>,
+    ]);
+
+    const slot: number = slotData.result;
+    const epoch: number = epochData.result.epoch;
+
+    // Calculate TPS from recent performance samples
+    let tps = 0;
+    if (perfData.result && perfData.result.length > 0) {
+      const samples = perfData.result;
+      const totalTx = samples.reduce((sum, s) => sum + s.numTransactions, 0);
+      const totalSecs = samples.reduce((sum, s) => sum + s.samplePeriodSecs, 0);
+      tps = totalSecs > 0 ? Math.round(totalTx / totalSecs) : 0;
+    }
+
+    // Fetch validator count separately (can be slow — best-effort)
+    let validator_count = 0;
+    try {
+      const voteRes = await fetch(rpcUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: 4,
+          method: "getVoteAccounts",
+          params: [{ commitment: "confirmed" }],
+        }),
+        signal: AbortSignal.timeout(6000),
+      });
+      const voteData = (await voteRes.json()) as { result: { current: unknown[] } };
+      validator_count = voteData.result?.current?.length ?? 0;
+    } catch {
+      // validator count is best-effort
+    }
+
+    solana_stats = { tps, slot, validator_count, epoch };
+  } catch {
+    // Fall through with undefined solana_stats
+  }
+
+  const result = solana_stats
+    ? `TPS: ${solana_stats.tps.toLocaleString()} | Slot: ${solana_stats.slot.toLocaleString()} | Epoch: ${solana_stats.epoch} | Validators: ${solana_stats.validator_count.toLocaleString()}`
+    : "Solana network stats temporarily unavailable";
+
+  return { service_type: "solana-stats", result, solana_stats, timestamp, delivered_to };
 }

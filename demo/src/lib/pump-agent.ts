@@ -43,6 +43,14 @@ export async function buildPaymentTransaction(params: {
     );
   }
 
+  const SYSTEM_PROGRAM = "11111111111111111111111111111111";
+  if (agentMintStr === SYSTEM_PROGRAM) {
+    throw new Error(
+      "AGENT_TOKEN_MINT_ADDRESS is set to the system program. " +
+        "Replace it with your pump.fun agent token mint address in .env.local."
+    );
+  }
+
   const connection = new Connection(rpcUrl, "confirmed");
   const agentMint = new PublicKey(agentMintStr);
   const currencyMint = new PublicKey(currencyMintStr);
@@ -91,6 +99,14 @@ export async function verifyPayment(params: {
   if (!agentMintStr || !currencyMintStr) {
     throw new Error(
       "Missing required environment variables: AGENT_TOKEN_MINT_ADDRESS, CURRENCY_MINT"
+    );
+  }
+
+  const SYSTEM_PROGRAM = "11111111111111111111111111111111";
+  if (agentMintStr === SYSTEM_PROGRAM) {
+    throw new Error(
+      "AGENT_TOKEN_MINT_ADDRESS is set to the system program. " +
+        "Replace it with your pump.fun agent token mint address in .env.local."
     );
   }
 
