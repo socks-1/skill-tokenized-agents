@@ -25,11 +25,19 @@ interface SolanaStats {
   epoch: number;
 }
 
+interface DefiPool {
+  protocol: string;
+  symbol: string;
+  apy: number;
+  tvl_usd: number;
+}
+
 interface ServiceResult {
-  service_type: "crypto-prices" | "solana-stats";
+  service_type: "crypto-prices" | "solana-stats" | "defi-yields";
   result: string;
   market_data?: MarketData[];
   solana_stats?: SolanaStats;
+  defi_pools?: DefiPool[];
   timestamp: string;
   delivered_to: string;
 }
@@ -48,7 +56,7 @@ interface HealthStatus {
   issues: string[];
 }
 
-type ServiceType = "crypto-prices" | "solana-stats";
+type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields";
 
 const SERVICE_OPTIONS: { id: ServiceType; label: string; description: string; price: string }[] = [
   {
@@ -61,6 +69,12 @@ const SERVICE_OPTIONS: { id: ServiceType; label: string; description: string; pr
     id: "solana-stats",
     label: "Solana Network Stats",
     description: "Current TPS, slot, epoch, and validator count",
+    price: "1 USDC",
+  },
+  {
+    id: "defi-yields",
+    label: "Solana DeFi Yields",
+    description: "Top Solana protocol APY rates by TVL (via DeFi Llama)",
     price: "1 USDC",
   },
 ];
@@ -79,26 +93,47 @@ const MOCK_SOLANA_STATS: SolanaStats = {
   epoch: 741,
 };
 
+const MOCK_DEFI_POOLS: DefiPool[] = [
+  { protocol: "doublezero-staked-sol", symbol: "DZSOL", apy: 5.48, tvl_usd: 1_186_900_000 },
+  { protocol: "jito-liquid-staking", symbol: "JITOSOL", apy: 5.94, tvl_usd: 1_126_700_000 },
+  { protocol: "binance-staked-sol", symbol: "BNSOL", apy: 5.86, tvl_usd: 834_900_000 },
+  { protocol: "jupiter-lend", symbol: "USDC", apy: 3.33, tvl_usd: 524_400_000 },
+  { protocol: "jupiter-staked-sol", symbol: "JUPSOL", apy: 6.42, tvl_usd: 383_000_000 },
+  { protocol: "marinade-liquid-staking", symbol: "MSOL", apy: 7.07, tvl_usd: 250_800_000 },
+  { protocol: "drift-staked-sol", symbol: "DSOL", apy: 6.50, tvl_usd: 230_700_000 },
+  { protocol: "kamino-lend", symbol: "JITOSOL", apy: 0.0, tvl_usd: 215_600_000 },
+];
+
 const MOCK_SIGNATURE =
   "5KtPn3...xR7qW2 (simulated — no real transaction in tour mode)";
 
 function buildTourSteps(serviceType: ServiceType): PaymentState[] {
-  const mockService: ServiceResult =
-    serviceType === "crypto-prices"
-      ? {
-          service_type: "crypto-prices",
-          result: "BTC $83,241 (+2.14% 24h) | ETH $1,972 (-0.87% 24h) | SOL $132.5 (+3.41% 24h)",
-          market_data: MOCK_MARKET_DATA,
-          timestamp: new Date().toISOString(),
-          delivered_to: "Demo1234...abcd",
-        }
-      : {
-          service_type: "solana-stats",
-          result: "TPS: 3,847 | Slot: 318,204,512 | Epoch: 741 | Validators: 1,847",
-          solana_stats: MOCK_SOLANA_STATS,
-          timestamp: new Date().toISOString(),
-          delivered_to: "Demo1234...abcd",
-        };
+  let mockService: ServiceResult;
+  if (serviceType === "solana-stats") {
+    mockService = {
+      service_type: "solana-stats",
+      result: "TPS: 3,847 | Slot: 318,204,512 | Epoch: 741 | Validators: 1,847",
+      solana_stats: MOCK_SOLANA_STATS,
+      timestamp: new Date().toISOString(),
+      delivered_to: "Demo1234...abcd",
+    };
+  } else if (serviceType === "defi-yields") {
+    mockService = {
+      service_type: "defi-yields",
+      result: "jito-liquid-staking JITOSOL 5.94% APY | marinade-liquid-staking MSOL 7.07% APY | drift-staked-sol DSOL 6.50% APY",
+      defi_pools: MOCK_DEFI_POOLS,
+      timestamp: new Date().toISOString(),
+      delivered_to: "Demo1234...abcd",
+    };
+  } else {
+    mockService = {
+      service_type: "crypto-prices",
+      result: "BTC $83,241 (+2.14% 24h) | ETH $1,972 (-0.87% 24h) | SOL $132.5 (+3.41% 24h)",
+      market_data: MOCK_MARKET_DATA,
+      timestamp: new Date().toISOString(),
+      delivered_to: "Demo1234...abcd",
+    };
+  }
 
   return [
     { status: "building" },
@@ -500,6 +535,36 @@ export default function PaymentFlow() {
                     <tr key={label} style={{ borderBottom: "1px solid #f0f0f0" }}>
                       <td style={{ padding: "8px 8px", color: "#666", fontSize: 13 }}>{label}</td>
                       <td style={{ padding: "8px 8px", textAlign: "right", fontWeight: 700 }}>{value}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : state.service.service_type === "defi-yields" && state.service.defi_pools && state.service.defi_pools.length > 0 ? (
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+                <thead>
+                  <tr style={{ borderBottom: "1px solid #eee" }}>
+                    <th style={{ textAlign: "left", padding: "4px 8px", color: "#777", fontWeight: 500, fontSize: 12 }}>Protocol</th>
+                    <th style={{ textAlign: "left", padding: "4px 8px", color: "#777", fontWeight: 500, fontSize: 12 }}>Token</th>
+                    <th style={{ textAlign: "right", padding: "4px 8px", color: "#777", fontWeight: 500, fontSize: 12 }}>APY</th>
+                    <th style={{ textAlign: "right", padding: "4px 8px", color: "#777", fontWeight: 500, fontSize: 12 }}>TVL</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {state.service.defi_pools.map((p) => (
+                    <tr key={`${p.protocol}-${p.symbol}`} style={{ borderBottom: "1px solid #f0f0f0" }}>
+                      <td style={{ padding: "7px 8px", fontSize: 12, color: "#444" }}>{p.protocol}</td>
+                      <td style={{ padding: "7px 8px", fontWeight: 700, fontSize: 13 }}>{p.symbol}</td>
+                      <td style={{
+                        padding: "7px 8px",
+                        textAlign: "right",
+                        color: p.apy > 0 ? "#1a7a3e" : "#999",
+                        fontWeight: 600,
+                      }}>
+                        {p.apy > 0 ? `${p.apy.toFixed(2)}%` : "—"}
+                      </td>
+                      <td style={{ padding: "7px 8px", textAlign: "right", color: "#555", fontSize: 12 }}>
+                        ${(p.tvl_usd / 1_000_000).toFixed(0)}M
+                      </td>
                     </tr>
                   ))}
                 </tbody>

@@ -9,7 +9,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifyPayment } from "@/lib/pump-agent";
 import type { InvoiceParams } from "@/lib/pump-agent";
 
-type ServiceType = "crypto-prices" | "solana-stats";
+type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields";
 
 export async function POST(req: NextRequest) {
   try {
@@ -20,6 +20,9 @@ export async function POST(req: NextRequest) {
       signature: string;
       serviceType?: ServiceType;
     };
+    // Validate serviceType
+    const validServices: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields"];
+    const resolvedService: ServiceType = validServices.includes(serviceType) ? serviceType : "crypto-prices";
 
     if (!userWallet || !invoiceParams || !signature) {
       return NextResponse.json(
@@ -38,7 +41,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Payment confirmed — deliver the requested service
-    const service = await deliverService(userWallet, serviceType);
+    const service = await deliverService(userWallet, resolvedService);
 
     return NextResponse.json({
       paid: true,
@@ -64,11 +67,19 @@ interface SolanaStats {
   epoch: number;
 }
 
+interface DefiPool {
+  protocol: string;
+  symbol: string;
+  apy: number;
+  tvl_usd: number;
+}
+
 interface ServiceResult {
   service_type: ServiceType;
   result: string;
   market_data?: MarketData[];
   solana_stats?: SolanaStats;
+  defi_pools?: DefiPool[];
   timestamp: string;
   delivered_to: string;
 }
@@ -79,6 +90,9 @@ async function deliverService(userWallet: string, serviceType: ServiceType): Pro
 
   if (serviceType === "solana-stats") {
     return deliverSolanaStats(delivered_to, timestamp);
+  }
+  if (serviceType === "defi-yields") {
+    return deliverDefiYields(delivered_to, timestamp);
   }
   return deliverCryptoPrices(delivered_to, timestamp);
 }
@@ -221,4 +235,55 @@ async function deliverSolanaStats(delivered_to: string, timestamp: string): Prom
     : "Solana network stats temporarily unavailable";
 
   return { service_type: "solana-stats", result, solana_stats, timestamp, delivered_to };
+}
+
+/**
+ * Fetches top Solana DeFi pool yields from DeFi Llama (free, no auth required).
+ * Returns the 8 highest-TVL Solana pools with APY and TVL.
+ */
+async function deliverDefiYields(delivered_to: string, timestamp: string): Promise<ServiceResult> {
+  let defi_pools: DefiPool[] = [];
+
+  try {
+    const res = await fetch("https://yields.llama.fi/pools", {
+      headers: { Accept: "application/json" },
+      signal: AbortSignal.timeout(10000),
+    });
+
+    if (res.ok) {
+      const data = (await res.json()) as {
+        data: Array<{
+          chain: string;
+          project: string;
+          symbol: string;
+          apy: number;
+          tvlUsd: number;
+        }>;
+      };
+
+      const solanaPools = data.data
+        .filter((p) => p.chain === "Solana" && p.tvlUsd > 1_000_000)
+        .sort((a, b) => b.tvlUsd - a.tvlUsd)
+        .slice(0, 8);
+
+      defi_pools = solanaPools.map((p) => ({
+        protocol: p.project,
+        symbol: p.symbol,
+        apy: parseFloat(p.apy.toFixed(2)),
+        tvl_usd: p.tvlUsd,
+      }));
+    }
+  } catch {
+    // Fall through with empty defi_pools
+  }
+
+  const result =
+    defi_pools.length > 0
+      ? defi_pools
+          .slice(0, 4)
+          .map((p) => `${p.protocol} ${p.symbol} ${p.apy.toFixed(2)}% APY`)
+          .join(" | ")
+      : "DeFi yield data temporarily unavailable";
+
+  return { service_type: "defi-yields", result, defi_pools, timestamp, delivered_to };
 }
