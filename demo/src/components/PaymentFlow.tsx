@@ -22,10 +22,11 @@ type PaymentState =
   | { status: "error"; message: string };
 
 /**
- * Signs a base64-encoded unsigned transaction and sends it on-chain.
+ * Signs a base64-encoded unsigned transaction and submits it.
+ * Returns the signature without waiting for on-chain confirmation.
  * Extracted from component so it doesn't call hooks in async context.
  */
-async function signAndSendPayment(
+async function signAndSubmitTransaction(
   txBase64: string,
   signTransaction: (tx: Transaction) => Promise<Transaction>,
   connection: import("@solana/web3.js").Connection
@@ -33,18 +34,22 @@ async function signAndSendPayment(
   const tx = Transaction.from(Buffer.from(txBase64, "base64"));
   const signedTx = await signTransaction(tx);
 
-  const signature = await connection.sendRawTransaction(signedTx.serialize(), {
+  return connection.sendRawTransaction(signedTx.serialize(), {
     skipPreflight: false,
     preflightCommitment: "confirmed",
   });
+}
 
+/** Waits for a submitted transaction to reach confirmed commitment. */
+async function awaitConfirmation(
+  signature: string,
+  connection: import("@solana/web3.js").Connection
+): Promise<void> {
   const latestBlockhash = await connection.getLatestBlockhash("confirmed");
   await connection.confirmTransaction(
     { signature, ...latestBlockhash },
     "confirmed"
   );
-
-  return signature;
 }
 
 export default function PaymentFlow() {
@@ -74,11 +79,15 @@ export default function PaymentFlow() {
         invoiceParams: InvoiceParams;
       };
 
-      // Step 2: Sign the transaction in user's wallet
+      // Step 2: Sign and submit (wallet prompts user to approve)
       setState({ status: "signing" });
-      const signature = await signAndSendPayment(txBase64, signTransaction, connection);
+      const signature = await signAndSubmitTransaction(txBase64, signTransaction, connection);
 
-      // Step 3: Verify on-chain + deliver service
+      // Step 3: Wait for on-chain confirmation
+      setState({ status: "confirming" });
+      await awaitConfirmation(signature, connection);
+
+      // Step 4: Server-side verification + service delivery
       setState({ status: "verifying" });
       const verifyRes = await fetch("/api/verify", {
         method: "POST",
