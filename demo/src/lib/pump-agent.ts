@@ -94,8 +94,14 @@ export async function verifyPayment(params: {
     );
   }
 
+  const rpcUrl = process.env.SOLANA_RPC_URL;
   const agentMint = new PublicKey(agentMintStr);
-  const agent = new PumpAgent(agentMint);
+  // Pass a connection so the SDK can fall back to on-chain scanning
+  // when its HTTP API returns no result (e.g. fresh transactions).
+  const connection = rpcUrl ? new Connection(rpcUrl, "confirmed") : undefined;
+  const agent = connection
+    ? new PumpAgent(agentMint, "mainnet", connection)
+    : new PumpAgent(agentMint);
 
   const invoiceParamsNumeric = {
     user: new PublicKey(params.userWallet),
