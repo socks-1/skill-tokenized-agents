@@ -1091,7 +1091,24 @@ export default function PaymentFlow() {
             </p>
             {state.signature !== MOCK_SIGNATURE && (
               <p style={{ fontSize: 11, color: "#bbb", wordBreak: "break-all", marginTop: 4, marginBottom: 0 }}>
-                Tx: {state.signature}
+                Tx:{" "}
+                <a
+                  href={`https://solscan.io/tx/${state.signature}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ color: "#7eb8f7", textDecoration: "none" }}
+                >
+                  {state.signature.slice(0, 16)}...{state.signature.slice(-8)}
+                </a>
+                {" · "}
+                <a
+                  href={`https://explorer.solana.com/tx/${state.signature}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ color: "#7eb8f7", textDecoration: "none" }}
+                >
+                  Solana Explorer
+                </a>
               </p>
             )}
           </div>
