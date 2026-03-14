@@ -8,8 +8,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyPayment } from "@/lib/pump-agent";
 import type { InvoiceParams } from "@/lib/pump-agent";
+import { deliverService, type ServiceType } from "@/lib/services";
 
-type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields";
+const VALID_SERVICES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields"];
 
 export async function POST(req: NextRequest) {
   try {
@@ -20,9 +21,8 @@ export async function POST(req: NextRequest) {
       signature: string;
       serviceType?: ServiceType;
     };
-    // Validate serviceType
-    const validServices: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields"];
-    const resolvedService: ServiceType = validServices.includes(serviceType) ? serviceType : "crypto-prices";
+
+    const resolvedService: ServiceType = VALID_SERVICES.includes(serviceType) ? serviceType : "crypto-prices";
 
     if (!userWallet || !invoiceParams || !signature) {
       return NextResponse.json(
@@ -41,7 +41,10 @@ export async function POST(req: NextRequest) {
     }
 
     // Payment confirmed — deliver the requested service
-    const service = await deliverService(userWallet, resolvedService);
+    const service = await deliverService(
+      `${userWallet.slice(0, 8)}...${userWallet.slice(-4)}`,
+      resolvedService
+    );
 
     return NextResponse.json({
       paid: true,
@@ -52,238 +55,4 @@ export async function POST(req: NextRequest) {
     const message = err instanceof Error ? err.message : "Unknown error";
     return NextResponse.json({ error: message }, { status: 500 });
   }
-}
-
-interface MarketData {
-  symbol: string;
-  price_usd: number;
-  change_24h_pct: number;
-}
-
-interface SolanaStats {
-  tps: number;
-  slot: number;
-  validator_count: number;
-  epoch: number;
-}
-
-interface DefiPool {
-  protocol: string;
-  symbol: string;
-  apy: number;
-  tvl_usd: number;
-}
-
-interface ServiceResult {
-  service_type: ServiceType;
-  result: string;
-  market_data?: MarketData[];
-  solana_stats?: SolanaStats;
-  defi_pools?: DefiPool[];
-  timestamp: string;
-  delivered_to: string;
-}
-
-async function deliverService(userWallet: string, serviceType: ServiceType): Promise<ServiceResult> {
-  const timestamp = new Date().toISOString();
-  const delivered_to = `${userWallet.slice(0, 8)}...${userWallet.slice(-4)}`;
-
-  if (serviceType === "solana-stats") {
-    return deliverSolanaStats(delivered_to, timestamp);
-  }
-  if (serviceType === "defi-yields") {
-    return deliverDefiYields(delivered_to, timestamp);
-  }
-  return deliverCryptoPrices(delivered_to, timestamp);
-}
-
-/**
- * Fetches live crypto prices for BTC, ETH, and SOL from CoinGecko.
- */
-async function deliverCryptoPrices(delivered_to: string, timestamp: string): Promise<ServiceResult> {
-  const url =
-    "https://api.coingecko.com/api/v3/simple/price" +
-    "?ids=solana,bitcoin,ethereum" +
-    "&vs_currencies=usd" +
-    "&include_24hr_change=true";
-
-  let market_data: MarketData[] = [];
-
-  try {
-    const res = await fetch(url, {
-      headers: { Accept: "application/json" },
-      signal: AbortSignal.timeout(8000),
-    });
-
-    if (res.ok) {
-      const data = (await res.json()) as Record<
-        string,
-        { usd: number; usd_24h_change: number }
-      >;
-
-      const mapping: Record<string, string> = {
-        bitcoin: "BTC",
-        ethereum: "ETH",
-        solana: "SOL",
-      };
-
-      market_data = Object.entries(mapping)
-        .filter(([id]) => data[id])
-        .map(([id, symbol]) => ({
-          symbol,
-          price_usd: data[id].usd,
-          change_24h_pct: parseFloat(data[id].usd_24h_change.toFixed(2)),
-        }));
-    }
-  } catch {
-    // Fall through with empty market_data
-  }
-
-  const result =
-    market_data.length > 0
-      ? market_data
-          .map(
-            (m) =>
-              `${m.symbol} $${m.price_usd.toLocaleString()} (${m.change_24h_pct >= 0 ? "+" : ""}${m.change_24h_pct}% 24h)`
-          )
-          .join(" | ")
-      : "Market data temporarily unavailable";
-
-  return { service_type: "crypto-prices", result, market_data, timestamp, delivered_to };
-}
-
-/**
- * Fetches live Solana network stats via the public RPC.
- */
-async function deliverSolanaStats(delivered_to: string, timestamp: string): Promise<ServiceResult> {
-  const rpcUrl = process.env.SOLANA_RPC_URL || "https://rpc.solanatracker.io/public";
-  let solana_stats: SolanaStats | undefined;
-
-  try {
-    // Fetch slot, epoch, and recent performance samples in parallel
-    const [slotRes, epochRes, perfRes] = await Promise.all([
-      fetch(rpcUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "getSlot" }),
-        signal: AbortSignal.timeout(8000),
-      }),
-      fetch(rpcUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ jsonrpc: "2.0", id: 2, method: "getEpochInfo" }),
-        signal: AbortSignal.timeout(8000),
-      }),
-      fetch(rpcUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          jsonrpc: "2.0",
-          id: 3,
-          method: "getRecentPerformanceSamples",
-          params: [5],
-        }),
-        signal: AbortSignal.timeout(8000),
-      }),
-    ]);
-
-    const [slotData, epochData, perfData] = await Promise.all([
-      slotRes.json() as Promise<{ result: number }>,
-      epochRes.json() as Promise<{ result: { epoch: number; slotIndex: number } }>,
-      perfRes.json() as Promise<{ result: Array<{ numTransactions: number; samplePeriodSecs: number }> }>,
-    ]);
-
-    const slot: number = slotData.result;
-    const epoch: number = epochData.result.epoch;
-
-    // Calculate TPS from recent performance samples
-    let tps = 0;
-    if (perfData.result && perfData.result.length > 0) {
-      const samples = perfData.result;
-      const totalTx = samples.reduce((sum, s) => sum + s.numTransactions, 0);
-      const totalSecs = samples.reduce((sum, s) => sum + s.samplePeriodSecs, 0);
-      tps = totalSecs > 0 ? Math.round(totalTx / totalSecs) : 0;
-    }
-
-    // Fetch validator count separately (can be slow — best-effort)
-    let validator_count = 0;
-    try {
-      const voteRes = await fetch(rpcUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          jsonrpc: "2.0",
-          id: 4,
-          method: "getVoteAccounts",
-          params: [{ commitment: "confirmed" }],
-        }),
-        signal: AbortSignal.timeout(6000),
-      });
-      const voteData = (await voteRes.json()) as { result: { current: unknown[] } };
-      validator_count = voteData.result?.current?.length ?? 0;
-    } catch {
-      // validator count is best-effort
-    }
-
-    solana_stats = { tps, slot, validator_count, epoch };
-  } catch {
-    // Fall through with undefined solana_stats
-  }
-
-  const result = solana_stats
-    ? `TPS: ${solana_stats.tps.toLocaleString()} | Slot: ${solana_stats.slot.toLocaleString()} | Epoch: ${solana_stats.epoch} | Validators: ${solana_stats.validator_count.toLocaleString()}`
-    : "Solana network stats temporarily unavailable";
-
-  return { service_type: "solana-stats", result, solana_stats, timestamp, delivered_to };
-}
-
-/**
- * Fetches top Solana DeFi pool yields from DeFi Llama (free, no auth required).
- * Returns the 8 highest-TVL Solana pools with APY and TVL.
- */
-async function deliverDefiYields(delivered_to: string, timestamp: string): Promise<ServiceResult> {
-  let defi_pools: DefiPool[] = [];
-
-  try {
-    const res = await fetch("https://yields.llama.fi/pools", {
-      headers: { Accept: "application/json" },
-      signal: AbortSignal.timeout(10000),
-    });
-
-    if (res.ok) {
-      const data = (await res.json()) as {
-        data: Array<{
-          chain: string;
-          project: string;
-          symbol: string;
-          apy: number;
-          tvlUsd: number;
-        }>;
-      };
-
-      const solanaPools = data.data
-        .filter((p) => p.chain === "Solana" && p.tvlUsd > 1_000_000)
-        .sort((a, b) => b.tvlUsd - a.tvlUsd)
-        .slice(0, 8);
-
-      defi_pools = solanaPools.map((p) => ({
-        protocol: p.project,
-        symbol: p.symbol,
-        apy: parseFloat(p.apy.toFixed(2)),
-        tvl_usd: p.tvlUsd,
-      }));
-    }
-  } catch {
-    // Fall through with empty defi_pools
-  }
-
-  const result =
-    defi_pools.length > 0
-      ? defi_pools
-          .slice(0, 4)
-          .map((p) => `${p.protocol} ${p.symbol} ${p.apy.toFixed(2)}% APY`)
-          .join(" | ")
-      : "DeFi yield data temporarily unavailable";
-
-  return { service_type: "defi-yields", result, defi_pools, timestamp, delivered_to };
 }

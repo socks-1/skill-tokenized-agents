@@ -51,6 +51,12 @@ type PaymentState =
   | { status: "success"; service: ServiceResult; signature: string }
   | { status: "error"; message: string };
 
+type PreviewState =
+  | { status: "idle" }
+  | { status: "loading" }
+  | { status: "ready"; service: ServiceResult }
+  | { status: "error"; message: string };
+
 interface HealthStatus {
   ready: boolean;
   issues: string[];
@@ -390,6 +396,94 @@ async function awaitConfirmation(
   );
 }
 
+function ServiceResultTable({ service }: { service: ServiceResult }) {
+  if (service.service_type === "crypto-prices" && service.market_data && service.market_data.length > 0) {
+    return (
+      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 15 }}>
+        <thead>
+          <tr style={{ borderBottom: "1px solid #eee" }}>
+            <th style={{ textAlign: "left", padding: "4px 8px", color: "#777", fontWeight: 500, fontSize: 12 }}>Asset</th>
+            <th style={{ textAlign: "right", padding: "4px 8px", color: "#777", fontWeight: 500, fontSize: 12 }}>Price (USD)</th>
+            <th style={{ textAlign: "right", padding: "4px 8px", color: "#777", fontWeight: 500, fontSize: 12 }}>24h</th>
+          </tr>
+        </thead>
+        <tbody>
+          {service.market_data.map((m) => (
+            <tr key={m.symbol} style={{ borderBottom: "1px solid #f0f0f0" }}>
+              <td style={{ padding: "8px 8px", fontWeight: 700 }}>{m.symbol}</td>
+              <td style={{ padding: "8px 8px", textAlign: "right" }}>${m.price_usd.toLocaleString()}</td>
+              <td style={{
+                padding: "8px 8px",
+                textAlign: "right",
+                color: m.change_24h_pct >= 0 ? "#1a7a3e" : "#c00",
+                fontWeight: 600,
+              }}>
+                {m.change_24h_pct >= 0 ? "+" : ""}{m.change_24h_pct}%
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    );
+  }
+
+  if (service.service_type === "solana-stats" && service.solana_stats) {
+    return (
+      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 15 }}>
+        <tbody>
+          {[
+            { label: "Transactions / sec (TPS)", value: service.solana_stats.tps.toLocaleString() },
+            { label: "Current Slot", value: service.solana_stats.slot.toLocaleString() },
+            { label: "Current Epoch", value: service.solana_stats.epoch.toLocaleString() },
+            { label: "Active Validators", value: service.solana_stats.validator_count.toLocaleString() },
+          ].map(({ label, value }) => (
+            <tr key={label} style={{ borderBottom: "1px solid #f0f0f0" }}>
+              <td style={{ padding: "8px 8px", color: "#666", fontSize: 13 }}>{label}</td>
+              <td style={{ padding: "8px 8px", textAlign: "right", fontWeight: 700 }}>{value}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    );
+  }
+
+  if (service.service_type === "defi-yields" && service.defi_pools && service.defi_pools.length > 0) {
+    return (
+      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+        <thead>
+          <tr style={{ borderBottom: "1px solid #eee" }}>
+            <th style={{ textAlign: "left", padding: "4px 8px", color: "#777", fontWeight: 500, fontSize: 12 }}>Protocol</th>
+            <th style={{ textAlign: "left", padding: "4px 8px", color: "#777", fontWeight: 500, fontSize: 12 }}>Token</th>
+            <th style={{ textAlign: "right", padding: "4px 8px", color: "#777", fontWeight: 500, fontSize: 12 }}>APY</th>
+            <th style={{ textAlign: "right", padding: "4px 8px", color: "#777", fontWeight: 500, fontSize: 12 }}>TVL</th>
+          </tr>
+        </thead>
+        <tbody>
+          {service.defi_pools.map((p) => (
+            <tr key={`${p.protocol}-${p.symbol}`} style={{ borderBottom: "1px solid #f0f0f0" }}>
+              <td style={{ padding: "7px 8px", fontSize: 12, color: "#444" }}>{p.protocol}</td>
+              <td style={{ padding: "7px 8px", fontWeight: 700, fontSize: 13 }}>{p.symbol}</td>
+              <td style={{
+                padding: "7px 8px",
+                textAlign: "right",
+                color: p.apy > 0 ? "#1a7a3e" : "#999",
+                fontWeight: 600,
+              }}>
+                {p.apy > 0 ? `${p.apy.toFixed(2)}%` : "—"}
+              </td>
+              <td style={{ padding: "7px 8px", textAlign: "right", color: "#555", fontSize: 12 }}>
+                ${(p.tvl_usd / 1_000_000).toFixed(0)}M
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    );
+  }
+
+  return <p style={{ color: "#555", fontSize: 14 }}>{service.result}</p>;
+}
+
 export default function PaymentFlow() {
   const { publicKey, signTransaction, connected } = useWallet();
   const { connection } = useConnection();
@@ -399,6 +493,7 @@ export default function PaymentFlow() {
   const [isTourRunning, setIsTourRunning] = useState(false);
   const [selectedService, setSelectedService] = useState<ServiceType>("crypto-prices");
   const [showCode, setShowCode] = useState(false);
+  const [preview, setPreview] = useState<PreviewState>({ status: "idle" });
 
   // Fetch health status on mount
   useEffect(() => {
@@ -490,6 +585,25 @@ export default function PaymentFlow() {
     setIsTourRunning(false);
   };
 
+  const fetchLivePreview = async () => {
+    if (preview.status === "loading") return;
+    setPreview({ status: "loading" });
+    try {
+      const res = await fetch(`/api/preview?service=${selectedService}`);
+      if (!res.ok) {
+        const { error } = await res.json();
+        throw new Error(error || "Preview fetch failed");
+      }
+      const data = await res.json() as ServiceResult;
+      setPreview({ status: "ready", service: data });
+    } catch (err) {
+      setPreview({
+        status: "error",
+        message: err instanceof Error ? err.message : "Unknown error",
+      });
+    }
+  };
+
   const statusLabel: Record<string, string> = {
     idle: "Pay 1 USDC",
     building: "Building transaction...",
@@ -539,6 +653,7 @@ export default function PaymentFlow() {
                 if (!isTourRunning && !isLoading) {
                   setSelectedService(opt.id);
                   if (state.status !== "idle") resetTour();
+                  setPreview({ status: "idle" });
                 }
               }}
             >
@@ -632,6 +747,23 @@ export default function PaymentFlow() {
           >
             {showCode ? "{ } Hide code" : "{ } Show code"}
           </button>
+          <button
+            onClick={fetchLivePreview}
+            disabled={preview.status === "loading"}
+            title="Fetch live data from the same sources used post-payment — no wallet needed"
+            style={{
+              padding: "7px 14px",
+              background: preview.status === "ready" ? "#d4edda" : "white",
+              color: preview.status === "ready" ? "#155724" : preview.status === "loading" ? "#aaa" : "#1a7a3e",
+              border: `1px solid ${preview.status === "ready" ? "#a8d5b5" : preview.status === "loading" ? "#ddd" : "#a8d5b5"}`,
+              borderRadius: 5,
+              fontSize: 13,
+              cursor: preview.status === "loading" ? "not-allowed" : "pointer",
+              fontWeight: 600,
+            }}
+          >
+            {preview.status === "loading" ? "Fetching..." : preview.status === "ready" ? "✓ Live data" : "⚡ Fetch live data"}
+          </button>
         </div>
 
         {/* Tour progress indicator */}
@@ -659,6 +791,35 @@ export default function PaymentFlow() {
 
         {/* Developer code panel */}
         {showCode && <CodePanel status={state.status} />}
+
+        {/* Live data preview result */}
+        {preview.status === "error" && (
+          <div style={{ marginTop: 12, padding: "8px 12px", background: "#fff0f0", borderRadius: 6, color: "#c00", fontSize: 12 }}>
+            Preview error: {preview.message}
+          </div>
+        )}
+        {preview.status === "ready" && (
+          <div style={{ marginTop: 12, borderRadius: 6, overflow: "hidden", border: "1px solid #a8d5b5" }}>
+            <div style={{
+              background: "#d4edda",
+              padding: "6px 12px",
+              color: "#155724",
+              fontWeight: 600,
+              fontSize: 12,
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}>
+              <span>Live data sample — {selectedOption?.label}</span>
+              <span style={{ fontSize: 10, fontWeight: 400, background: "#a8d5b5", padding: "2px 7px", borderRadius: 4 }}>
+                Free preview · {new Date(preview.service.timestamp).toLocaleTimeString()}
+              </span>
+            </div>
+            <div style={{ background: "#f9fffe", padding: 12 }}>
+              <ServiceResultTable service={preview.service} />
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Live payment section */}
@@ -730,83 +891,7 @@ export default function PaymentFlow() {
             )}
           </div>
           <div style={{ background: "#f9fffe", padding: 14 }}>
-            {state.service.service_type === "crypto-prices" && state.service.market_data && state.service.market_data.length > 0 ? (
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 15 }}>
-                <thead>
-                  <tr style={{ borderBottom: "1px solid #eee" }}>
-                    <th style={{ textAlign: "left", padding: "4px 8px", color: "#777", fontWeight: 500, fontSize: 12 }}>Asset</th>
-                    <th style={{ textAlign: "right", padding: "4px 8px", color: "#777", fontWeight: 500, fontSize: 12 }}>Price (USD)</th>
-                    <th style={{ textAlign: "right", padding: "4px 8px", color: "#777", fontWeight: 500, fontSize: 12 }}>24h</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {state.service.market_data.map((m) => (
-                    <tr key={m.symbol} style={{ borderBottom: "1px solid #f0f0f0" }}>
-                      <td style={{ padding: "8px 8px", fontWeight: 700 }}>{m.symbol}</td>
-                      <td style={{ padding: "8px 8px", textAlign: "right" }}>
-                        ${m.price_usd.toLocaleString()}
-                      </td>
-                      <td style={{
-                        padding: "8px 8px",
-                        textAlign: "right",
-                        color: m.change_24h_pct >= 0 ? "#1a7a3e" : "#c00",
-                        fontWeight: 600,
-                      }}>
-                        {m.change_24h_pct >= 0 ? "+" : ""}{m.change_24h_pct}%
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            ) : state.service.service_type === "solana-stats" && state.service.solana_stats ? (
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 15 }}>
-                <tbody>
-                  {[
-                    { label: "Transactions / sec (TPS)", value: state.service.solana_stats.tps.toLocaleString() },
-                    { label: "Current Slot", value: state.service.solana_stats.slot.toLocaleString() },
-                    { label: "Current Epoch", value: state.service.solana_stats.epoch.toLocaleString() },
-                    { label: "Active Validators", value: state.service.solana_stats.validator_count.toLocaleString() },
-                  ].map(({ label, value }) => (
-                    <tr key={label} style={{ borderBottom: "1px solid #f0f0f0" }}>
-                      <td style={{ padding: "8px 8px", color: "#666", fontSize: 13 }}>{label}</td>
-                      <td style={{ padding: "8px 8px", textAlign: "right", fontWeight: 700 }}>{value}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            ) : state.service.service_type === "defi-yields" && state.service.defi_pools && state.service.defi_pools.length > 0 ? (
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
-                <thead>
-                  <tr style={{ borderBottom: "1px solid #eee" }}>
-                    <th style={{ textAlign: "left", padding: "4px 8px", color: "#777", fontWeight: 500, fontSize: 12 }}>Protocol</th>
-                    <th style={{ textAlign: "left", padding: "4px 8px", color: "#777", fontWeight: 500, fontSize: 12 }}>Token</th>
-                    <th style={{ textAlign: "right", padding: "4px 8px", color: "#777", fontWeight: 500, fontSize: 12 }}>APY</th>
-                    <th style={{ textAlign: "right", padding: "4px 8px", color: "#777", fontWeight: 500, fontSize: 12 }}>TVL</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {state.service.defi_pools.map((p) => (
-                    <tr key={`${p.protocol}-${p.symbol}`} style={{ borderBottom: "1px solid #f0f0f0" }}>
-                      <td style={{ padding: "7px 8px", fontSize: 12, color: "#444" }}>{p.protocol}</td>
-                      <td style={{ padding: "7px 8px", fontWeight: 700, fontSize: 13 }}>{p.symbol}</td>
-                      <td style={{
-                        padding: "7px 8px",
-                        textAlign: "right",
-                        color: p.apy > 0 ? "#1a7a3e" : "#999",
-                        fontWeight: 600,
-                      }}>
-                        {p.apy > 0 ? `${p.apy.toFixed(2)}%` : "—"}
-                      </td>
-                      <td style={{ padding: "7px 8px", textAlign: "right", color: "#555", fontSize: 12 }}>
-                        ${(p.tvl_usd / 1_000_000).toFixed(0)}M
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            ) : (
-              <p style={{ color: "#555", fontSize: 14 }}>{state.service.result}</p>
-            )}
+            <ServiceResultTable service={state.service} />
             <p style={{ fontSize: 11, color: "#aaa", marginTop: 10, marginBottom: 0 }}>
               Delivered to {state.service.delivered_to} &middot; {new Date(state.service.timestamp).toLocaleTimeString()}
             </p>
