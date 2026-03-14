@@ -219,9 +219,29 @@ return NextResponse.json({
   },
 };
 
+const SNIPPET_KEYS = ["idle", "building", "signing", "confirming", "verifying", "success"] as const;
+const TAB_LABELS: Record<string, string> = {
+  idle: "Setup",
+  building: "Build",
+  signing: "Sign",
+  confirming: "Confirm",
+  verifying: "Verify",
+  success: "Complete",
+};
+
 function CodePanel({ status }: { status: string }) {
-  const snippet = CODE_SNIPPETS[status] ?? CODE_SNIPPETS.idle;
+  const [activeTab, setActiveTab] = useState<string>(status in CODE_SNIPPETS ? status : "idle");
   const [copied, setCopied] = useState(false);
+
+  // Follow the tour automatically when it advances
+  useEffect(() => {
+    if (status in CODE_SNIPPETS) {
+      setActiveTab(status);
+      setCopied(false);
+    }
+  }, [status]);
+
+  const snippet = CODE_SNIPPETS[activeTab] ?? CODE_SNIPPETS.idle;
 
   const handleCopy = () => {
     navigator.clipboard.writeText(snippet.code).then(() => {
@@ -232,6 +252,31 @@ function CodePanel({ status }: { status: string }) {
 
   return (
     <div style={{ marginTop: 12, borderRadius: 6, overflow: "hidden", fontSize: 12, border: "1px solid #1e2a3a" }}>
+      {/* Step tabs */}
+      <div style={{ display: "flex", background: "#0a1018", borderBottom: "1px solid #1e2a3a", overflowX: "auto" }}>
+        {SNIPPET_KEYS.map((key) => (
+          <button
+            key={key}
+            onClick={() => { setActiveTab(key); setCopied(false); }}
+            style={{
+              background: "none",
+              border: "none",
+              borderBottom: activeTab === key ? "2px solid #7eb8f7" : "2px solid transparent",
+              color: activeTab === key ? "#7eb8f7" : "#4a6080",
+              cursor: "pointer",
+              fontSize: 10,
+              fontWeight: activeTab === key ? 700 : 400,
+              padding: "6px 12px",
+              whiteSpace: "nowrap",
+              transition: "color 0.15s",
+              fontFamily: "inherit",
+            }}
+          >
+            {TAB_LABELS[key]}
+          </button>
+        ))}
+      </div>
+      {/* Title + copy */}
       <div style={{
         background: "#1e2a3a",
         padding: "6px 12px",
