@@ -10,7 +10,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { deliverService, type ServiceType } from "@/lib/services";
 
-const VALID_SERVICES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields"];
+const VALID_SERVICES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed"];
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);

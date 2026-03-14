@@ -32,12 +32,25 @@ interface DefiPool {
   tvl_usd: number;
 }
 
+interface FearGreedEntry {
+  date: string;
+  value: number;
+  classification: string;
+}
+
+interface FearGreedData {
+  current_value: number;
+  classification: string;
+  history: FearGreedEntry[];
+}
+
 interface ServiceResult {
-  service_type: "crypto-prices" | "solana-stats" | "defi-yields";
+  service_type: "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed";
   result: string;
   market_data?: MarketData[];
   solana_stats?: SolanaStats;
   defi_pools?: DefiPool[];
+  fear_greed?: FearGreedData;
   timestamp: string;
   delivered_to: string;
 }
@@ -62,7 +75,7 @@ interface HealthStatus {
   issues: string[];
 }
 
-type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields";
+type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed";
 
 const SERVICE_OPTIONS: { id: ServiceType; label: string; description: string; price: string }[] = [
   {
@@ -81,6 +94,12 @@ const SERVICE_OPTIONS: { id: ServiceType; label: string; description: string; pr
     id: "defi-yields",
     label: "Solana DeFi Yields",
     description: "Top Solana protocol APY rates by TVL (via DeFi Llama)",
+    price: "1 USDC",
+  },
+  {
+    id: "fear-greed",
+    label: "Crypto Sentiment",
+    description: "Fear & Greed Index (0–100) with 7-day trend history",
     price: "1 USDC",
   },
 ];
@@ -109,6 +128,20 @@ const MOCK_DEFI_POOLS: DefiPool[] = [
   { protocol: "drift-staked-sol", symbol: "DSOL", apy: 6.50, tvl_usd: 230_700_000 },
   { protocol: "kamino-lend", symbol: "JITOSOL", apy: 0.0, tvl_usd: 215_600_000 },
 ];
+
+const MOCK_FEAR_GREED: FearGreedData = {
+  current_value: 22,
+  classification: "Extreme Fear",
+  history: [
+    { date: "Mar 14", value: 22, classification: "Extreme Fear" },
+    { date: "Mar 13", value: 18, classification: "Extreme Fear" },
+    { date: "Mar 12", value: 25, classification: "Extreme Fear" },
+    { date: "Mar 11", value: 30, classification: "Fear" },
+    { date: "Mar 10", value: 35, classification: "Fear" },
+    { date: "Mar 9",  value: 28, classification: "Fear" },
+    { date: "Mar 8",  value: 20, classification: "Extreme Fear" },
+  ],
+};
 
 const MOCK_SIGNATURE =
   "5KtPn3...xR7qW2 (simulated — no real transaction in tour mode)";
@@ -347,6 +380,14 @@ function buildTourSteps(serviceType: ServiceType): PaymentState[] {
       timestamp: new Date().toISOString(),
       delivered_to: "Demo1234...abcd",
     };
+  } else if (serviceType === "fear-greed") {
+    mockService = {
+      service_type: "fear-greed",
+      result: "Fear & Greed: 22/100 (Extreme Fear)",
+      fear_greed: MOCK_FEAR_GREED,
+      timestamp: new Date().toISOString(),
+      delivered_to: "Demo1234...abcd",
+    };
   } else {
     mockService = {
       service_type: "crypto-prices",
@@ -478,6 +519,83 @@ function ServiceResultTable({ service }: { service: ServiceResult }) {
           ))}
         </tbody>
       </table>
+    );
+  }
+
+  if (service.service_type === "fear-greed" && service.fear_greed) {
+    const fg = service.fear_greed;
+    const score = fg.current_value;
+    // Color thresholds: 0-24 Extreme Fear, 25-44 Fear, 45-55 Neutral, 56-74 Greed, 75-100 Extreme Greed
+    const scoreColor =
+      score <= 24 ? "#c0392b" :
+      score <= 44 ? "#e67e22" :
+      score <= 55 ? "#f1c40f" :
+      score <= 74 ? "#27ae60" :
+                    "#1a8a4a";
+    const bgColor =
+      score <= 24 ? "#fdf0ee" :
+      score <= 44 ? "#fef6ed" :
+      score <= 55 ? "#fefde7" :
+      score <= 74 ? "#edfaf1" :
+                    "#e8f8ef";
+
+    return (
+      <div>
+        {/* Big score display */}
+        <div style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 16,
+          padding: "12px 14px",
+          background: bgColor,
+          borderRadius: 8,
+          marginBottom: 12,
+        }}>
+          <div style={{
+            fontSize: 48,
+            fontWeight: 800,
+            color: scoreColor,
+            lineHeight: 1,
+            minWidth: 64,
+            textAlign: "center",
+          }}>
+            {score}
+          </div>
+          <div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: scoreColor }}>{fg.classification}</div>
+            <div style={{ fontSize: 12, color: "#888", marginTop: 2 }}>out of 100</div>
+          </div>
+        </div>
+        {/* 7-day history table */}
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+          <thead>
+            <tr style={{ borderBottom: "1px solid #eee" }}>
+              <th style={{ textAlign: "left", padding: "4px 8px", color: "#777", fontWeight: 500, fontSize: 11 }}>Date</th>
+              <th style={{ textAlign: "right", padding: "4px 8px", color: "#777", fontWeight: 500, fontSize: 11 }}>Score</th>
+              <th style={{ textAlign: "left", padding: "4px 8px", color: "#777", fontWeight: 500, fontSize: 11 }}>Sentiment</th>
+            </tr>
+          </thead>
+          <tbody>
+            {fg.history.map((entry, i) => {
+              const entryColor =
+                entry.value <= 24 ? "#c0392b" :
+                entry.value <= 44 ? "#e67e22" :
+                entry.value <= 55 ? "#b8960c" :
+                entry.value <= 74 ? "#27ae60" :
+                                    "#1a8a4a";
+              return (
+                <tr key={entry.date} style={{ borderBottom: "1px solid #f0f0f0", background: i === 0 ? "#fafafa" : "transparent" }}>
+                  <td style={{ padding: "6px 8px", color: i === 0 ? "#222" : "#666", fontWeight: i === 0 ? 600 : 400 }}>
+                    {i === 0 ? "Today" : entry.date}
+                  </td>
+                  <td style={{ padding: "6px 8px", textAlign: "right", fontWeight: 700, color: entryColor }}>{entry.value}</td>
+                  <td style={{ padding: "6px 8px", color: entryColor, fontSize: 12 }}>{entry.classification}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     );
   }
 
