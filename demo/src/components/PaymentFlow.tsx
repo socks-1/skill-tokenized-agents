@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { Transaction } from "@solana/web3.js";
@@ -494,6 +494,9 @@ export default function PaymentFlow() {
   const [selectedService, setSelectedService] = useState<ServiceType>("crypto-prices");
   const [showCode, setShowCode] = useState(false);
   const [preview, setPreview] = useState<PreviewState>({ status: "idle" });
+  const [countdown, setCountdown] = useState<number | null>(null);
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const countdownTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Fetch health status on mount
   useEffect(() => {
@@ -502,6 +505,45 @@ export default function PaymentFlow() {
       .then((data: HealthStatus) => setHealth(data))
       .catch(() => setHealth(null));
   }, []);
+
+  // Reset preview when service selection changes
+  useEffect(() => {
+    if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+    if (countdownTimerRef.current) clearInterval(countdownTimerRef.current);
+    setCountdown(null);
+    setPreview({ status: "idle" });
+  }, [selectedService]);
+
+  // Auto-refresh live preview every 30s when data is shown
+  useEffect(() => {
+    if (preview.status !== "ready") {
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+      if (countdownTimerRef.current) clearInterval(countdownTimerRef.current);
+      setCountdown(null);
+      return;
+    }
+
+    const REFRESH_SEC = 30;
+    setCountdown(REFRESH_SEC);
+
+    countdownTimerRef.current = setInterval(() => {
+      setCountdown((prev) => (prev !== null && prev > 1 ? prev - 1 : null));
+    }, 1000);
+
+    refreshTimerRef.current = setTimeout(() => {
+      if (countdownTimerRef.current) clearInterval(countdownTimerRef.current);
+      setPreview({ status: "loading" });
+      fetch(`/api/preview?service=${selectedService}`)
+        .then((r) => (r.ok ? r.json() : r.json().then((d: { error?: string }) => Promise.reject(new Error(d.error || "Preview fetch failed")))))
+        .then((data: ServiceResult) => setPreview({ status: "ready", service: data }))
+        .catch((err: Error) => setPreview({ status: "error", message: err.message }));
+    }, REFRESH_SEC * 1000);
+
+    return () => {
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+      if (countdownTimerRef.current) clearInterval(countdownTimerRef.current);
+    };
+  }, [preview.status, selectedService]);
 
   const handlePay = async () => {
     if (!publicKey || !signTransaction) return;
@@ -813,6 +855,7 @@ export default function PaymentFlow() {
               <span>Live data sample — {selectedOption?.label}</span>
               <span style={{ fontSize: 10, fontWeight: 400, background: "#a8d5b5", padding: "2px 7px", borderRadius: 4 }}>
                 Free preview · {new Date(preview.service.timestamp).toLocaleTimeString()}
+                {countdown !== null ? ` · refreshes in ${countdown}s` : ""}
               </span>
             </div>
             <div style={{ background: "#f9fffe", padding: 12 }}>
