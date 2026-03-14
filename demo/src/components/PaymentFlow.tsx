@@ -67,8 +67,22 @@ interface AiModelsData {
   models: AiModel[];
 }
 
+interface TrendingCoin {
+  id: string;
+  name: string;
+  symbol: string;
+  market_cap_rank?: number;
+  price_usd: number;
+  change_24h_pct: number;
+  market_cap?: string;
+}
+
+interface TrendingData {
+  coins: TrendingCoin[];
+}
+
 interface ServiceResult {
-  service_type: "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models";
+  service_type: "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins";
   result: string;
   market_data?: MarketData[];
   solana_stats?: SolanaStats;
@@ -76,6 +90,7 @@ interface ServiceResult {
   fear_greed?: FearGreedData;
   solana_ecosystem?: SolanaEcosystemData;
   ai_models?: AiModelsData;
+  trending?: TrendingData;
   timestamp: string;
   delivered_to: string;
 }
@@ -100,7 +115,7 @@ interface HealthStatus {
   issues: string[];
 }
 
-type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models";
+type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins";
 
 const SERVICE_OPTIONS: { id: ServiceType; label: string; description: string; price: string }[] = [
   {
@@ -137,6 +152,12 @@ const SERVICE_OPTIONS: { id: ServiceType; label: string; description: string; pr
     id: "ai-models",
     label: "Top AI Models",
     description: "Most-liked AI language models on Hugging Face — DeepSeek, Llama, GPT, and more",
+    price: "1 USDC",
+  },
+  {
+    id: "trending-coins",
+    label: "Trending Coins",
+    description: "Top 7 most-searched coins on CoinGecko right now with price and 24h change",
     price: "1 USDC",
   },
 ];
@@ -210,6 +231,18 @@ const MOCK_AI_MODELS: AiModelsData = {
     { id: "meta-llama/Llama-2-7b-chat-hf", displayName: "meta-llama/Llama-2-7b-chat-hf", downloads: 358994, likes: 4723 },
     { id: "openai/gpt-oss-20b", displayName: "openai/gpt-oss-20b", downloads: 7465884, likes: 4455 },
     { id: "google/gemma-2-2b-it", displayName: "google/gemma-2-2b-it", downloads: 1854321, likes: 3891 },
+  ],
+};
+
+const MOCK_TRENDING: TrendingData = {
+  coins: [
+    { id: "neiro-3", name: "Neiro", symbol: "NEIRO", market_cap_rank: 651, price_usd: 0.0000691, change_24h_pct: -1.1, market_cap: "$6.3M" },
+    { id: "pi-network", name: "Pi Network", symbol: "PI", market_cap_rank: 20, price_usd: 0.202, change_24h_pct: -6.6, market_cap: "$1.3B" },
+    { id: "pudgy-penguins", name: "Pudgy Penguins", symbol: "PENGU", market_cap_rank: 95, price_usd: 0.00726, change_24h_pct: 0.03, market_cap: "$477M" },
+    { id: "ethereum", name: "Ethereum", symbol: "ETH", market_cap_rank: 2, price_usd: 2092, change_24h_pct: 0.04, market_cap: "$252B" },
+    { id: "bittensor", name: "Bittensor", symbol: "TAO", market_cap_rank: 34, price_usd: 247, change_24h_pct: 4.2, market_cap: "$1.7B" },
+    { id: "solana", name: "Solana", symbol: "SOL", market_cap_rank: 6, price_usd: 127, change_24h_pct: -1.8, market_cap: "$66B" },
+    { id: "dogecoin", name: "Dogecoin", symbol: "DOGE", market_cap_rank: 8, price_usd: 0.157, change_24h_pct: -2.4, market_cap: "$23B" },
   ],
 };
 
@@ -488,6 +521,21 @@ function buildTourSteps(serviceType: ServiceType, liveData?: ServiceResult): Pay
         })
         .join(" | "),
       ai_models: ai,
+      timestamp: new Date().toISOString(),
+      delivered_to: "Demo1234...abcd",
+    };
+  } else if (serviceType === "trending-coins") {
+    const tr = liveData?.trending ?? MOCK_TRENDING;
+    mockService = liveData ?? {
+      service_type: "trending-coins",
+      result: tr.coins
+        .slice(0, 4)
+        .map((c) => {
+          const price = c.price_usd < 0.01 ? `$${c.price_usd.toFixed(6)}` : c.price_usd < 1 ? `$${c.price_usd.toFixed(4)}` : `$${c.price_usd.toLocaleString()}`;
+          return `${c.symbol} ${price} (${c.change_24h_pct >= 0 ? "+" : ""}${c.change_24h_pct}%)`;
+        })
+        .join(" | "),
+      trending: tr,
       timestamp: new Date().toISOString(),
       delivered_to: "Demo1234...abcd",
     };
@@ -778,6 +826,51 @@ function ServiceResultTable({ service }: { service: ServiceResult }) {
                     : m.downloads > 1_000
                     ? `${(m.downloads / 1_000).toFixed(0)}K`
                     : m.downloads.toLocaleString()}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    );
+  }
+
+  if (service.service_type === "trending-coins" && service.trending && service.trending.coins.length > 0) {
+    return (
+      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+        <thead>
+          <tr style={{ borderBottom: "1px solid #eee" }}>
+            <th style={{ textAlign: "left", padding: "4px 8px", color: "#777", fontWeight: 500, fontSize: 12 }}>#</th>
+            <th style={{ textAlign: "left", padding: "4px 8px", color: "#777", fontWeight: 500, fontSize: 12 }}>Coin</th>
+            <th style={{ textAlign: "right", padding: "4px 8px", color: "#777", fontWeight: 500, fontSize: 12 }}>Price</th>
+            <th style={{ textAlign: "right", padding: "4px 8px", color: "#777", fontWeight: 500, fontSize: 12 }}>24h</th>
+            <th style={{ textAlign: "right", padding: "4px 8px", color: "#777", fontWeight: 500, fontSize: 12 }}>Mkt Cap</th>
+          </tr>
+        </thead>
+        <tbody>
+          {service.trending.coins.map((c, i) => {
+            const price =
+              c.price_usd < 0.0001
+                ? `$${c.price_usd.toFixed(8)}`
+                : c.price_usd < 0.01
+                ? `$${c.price_usd.toFixed(6)}`
+                : c.price_usd < 1
+                ? `$${c.price_usd.toFixed(4)}`
+                : `$${c.price_usd.toLocaleString()}`;
+            const changeColor = c.change_24h_pct >= 0 ? "#1a7a3e" : "#c0392b";
+            return (
+              <tr key={c.id} style={{ borderBottom: "1px solid #f0f0f0" }}>
+                <td style={{ padding: "7px 8px", color: "#aaa", fontSize: 12 }}>{i + 1}</td>
+                <td style={{ padding: "7px 8px" }}>
+                  <span style={{ fontWeight: 700, fontSize: 13 }}>{c.symbol}</span>
+                  <span style={{ color: "#888", fontSize: 11, marginLeft: 5 }}>{c.name}</span>
+                </td>
+                <td style={{ padding: "7px 8px", textAlign: "right", fontWeight: 600 }}>{price}</td>
+                <td style={{ padding: "7px 8px", textAlign: "right", fontWeight: 600, color: changeColor }}>
+                  {c.change_24h_pct >= 0 ? "+" : ""}{c.change_24h_pct}%
+                </td>
+                <td style={{ padding: "7px 8px", textAlign: "right", color: "#666", fontSize: 12 }}>
+                  {c.market_cap ?? (c.market_cap_rank ? `#${c.market_cap_rank}` : "—")}
                 </td>
               </tr>
             );

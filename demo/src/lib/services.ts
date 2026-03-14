@@ -3,7 +3,7 @@
  * All functions are read-only calls to public APIs — no auth required.
  */
 
-export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models";
+export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins";
 
 export interface MarketData {
   symbol: string;
@@ -60,6 +60,20 @@ export interface AiModelsData {
   models: AiModel[];
 }
 
+export interface TrendingCoin {
+  id: string;
+  name: string;
+  symbol: string;
+  market_cap_rank?: number;
+  price_usd: number;
+  change_24h_pct: number;
+  market_cap?: string;
+}
+
+export interface TrendingData {
+  coins: TrendingCoin[];
+}
+
 export interface ServiceResult {
   service_type: ServiceType;
   result: string;
@@ -69,6 +83,7 @@ export interface ServiceResult {
   fear_greed?: FearGreedData;
   solana_ecosystem?: SolanaEcosystemData;
   ai_models?: AiModelsData;
+  trending?: TrendingData;
   timestamp: string;
   delivered_to: string;
 }
@@ -432,6 +447,78 @@ export async function deliverAiModels(delivered_to: string, timestamp: string): 
   return { service_type: "ai-models", result, ai_models, timestamp, delivered_to };
 }
 
+/**
+ * Fetches the top 7 trending coins from CoinGecko's trending search endpoint.
+ * These are the coins with the most searches on CoinGecko in the last 24 hours.
+ * Free public API, no auth required.
+ */
+export async function deliverTrending(delivered_to: string, timestamp: string): Promise<ServiceResult> {
+  let trending: TrendingData | undefined;
+
+  try {
+    const res = await fetch("https://api.coingecko.com/api/v3/search/trending", {
+      headers: { Accept: "application/json" },
+      signal: AbortSignal.timeout(8000),
+    });
+
+    if (res.ok) {
+      const data = (await res.json()) as {
+        coins: Array<{
+          item: {
+            id: string;
+            name: string;
+            symbol: string;
+            market_cap_rank?: number;
+            data: {
+              price: number;
+              price_change_percentage_24h?: { usd?: number };
+              market_cap?: string;
+            };
+          };
+        }>;
+      };
+
+      const coins: TrendingCoin[] = data.coins
+        .slice(0, 7)
+        .map((c) => ({
+          id: c.item.id,
+          name: c.item.name,
+          symbol: c.item.symbol,
+          market_cap_rank: c.item.market_cap_rank,
+          price_usd: c.item.data?.price ?? 0,
+          change_24h_pct: parseFloat(
+            (c.item.data?.price_change_percentage_24h?.usd ?? 0).toFixed(2)
+          ),
+          market_cap: c.item.data?.market_cap,
+        }));
+
+      if (coins.length > 0) {
+        trending = { coins };
+      }
+    }
+  } catch {
+    // Fall through with undefined trending
+  }
+
+  const result =
+    trending && trending.coins.length > 0
+      ? trending.coins
+          .slice(0, 4)
+          .map((c) => {
+            const price =
+              c.price_usd < 0.01
+                ? `$${c.price_usd.toFixed(6)}`
+                : c.price_usd < 1
+                ? `$${c.price_usd.toFixed(4)}`
+                : `$${c.price_usd.toLocaleString()}`;
+            return `${c.symbol} ${price} (${c.change_24h_pct >= 0 ? "+" : ""}${c.change_24h_pct}%)`;
+          })
+          .join(" | ")
+      : "Trending coin data temporarily unavailable";
+
+  return { service_type: "trending-coins", result, trending, timestamp, delivered_to };
+}
+
 export async function deliverService(delivered_to: string, serviceType: ServiceType): Promise<ServiceResult> {
   const timestamp = new Date().toISOString();
   if (serviceType === "solana-stats") return deliverSolanaStats(delivered_to, timestamp);
@@ -439,5 +526,6 @@ export async function deliverService(delivered_to: string, serviceType: ServiceT
   if (serviceType === "fear-greed") return deliverFearGreed(delivered_to, timestamp);
   if (serviceType === "solana-ecosystem") return deliverSolanaEcosystem(delivered_to, timestamp);
   if (serviceType === "ai-models") return deliverAiModels(delivered_to, timestamp);
+  if (serviceType === "trending-coins") return deliverTrending(delivered_to, timestamp);
   return deliverCryptoPrices(delivered_to, timestamp);
 }
