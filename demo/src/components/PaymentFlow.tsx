@@ -221,6 +221,15 @@ return NextResponse.json({
 
 function CodePanel({ status }: { status: string }) {
   const snippet = CODE_SNIPPETS[status] ?? CODE_SNIPPETS.idle;
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(snippet.code).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+
   return (
     <div style={{ marginTop: 12, borderRadius: 6, overflow: "hidden", fontSize: 12, border: "1px solid #1e2a3a" }}>
       <div style={{
@@ -230,8 +239,27 @@ function CodePanel({ status }: { status: string }) {
         fontWeight: 600,
         fontSize: 11,
         letterSpacing: "0.02em",
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
       }}>
-        {snippet.title}
+        <span>{snippet.title}</span>
+        <button
+          onClick={handleCopy}
+          style={{
+            background: "none",
+            border: "1px solid #2e4060",
+            borderRadius: 4,
+            color: copied ? "#4ade80" : "#7eb8f7",
+            cursor: "pointer",
+            fontSize: 10,
+            padding: "2px 8px",
+            fontFamily: "inherit",
+            transition: "color 0.2s",
+          }}
+        >
+          {copied ? "✓ Copied" : "Copy"}
+        </button>
       </div>
       <pre style={{
         margin: 0,
