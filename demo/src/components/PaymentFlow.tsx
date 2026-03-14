@@ -107,6 +107,149 @@ const MOCK_DEFI_POOLS: DefiPool[] = [
 const MOCK_SIGNATURE =
   "5KtPn3...xR7qW2 (simulated — no real transaction in tour mode)";
 
+// ---------------------------------------------------------------------------
+// Developer code snippets — shown in the "Show code" panel during the tour
+// ---------------------------------------------------------------------------
+const CODE_SNIPPETS: Record<string, { title: string; code: string }> = {
+  idle: {
+    title: "SDK Setup",
+    code: `import { PumpAgent } from "@pump-fun/agent-payments-sdk";
+import { Connection, PublicKey } from "@solana/web3.js";
+
+// Construct the agent once — it needs the mint address
+// from your pump.fun token and a confirmed-commitment RPC.
+const agentMint = new PublicKey(process.env.AGENT_TOKEN_MINT_ADDRESS!);
+const connection = new Connection(
+  process.env.SOLANA_RPC_URL!,
+  "confirmed"
+);
+const agent = new PumpAgent(agentMint, "mainnet", connection);`,
+  },
+  building: {
+    title: "Step 1 — Build Payment Transaction (server)",
+    code: `// Server-side: build the unsigned accept-payment transaction.
+// The server controls invoice params; the client only signs.
+const invoiceParams = {
+  amount: "1000000",           // 1 USDC (6 decimals)
+  memo: String(randomMemo),    // unique per invoice
+  startTime: String(now),
+  endTime:   String(now + 86400),
+};
+
+const instructions = await agent.buildAcceptPaymentInstructions({
+  user:         new PublicKey(userWallet),
+  currencyMint: new PublicKey(process.env.CURRENCY_MINT!),
+  amount:    invoiceParams.amount,
+  memo:      invoiceParams.memo,
+  startTime: invoiceParams.startTime,
+  endTime:   invoiceParams.endTime,
+});
+
+const tx = new Transaction();
+tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
+tx.feePayer = new PublicKey(userWallet);
+tx.add(...instructions);
+
+// Serialize unsigned — the client signs with their wallet
+const base64Tx = tx
+  .serialize({ requireAllSignatures: false })
+  .toString("base64");`,
+  },
+  signing: {
+    title: "Step 2 — Sign & Submit (client)",
+    code: `// Client-side: wallet adapter prompts user to approve the transaction.
+// We NEVER touch the user's private key — the wallet signs.
+const tx = Transaction.from(Buffer.from(base64Tx, "base64"));
+const signedTx = await signTransaction(tx);   // wallet popup
+
+// Submit to the network; returns a signature immediately
+// (not yet confirmed — we wait in the next step).
+const signature = await connection.sendRawTransaction(
+  signedTx.serialize(),
+  { skipPreflight: false, preflightCommitment: "confirmed" }
+);`,
+  },
+  confirming: {
+    title: "Step 3 — Await On-Chain Confirmation (client)",
+    code: `// Wait until Solana validators confirm the transaction.
+// This usually takes 5–30 seconds on mainnet.
+const { blockhash, lastValidBlockHeight } =
+  await connection.getLatestBlockhash("confirmed");
+
+await connection.confirmTransaction(
+  { signature, blockhash, lastValidBlockHeight },
+  "confirmed"
+);
+
+// Transaction is finalized — safe to call the verify endpoint.`,
+  },
+  verifying: {
+    title: "Step 4 — Server-Side Verification (server)",
+    code: `// Server-side: verify the invoice was actually paid on-chain.
+// NEVER trust the client — always check independently.
+const paid = await agent.validateInvoicePayment({
+  user:         new PublicKey(userWallet),
+  currencyMint: new PublicKey(process.env.CURRENCY_MINT!),
+  amount:    Number(invoiceParams.amount),
+  memo:      Number(invoiceParams.memo),
+  startTime: Number(invoiceParams.startTime),
+  endTime:   Number(invoiceParams.endTime),
+});
+
+if (!paid) {
+  // Payment not found on-chain → don't deliver the service
+  return NextResponse.json({ paid: false }, { status: 402 });
+}`,
+  },
+  success: {
+    title: "Complete — Payment Verified ✓",
+    code: `// validateInvoicePayment confirmed the on-chain Invoice ID PDA.
+// Security guarantees:
+//   ● Double-spend protection — PDA is initialized once per invoice.
+//   ● Parameter integrity   — amount, memo, and time window must
+//                             match exactly; no partial matches.
+//   ● No client trust       — server always re-verifies independently.
+//
+// Now safe to deliver gated content and return it to the user.
+return NextResponse.json({
+  paid: true,
+  signature,
+  service: await deliverService(userWallet, serviceType),
+});`,
+  },
+};
+
+function CodePanel({ status }: { status: string }) {
+  const snippet = CODE_SNIPPETS[status] ?? CODE_SNIPPETS.idle;
+  return (
+    <div style={{ marginTop: 12, borderRadius: 6, overflow: "hidden", fontSize: 12, border: "1px solid #1e2a3a" }}>
+      <div style={{
+        background: "#1e2a3a",
+        padding: "6px 12px",
+        color: "#7eb8f7",
+        fontWeight: 600,
+        fontSize: 11,
+        letterSpacing: "0.02em",
+      }}>
+        {snippet.title}
+      </div>
+      <pre style={{
+        margin: 0,
+        padding: "12px 14px",
+        background: "#0d1520",
+        color: "#c8d8e8",
+        overflowX: "auto",
+        lineHeight: 1.6,
+        whiteSpace: "pre-wrap",
+        wordBreak: "break-word",
+        fontFamily: "'SF Mono', 'Fira Code', 'Consolas', monospace",
+      }}>
+        {snippet.code}
+      </pre>
+    </div>
+  );
+}
+
 function buildTourSteps(serviceType: ServiceType): PaymentState[] {
   let mockService: ServiceResult;
   if (serviceType === "solana-stats") {
@@ -182,6 +325,7 @@ export default function PaymentFlow() {
   const [tourStep, setTourStep] = useState<number>(-1);
   const [isTourRunning, setIsTourRunning] = useState(false);
   const [selectedService, setSelectedService] = useState<ServiceType>("crypto-prices");
+  const [showCode, setShowCode] = useState(false);
 
   // Fetch health status on mount
   useEffect(() => {
@@ -367,7 +511,7 @@ export default function PaymentFlow() {
         <p style={{ margin: "4px 0 10px 0", color: "#555" }}>
           No wallet needed — animated walkthrough for <strong>{selectedOption?.label}</strong>.
         </p>
-        <div style={{ display: "flex", gap: 8 }}>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <button
             onClick={runTour}
             disabled={isTourRunning}
@@ -400,6 +544,21 @@ export default function PaymentFlow() {
               Reset
             </button>
           )}
+          <button
+            onClick={() => setShowCode((v) => !v)}
+            style={{
+              padding: "7px 14px",
+              background: showCode ? "#0d1520" : "white",
+              color: showCode ? "#7eb8f7" : "#444",
+              border: showCode ? "1px solid #2244aa" : "1px solid #ccc",
+              borderRadius: 5,
+              fontSize: 13,
+              cursor: "pointer",
+              fontFamily: "'SF Mono', 'Fira Code', monospace",
+            }}
+          >
+            {showCode ? "{ } Hide code" : "{ } Show code"}
+          </button>
         </div>
 
         {/* Tour progress indicator */}
@@ -424,6 +583,9 @@ export default function PaymentFlow() {
             </span>
           </div>
         )}
+
+        {/* Developer code panel */}
+        {showCode && <CodePanel status={state.status} />}
       </div>
 
       {/* Live payment section */}
