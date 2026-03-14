@@ -10,7 +10,7 @@ import { verifyPayment } from "@/lib/pump-agent";
 import type { InvoiceParams } from "@/lib/pump-agent";
 import { deliverService, type ServiceType } from "@/lib/services";
 
-const VALID_SERVICES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed"];
+const VALID_SERVICES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem"];
 
 export async function POST(req: NextRequest) {
   try {

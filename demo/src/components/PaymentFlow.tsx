@@ -44,13 +44,26 @@ interface FearGreedData {
   history: FearGreedEntry[];
 }
 
+interface SolanaToken {
+  symbol: string;
+  name: string;
+  price_usd: number;
+  change_24h_pct: number;
+  market_cap_usd: number;
+}
+
+interface SolanaEcosystemData {
+  tokens: SolanaToken[];
+}
+
 interface ServiceResult {
-  service_type: "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed";
+  service_type: "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem";
   result: string;
   market_data?: MarketData[];
   solana_stats?: SolanaStats;
   defi_pools?: DefiPool[];
   fear_greed?: FearGreedData;
+  solana_ecosystem?: SolanaEcosystemData;
   timestamp: string;
   delivered_to: string;
 }
@@ -75,7 +88,7 @@ interface HealthStatus {
   issues: string[];
 }
 
-type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed";
+type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem";
 
 const SERVICE_OPTIONS: { id: ServiceType; label: string; description: string; price: string }[] = [
   {
@@ -100,6 +113,12 @@ const SERVICE_OPTIONS: { id: ServiceType; label: string; description: string; pr
     id: "fear-greed",
     label: "Crypto Sentiment",
     description: "Fear & Greed Index (0–100) with 7-day trend history",
+    price: "1 USDC",
+  },
+  {
+    id: "solana-ecosystem",
+    label: "Solana Ecosystem Tokens",
+    description: "Live prices for JUP, RAY, JTO, BONK, WIF, PYTH, ORCA with 24h change",
     price: "1 USDC",
   },
 ];
@@ -149,6 +168,18 @@ const MOCK_FEAR_GREED: FearGreedData = {
   current_value: 16,
   classification: "Extreme Fear",
   history: buildMockFearGreedHistory(),
+};
+
+const MOCK_SOLANA_ECOSYSTEM: SolanaEcosystemData = {
+  tokens: [
+    { symbol: "JUP", name: "Jupiter", price_usd: 0.159, change_24h_pct: -4.0, market_cap_usd: 556_000_000 },
+    { symbol: "RAY", name: "Raydium", price_usd: 0.601, change_24h_pct: -1.9, market_cap_usd: 161_000_000 },
+    { symbol: "JTO", name: "Jito", price_usd: 0.278, change_24h_pct: -2.6, market_cap_usd: 125_000_000 },
+    { symbol: "BONK", name: "Bonk", price_usd: 0.00000598, change_24h_pct: -3.4, market_cap_usd: 526_000_000 },
+    { symbol: "WIF", name: "dogwifhat", price_usd: 0.165, change_24h_pct: -2.4, market_cap_usd: 165_000_000 },
+    { symbol: "PYTH", name: "Pyth", price_usd: 0.049, change_24h_pct: 0.7, market_cap_usd: 282_000_000 },
+    { symbol: "ORCA", name: "Orca", price_usd: 0.21, change_24h_pct: -1.6, market_cap_usd: 54_000_000 },
+  ],
 };
 
 const MOCK_SIGNATURE =
@@ -402,6 +433,18 @@ function buildTourSteps(serviceType: ServiceType, liveData?: ServiceResult): Pay
       timestamp: new Date().toISOString(),
       delivered_to: "Demo1234...abcd",
     };
+  } else if (serviceType === "solana-ecosystem") {
+    const eco = liveData?.solana_ecosystem ?? MOCK_SOLANA_ECOSYSTEM;
+    mockService = liveData ?? {
+      service_type: "solana-ecosystem",
+      result: eco.tokens
+        .slice(0, 4)
+        .map((t) => `${t.symbol} $${t.price_usd < 1 ? t.price_usd.toFixed(4) : t.price_usd.toLocaleString()} (${t.change_24h_pct >= 0 ? "+" : ""}${t.change_24h_pct}%)`)
+        .join(" | "),
+      solana_ecosystem: eco,
+      timestamp: new Date().toISOString(),
+      delivered_to: "Demo1234...abcd",
+    };
   } else {
     const md = liveData?.market_data ?? MOCK_MARKET_DATA;
     mockService = liveData ?? {
@@ -613,6 +656,49 @@ function ServiceResultTable({ service }: { service: ServiceResult }) {
           </tbody>
         </table>
       </div>
+    );
+  }
+
+  if (service.service_type === "solana-ecosystem" && service.solana_ecosystem && service.solana_ecosystem.tokens.length > 0) {
+    return (
+      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+        <thead>
+          <tr style={{ borderBottom: "1px solid #eee" }}>
+            <th style={{ textAlign: "left", padding: "4px 8px", color: "#777", fontWeight: 500, fontSize: 12 }}>Token</th>
+            <th style={{ textAlign: "right", padding: "4px 8px", color: "#777", fontWeight: 500, fontSize: 12 }}>Price (USD)</th>
+            <th style={{ textAlign: "right", padding: "4px 8px", color: "#777", fontWeight: 500, fontSize: 12 }}>24h</th>
+            <th style={{ textAlign: "right", padding: "4px 8px", color: "#777", fontWeight: 500, fontSize: 12 }}>Mkt Cap</th>
+          </tr>
+        </thead>
+        <tbody>
+          {service.solana_ecosystem.tokens.map((t) => (
+            <tr key={t.symbol} style={{ borderBottom: "1px solid #f0f0f0" }}>
+              <td style={{ padding: "7px 8px" }}>
+                <span style={{ fontWeight: 700, fontSize: 13 }}>{t.symbol}</span>
+                <span style={{ color: "#888", fontSize: 11, marginLeft: 6 }}>{t.name}</span>
+              </td>
+              <td style={{ padding: "7px 8px", textAlign: "right", fontWeight: 600 }}>
+                ${t.price_usd < 0.01
+                  ? t.price_usd.toFixed(6)
+                  : t.price_usd < 1
+                  ? t.price_usd.toFixed(4)
+                  : t.price_usd.toLocaleString()}
+              </td>
+              <td style={{
+                padding: "7px 8px",
+                textAlign: "right",
+                color: t.change_24h_pct >= 0 ? "#1a7a3e" : "#c00",
+                fontWeight: 600,
+              }}>
+                {t.change_24h_pct >= 0 ? "+" : ""}{t.change_24h_pct}%
+              </td>
+              <td style={{ padding: "7px 8px", textAlign: "right", color: "#666", fontSize: 12 }}>
+                ${(t.market_cap_usd / 1_000_000).toFixed(0)}M
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     );
   }
 

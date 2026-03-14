@@ -3,7 +3,7 @@
  * All functions are read-only calls to public APIs — no auth required.
  */
 
-export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed";
+export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem";
 
 export interface MarketData {
   symbol: string;
@@ -37,6 +37,18 @@ export interface FearGreedData {
   history: FearGreedEntry[];
 }
 
+export interface SolanaToken {
+  symbol: string;
+  name: string;
+  price_usd: number;
+  change_24h_pct: number;
+  market_cap_usd: number;
+}
+
+export interface SolanaEcosystemData {
+  tokens: SolanaToken[];
+}
+
 export interface ServiceResult {
   service_type: ServiceType;
   result: string;
@@ -44,6 +56,7 @@ export interface ServiceResult {
   solana_stats?: SolanaStats;
   defi_pools?: DefiPool[];
   fear_greed?: FearGreedData;
+  solana_ecosystem?: SolanaEcosystemData;
   timestamp: string;
   delivered_to: string;
 }
@@ -283,10 +296,73 @@ export async function deliverFearGreed(delivered_to: string, timestamp: string):
   return { service_type: "fear-greed", result, fear_greed, timestamp, delivered_to };
 }
 
+/**
+ * Fetches live prices for top Solana ecosystem tokens (JUP, RAY, JTO, BONK, WIF, PYTH, ORCA)
+ * from CoinGecko's free tier — includes market cap for ranking context.
+ */
+export async function deliverSolanaEcosystem(delivered_to: string, timestamp: string): Promise<ServiceResult> {
+  const TOKEN_MAP: Array<{ id: string; symbol: string; name: string }> = [
+    { id: "jupiter-exchange-solana", symbol: "JUP", name: "Jupiter" },
+    { id: "raydium", symbol: "RAY", name: "Raydium" },
+    { id: "jito-governance-token", symbol: "JTO", name: "Jito" },
+    { id: "bonk", symbol: "BONK", name: "Bonk" },
+    { id: "dogwifcoin", symbol: "WIF", name: "dogwifhat" },
+    { id: "pyth-network", symbol: "PYTH", name: "Pyth" },
+    { id: "orca", symbol: "ORCA", name: "Orca" },
+  ];
+
+  const ids = TOKEN_MAP.map((t) => t.id).join(",");
+  const url =
+    `https://api.coingecko.com/api/v3/simple/price` +
+    `?ids=${ids}&vs_currencies=usd&include_24hr_change=true&include_market_cap=true`;
+
+  let solana_ecosystem: SolanaEcosystemData | undefined;
+
+  try {
+    const res = await fetch(url, {
+      headers: { Accept: "application/json" },
+      signal: AbortSignal.timeout(8000),
+    });
+
+    if (res.ok) {
+      const data = (await res.json()) as Record<
+        string,
+        { usd: number; usd_24h_change: number; usd_market_cap: number }
+      >;
+
+      const tokens: SolanaToken[] = TOKEN_MAP
+        .filter((t) => data[t.id])
+        .map((t) => ({
+          symbol: t.symbol,
+          name: t.name,
+          price_usd: data[t.id].usd,
+          change_24h_pct: parseFloat(data[t.id].usd_24h_change.toFixed(2)),
+          market_cap_usd: data[t.id].usd_market_cap,
+        }));
+
+      if (tokens.length > 0) {
+        solana_ecosystem = { tokens };
+      }
+    }
+  } catch {
+    // Fall through with undefined solana_ecosystem
+  }
+
+  const result = solana_ecosystem && solana_ecosystem.tokens.length > 0
+    ? solana_ecosystem.tokens
+        .slice(0, 4)
+        .map((t) => `${t.symbol} $${t.price_usd < 1 ? t.price_usd.toFixed(4) : t.price_usd.toLocaleString()} (${t.change_24h_pct >= 0 ? "+" : ""}${t.change_24h_pct}%)`)
+        .join(" | ")
+    : "Solana ecosystem token data temporarily unavailable";
+
+  return { service_type: "solana-ecosystem", result, solana_ecosystem, timestamp, delivered_to };
+}
+
 export async function deliverService(delivered_to: string, serviceType: ServiceType): Promise<ServiceResult> {
   const timestamp = new Date().toISOString();
   if (serviceType === "solana-stats") return deliverSolanaStats(delivered_to, timestamp);
   if (serviceType === "defi-yields") return deliverDefiYields(delivered_to, timestamp);
   if (serviceType === "fear-greed") return deliverFearGreed(delivered_to, timestamp);
+  if (serviceType === "solana-ecosystem") return deliverSolanaEcosystem(delivered_to, timestamp);
   return deliverCryptoPrices(delivered_to, timestamp);
 }
