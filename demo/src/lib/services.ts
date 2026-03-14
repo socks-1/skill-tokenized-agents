@@ -3,7 +3,7 @@
  * All functions are read-only calls to public APIs — no auth required.
  */
 
-export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem";
+export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models";
 
 export interface MarketData {
   symbol: string;
@@ -49,6 +49,17 @@ export interface SolanaEcosystemData {
   tokens: SolanaToken[];
 }
 
+export interface AiModel {
+  id: string;
+  displayName: string;
+  downloads: number;
+  likes: number;
+}
+
+export interface AiModelsData {
+  models: AiModel[];
+}
+
 export interface ServiceResult {
   service_type: ServiceType;
   result: string;
@@ -57,6 +68,7 @@ export interface ServiceResult {
   defi_pools?: DefiPool[];
   fear_greed?: FearGreedData;
   solana_ecosystem?: SolanaEcosystemData;
+  ai_models?: AiModelsData;
   timestamp: string;
   delivered_to: string;
 }
@@ -358,11 +370,74 @@ export async function deliverSolanaEcosystem(delivered_to: string, timestamp: st
   return { service_type: "solana-ecosystem", result, solana_ecosystem, timestamp, delivered_to };
 }
 
+/**
+ * Fetches the top AI language models from Hugging Face by community likes.
+ * Filters to text-generation models — reflects what the AI community values most.
+ * Free public API, no auth required.
+ */
+export async function deliverAiModels(delivered_to: string, timestamp: string): Promise<ServiceResult> {
+  const url =
+    "https://huggingface.co/api/models" +
+    "?sort=likes&direction=-1&limit=8&pipeline_tag=text-generation";
+
+  let ai_models: AiModelsData | undefined;
+
+  try {
+    const res = await fetch(url, {
+      headers: { Accept: "application/json" },
+      signal: AbortSignal.timeout(8000),
+    });
+
+    if (res.ok) {
+      const data = (await res.json()) as Array<{
+        id: string;
+        downloads: number;
+        likes: number;
+        pipeline_tag?: string;
+      }>;
+
+      const models: AiModel[] = data
+        .filter((m) => m.id && m.likes > 0)
+        .slice(0, 8)
+        .map((m) => {
+          // "org/model-name" → "model-name" for display; keep full id for context
+          const parts = m.id.split("/");
+          const displayName = parts.length > 1 ? `${parts[0]}/${parts[1]}` : m.id;
+          return {
+            id: m.id,
+            displayName,
+            downloads: m.downloads ?? 0,
+            likes: m.likes ?? 0,
+          };
+        });
+
+      if (models.length > 0) {
+        ai_models = { models };
+      }
+    }
+  } catch {
+    // Fall through with undefined ai_models
+  }
+
+  const result = ai_models && ai_models.models.length > 0
+    ? ai_models.models
+        .slice(0, 3)
+        .map((m) => {
+          const name = m.displayName.split("/").pop() ?? m.displayName;
+          return `${name} ★${m.likes.toLocaleString()}`;
+        })
+        .join(" | ")
+    : "AI model data temporarily unavailable";
+
+  return { service_type: "ai-models", result, ai_models, timestamp, delivered_to };
+}
+
 export async function deliverService(delivered_to: string, serviceType: ServiceType): Promise<ServiceResult> {
   const timestamp = new Date().toISOString();
   if (serviceType === "solana-stats") return deliverSolanaStats(delivered_to, timestamp);
   if (serviceType === "defi-yields") return deliverDefiYields(delivered_to, timestamp);
   if (serviceType === "fear-greed") return deliverFearGreed(delivered_to, timestamp);
   if (serviceType === "solana-ecosystem") return deliverSolanaEcosystem(delivered_to, timestamp);
+  if (serviceType === "ai-models") return deliverAiModels(delivered_to, timestamp);
   return deliverCryptoPrices(delivered_to, timestamp);
 }

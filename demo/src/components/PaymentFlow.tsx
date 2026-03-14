@@ -56,14 +56,26 @@ interface SolanaEcosystemData {
   tokens: SolanaToken[];
 }
 
+interface AiModel {
+  id: string;
+  displayName: string;
+  downloads: number;
+  likes: number;
+}
+
+interface AiModelsData {
+  models: AiModel[];
+}
+
 interface ServiceResult {
-  service_type: "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem";
+  service_type: "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models";
   result: string;
   market_data?: MarketData[];
   solana_stats?: SolanaStats;
   defi_pools?: DefiPool[];
   fear_greed?: FearGreedData;
   solana_ecosystem?: SolanaEcosystemData;
+  ai_models?: AiModelsData;
   timestamp: string;
   delivered_to: string;
 }
@@ -88,7 +100,7 @@ interface HealthStatus {
   issues: string[];
 }
 
-type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem";
+type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models";
 
 const SERVICE_OPTIONS: { id: ServiceType; label: string; description: string; price: string }[] = [
   {
@@ -119,6 +131,12 @@ const SERVICE_OPTIONS: { id: ServiceType; label: string; description: string; pr
     id: "solana-ecosystem",
     label: "Solana Ecosystem Tokens",
     description: "Live prices for JUP, RAY, JTO, BONK, WIF, PYTH, ORCA with 24h change",
+    price: "1 USDC",
+  },
+  {
+    id: "ai-models",
+    label: "Top AI Models",
+    description: "Most-liked AI language models on Hugging Face — DeepSeek, Llama, GPT, and more",
     price: "1 USDC",
   },
 ];
@@ -179,6 +197,19 @@ const MOCK_SOLANA_ECOSYSTEM: SolanaEcosystemData = {
     { symbol: "WIF", name: "dogwifhat", price_usd: 0.165, change_24h_pct: -2.4, market_cap_usd: 165_000_000 },
     { symbol: "PYTH", name: "Pyth", price_usd: 0.049, change_24h_pct: 0.7, market_cap_usd: 282_000_000 },
     { symbol: "ORCA", name: "Orca", price_usd: 0.21, change_24h_pct: -1.6, market_cap_usd: 54_000_000 },
+  ],
+};
+
+const MOCK_AI_MODELS: AiModelsData = {
+  models: [
+    { id: "deepseek-ai/DeepSeek-R1", displayName: "deepseek-ai/DeepSeek-R1", downloads: 1327951, likes: 13127 },
+    { id: "meta-llama/Meta-Llama-3-8B", displayName: "meta-llama/Meta-Llama-3-8B", downloads: 3118583, likes: 6486 },
+    { id: "meta-llama/Llama-3.1-8B-Instruct", displayName: "meta-llama/Llama-3.1-8B-Instruct", downloads: 7330336, likes: 5564 },
+    { id: "bigscience/bloom", displayName: "bigscience/bloom", downloads: 7266, likes: 4989 },
+    { id: "openai/gpt-oss-120b", displayName: "openai/gpt-oss-120b", downloads: 4751810, likes: 4573 },
+    { id: "meta-llama/Llama-2-7b-chat-hf", displayName: "meta-llama/Llama-2-7b-chat-hf", downloads: 358994, likes: 4723 },
+    { id: "openai/gpt-oss-20b", displayName: "openai/gpt-oss-20b", downloads: 7465884, likes: 4455 },
+    { id: "google/gemma-2-2b-it", displayName: "google/gemma-2-2b-it", downloads: 1854321, likes: 3891 },
   ],
 };
 
@@ -445,6 +476,21 @@ function buildTourSteps(serviceType: ServiceType, liveData?: ServiceResult): Pay
       timestamp: new Date().toISOString(),
       delivered_to: "Demo1234...abcd",
     };
+  } else if (serviceType === "ai-models") {
+    const ai = liveData?.ai_models ?? MOCK_AI_MODELS;
+    mockService = liveData ?? {
+      service_type: "ai-models",
+      result: ai.models
+        .slice(0, 3)
+        .map((m) => {
+          const name = m.displayName.split("/").pop() ?? m.displayName;
+          return `${name} ★${m.likes.toLocaleString()}`;
+        })
+        .join(" | "),
+      ai_models: ai,
+      timestamp: new Date().toISOString(),
+      delivered_to: "Demo1234...abcd",
+    };
   } else {
     const md = liveData?.market_data ?? MOCK_MARKET_DATA;
     mockService = liveData ?? {
@@ -697,6 +743,45 @@ function ServiceResultTable({ service }: { service: ServiceResult }) {
               </td>
             </tr>
           ))}
+        </tbody>
+      </table>
+    );
+  }
+
+  if (service.service_type === "ai-models" && service.ai_models && service.ai_models.models.length > 0) {
+    return (
+      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+        <thead>
+          <tr style={{ borderBottom: "1px solid #eee" }}>
+            <th style={{ textAlign: "left", padding: "4px 8px", color: "#777", fontWeight: 500, fontSize: 12 }}>Model</th>
+            <th style={{ textAlign: "right", padding: "4px 8px", color: "#777", fontWeight: 500, fontSize: 12 }}>★ Likes</th>
+            <th style={{ textAlign: "right", padding: "4px 8px", color: "#777", fontWeight: 500, fontSize: 12 }}>Downloads</th>
+          </tr>
+        </thead>
+        <tbody>
+          {service.ai_models.models.map((m) => {
+            const parts = m.displayName.split("/");
+            const org = parts.length > 1 ? parts[0] : null;
+            const name = parts.length > 1 ? parts[1] : parts[0];
+            return (
+              <tr key={m.id} style={{ borderBottom: "1px solid #f0f0f0" }}>
+                <td style={{ padding: "7px 8px" }}>
+                  <span style={{ fontWeight: 700, fontSize: 13 }}>{name}</span>
+                  {org && <span style={{ color: "#888", fontSize: 11, marginLeft: 5 }}>{org}</span>}
+                </td>
+                <td style={{ padding: "7px 8px", textAlign: "right", fontWeight: 600, color: "#2244aa" }}>
+                  {m.likes.toLocaleString()}
+                </td>
+                <td style={{ padding: "7px 8px", textAlign: "right", color: "#666", fontSize: 12 }}>
+                  {m.downloads > 1_000_000
+                    ? `${(m.downloads / 1_000_000).toFixed(1)}M`
+                    : m.downloads > 1_000
+                    ? `${(m.downloads / 1_000).toFixed(0)}K`
+                    : m.downloads.toLocaleString()}
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     );
