@@ -104,18 +104,22 @@ const SERVICE_OPTIONS: { id: ServiceType; label: string; description: string; pr
   },
 ];
 
-/** Mock market data used in the demo tour and as a fallback. */
+/**
+ * Fallback mock data for the tour — used only when live /api/preview fetch fails.
+ * These values reflect approximate real-world data as of early 2026; the tour
+ * will prefer live-fetched data whenever the server is reachable.
+ */
 const MOCK_MARKET_DATA: MarketData[] = [
-  { symbol: "BTC", price_usd: 83241, change_24h_pct: 2.14 },
-  { symbol: "ETH", price_usd: 1972, change_24h_pct: -0.87 },
-  { symbol: "SOL", price_usd: 132.5, change_24h_pct: 3.41 },
+  { symbol: "BTC", price_usd: 71000, change_24h_pct: -0.8 },
+  { symbol: "ETH", price_usd: 2080, change_24h_pct: -1.3 },
+  { symbol: "SOL", price_usd: 87, change_24h_pct: -2.0 },
 ];
 
 const MOCK_SOLANA_STATS: SolanaStats = {
-  tps: 3847,
-  slot: 318_204_512,
-  validator_count: 1847,
-  epoch: 741,
+  tps: 3200,
+  slot: 406_000_000,
+  validator_count: 780,
+  epoch: 940,
 };
 
 const MOCK_DEFI_POOLS: DefiPool[] = [
@@ -129,18 +133,22 @@ const MOCK_DEFI_POOLS: DefiPool[] = [
   { protocol: "kamino-lend", symbol: "JITOSOL", apy: 0.0, tvl_usd: 215_600_000 },
 ];
 
+/** Generates 7-day history ending today with plausible extreme-fear values. */
+function buildMockFearGreedHistory(): FearGreedEntry[] {
+  const values = [16, 18, 21, 25, 19, 22, 17];
+  return values.map((v, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    const label = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    const classification = v <= 24 ? "Extreme Fear" : v <= 44 ? "Fear" : "Neutral";
+    return { date: label, value: v, classification };
+  });
+}
+
 const MOCK_FEAR_GREED: FearGreedData = {
-  current_value: 22,
+  current_value: 16,
   classification: "Extreme Fear",
-  history: [
-    { date: "Mar 14", value: 22, classification: "Extreme Fear" },
-    { date: "Mar 13", value: 18, classification: "Extreme Fear" },
-    { date: "Mar 12", value: 25, classification: "Extreme Fear" },
-    { date: "Mar 11", value: 30, classification: "Fear" },
-    { date: "Mar 10", value: 35, classification: "Fear" },
-    { date: "Mar 9",  value: 28, classification: "Fear" },
-    { date: "Mar 8",  value: 20, classification: "Extreme Fear" },
-  ],
+  history: buildMockFearGreedHistory(),
 };
 
 const MOCK_SIGNATURE =
@@ -362,18 +370,23 @@ function CodePanel({ status }: { status: string }) {
   );
 }
 
-function buildTourSteps(serviceType: ServiceType): PaymentState[] {
+/**
+ * Builds the tour step sequence. When `liveData` is provided (pre-fetched from
+ * /api/preview), the success step shows real data instead of hardcoded fallbacks.
+ */
+function buildTourSteps(serviceType: ServiceType, liveData?: ServiceResult): PaymentState[] {
   let mockService: ServiceResult;
   if (serviceType === "solana-stats") {
-    mockService = {
+    const s = liveData?.solana_stats ?? MOCK_SOLANA_STATS;
+    mockService = liveData ?? {
       service_type: "solana-stats",
-      result: "TPS: 3,847 | Slot: 318,204,512 | Epoch: 741 | Validators: 1,847",
-      solana_stats: MOCK_SOLANA_STATS,
+      result: `TPS: ${s.tps.toLocaleString()} | Slot: ${s.slot.toLocaleString()} | Epoch: ${s.epoch} | Validators: ${s.validator_count.toLocaleString()}`,
+      solana_stats: s,
       timestamp: new Date().toISOString(),
       delivered_to: "Demo1234...abcd",
     };
   } else if (serviceType === "defi-yields") {
-    mockService = {
+    mockService = liveData ?? {
       service_type: "defi-yields",
       result: "jito-liquid-staking JITOSOL 5.94% APY | marinade-liquid-staking MSOL 7.07% APY | drift-staked-sol DSOL 6.50% APY",
       defi_pools: MOCK_DEFI_POOLS,
@@ -381,18 +394,22 @@ function buildTourSteps(serviceType: ServiceType): PaymentState[] {
       delivered_to: "Demo1234...abcd",
     };
   } else if (serviceType === "fear-greed") {
-    mockService = {
+    const fg = liveData?.fear_greed ?? MOCK_FEAR_GREED;
+    mockService = liveData ?? {
       service_type: "fear-greed",
-      result: "Fear & Greed: 22/100 (Extreme Fear)",
-      fear_greed: MOCK_FEAR_GREED,
+      result: `Fear & Greed: ${fg.current_value}/100 (${fg.classification})`,
+      fear_greed: fg,
       timestamp: new Date().toISOString(),
       delivered_to: "Demo1234...abcd",
     };
   } else {
-    mockService = {
+    const md = liveData?.market_data ?? MOCK_MARKET_DATA;
+    mockService = liveData ?? {
       service_type: "crypto-prices",
-      result: "BTC $83,241 (+2.14% 24h) | ETH $1,972 (-0.87% 24h) | SOL $132.5 (+3.41% 24h)",
-      market_data: MOCK_MARKET_DATA,
+      result: md
+        .map((m) => `${m.symbol} $${m.price_usd.toLocaleString()} (${m.change_24h_pct >= 0 ? "+" : ""}${m.change_24h_pct}% 24h)`)
+        .join(" | "),
+      market_data: md,
       timestamp: new Date().toISOString(),
       delivered_to: "Demo1234...abcd",
     };
@@ -721,10 +738,26 @@ export default function PaymentFlow() {
     }
   };
 
-  /** Runs an animated tour of the payment flow states with mock data. */
+  /** Runs an animated tour of the payment flow states.
+   *  Pre-fetches live data from /api/preview so the success step shows real values. */
   const runTour = async () => {
     if (isTourRunning) return;
-    const tourSteps = buildTourSteps(selectedService);
+
+    // Try to fetch live data to use in the tour's success step.
+    // If this fails, we fall back to hardcoded MOCK_* constants.
+    let liveData: ServiceResult | undefined;
+    try {
+      const res = await fetch(`/api/preview?service=${selectedService}`);
+      if (res.ok) {
+        const d = (await res.json()) as ServiceResult;
+        // Override delivered_to so the tour success state looks like a real delivery
+        liveData = { ...d, delivered_to: "Demo1234...abcd" };
+      }
+    } catch {
+      // Silently fall back to mock data
+    }
+
+    const tourSteps = buildTourSteps(selectedService, liveData);
     setIsTourRunning(true);
     setTourStep(0);
 
