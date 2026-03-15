@@ -94,8 +94,20 @@ interface TopGainersData {
   gainers: TopGainer[];
 }
 
+interface DexVolume {
+  name: string;
+  chains: string[];
+  volume_24h: number;
+  volume_7d: number;
+  change_1d: number;
+}
+
+interface DexVolumeData {
+  dexes: DexVolume[];
+}
+
 interface ServiceResult {
-  service_type: "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers";
+  service_type: "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume";
   result: string;
   market_data?: MarketData[];
   solana_stats?: SolanaStats;
@@ -105,6 +117,7 @@ interface ServiceResult {
   ai_models?: AiModelsData;
   trending?: TrendingData;
   top_gainers?: TopGainersData;
+  dex_volume?: DexVolumeData;
   timestamp: string;
   delivered_to: string;
 }
@@ -129,7 +142,7 @@ interface HealthStatus {
   issues: string[];
 }
 
-type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers";
+type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume";
 
 const SERVICE_OPTIONS: { id: ServiceType; label: string; description: string; price: string }[] = [
   {
@@ -178,6 +191,12 @@ const SERVICE_OPTIONS: { id: ServiceType; label: string; description: string; pr
     id: "top-gainers",
     label: "Top Gainers",
     description: "Biggest 24h price movers across crypto with >$1M daily volume",
+    price: "1 USDC",
+  },
+  {
+    id: "dex-volume",
+    label: "Solana DEX Volume Leaders",
+    description: "Top Solana DEXes by 24h trading volume — PumpSwap, Raydium, Orca, and more",
     price: "1 USDC",
   },
 ];
@@ -274,6 +293,16 @@ const MOCK_TOP_GAINERS: TopGainersData = {
     { symbol: "HYPE", name: "Hyperliquid", price_usd: 18.45, change_24h_pct: 6.9, volume_24h: 143_200_000, market_cap: 3_600_000_000 },
     { symbol: "JTO", name: "Jito", price_usd: 2.51, change_24h_pct: 6.1, volume_24h: 52_100_000, market_cap: 630_000_000 },
     { symbol: "BONK", name: "Bonk", price_usd: 0.0000152, change_24h_pct: 5.8, volume_24h: 118_700_000, market_cap: 1_100_000_000 },
+  ],
+};
+
+const MOCK_DEX_VOLUME: DexVolumeData = {
+  dexes: [
+    { name: "PumpSwap", chains: ["Solana"], volume_24h: 737530914, volume_7d: 4200000000, change_1d: 12.5 },
+    { name: "Raydium AMM", chains: ["Solana"], volume_24h: 147933941, volume_7d: 980000000, change_1d: -3.2 },
+    { name: "Meteora DLMM", chains: ["Solana"], volume_24h: 137050558, volume_7d: 850000000, change_1d: 8.1 },
+    { name: "Orca DEX", chains: ["Solana", "Eclipse"], volume_24h: 88362624, volume_7d: 620000000, change_1d: -1.5 },
+    { name: "Phoenix", chains: ["Solana"], volume_24h: 45000000, volume_7d: 290000000, change_1d: 5.3 },
   ],
 };
 
@@ -579,6 +608,24 @@ function buildTourSteps(serviceType: ServiceType, liveData?: ServiceResult): Pay
         .map((g) => `${g.symbol} +${g.change_24h_pct}%`)
         .join(" | "),
       top_gainers: tg,
+      timestamp: new Date().toISOString(),
+      delivered_to: "Demo1234...abcd",
+    };
+  } else if (serviceType === "dex-volume") {
+    const formatVol = (v: number) =>
+      v >= 1_000_000_000
+        ? `$${(v / 1_000_000_000).toFixed(1)}B`
+        : v >= 1_000_000
+        ? `$${(v / 1_000_000).toFixed(0)}M`
+        : `$${(v / 1_000).toFixed(0)}K`;
+    const dv = liveData?.dex_volume ?? MOCK_DEX_VOLUME;
+    mockService = liveData ?? {
+      service_type: "dex-volume",
+      result: dv.dexes
+        .slice(0, 3)
+        .map((d) => `${d.name} ${formatVol(d.volume_24h)}`)
+        .join(" | "),
+      dex_volume: dv,
       timestamp: new Date().toISOString(),
       delivered_to: "Demo1234...abcd",
     };
@@ -961,6 +1008,44 @@ function ServiceResultTable({ service }: { service: ServiceResult }) {
                   +{g.change_24h_pct}%
                 </td>
                 <td style={{ padding: "7px 8px", textAlign: "right", color: "#666", fontSize: 12 }}>{vol}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    );
+  }
+
+  if (service.service_type === "dex-volume" && service.dex_volume && service.dex_volume.dexes.length > 0) {
+    const formatVol = (v: number) =>
+      v >= 1_000_000_000
+        ? `$${(v / 1_000_000_000).toFixed(1)}B`
+        : v >= 1_000_000
+        ? `$${(v / 1_000_000).toFixed(0)}M`
+        : `$${(v / 1_000).toFixed(0)}K`;
+    return (
+      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+        <thead>
+          <tr style={{ borderBottom: "1px solid #eee" }}>
+            <th style={{ textAlign: "left", padding: "4px 8px", color: "#777", fontWeight: 500, fontSize: 12 }}>#</th>
+            <th style={{ textAlign: "left", padding: "4px 8px", color: "#777", fontWeight: 500, fontSize: 12 }}>DEX</th>
+            <th style={{ textAlign: "right", padding: "4px 8px", color: "#777", fontWeight: 500, fontSize: 12 }}>24h Volume</th>
+            <th style={{ textAlign: "right", padding: "4px 8px", color: "#777", fontWeight: 500, fontSize: 12 }}>7d Volume</th>
+            <th style={{ textAlign: "right", padding: "4px 8px", color: "#777", fontWeight: 500, fontSize: 12 }}>24h Change</th>
+          </tr>
+        </thead>
+        <tbody>
+          {service.dex_volume.dexes.map((d, i) => {
+            const changeColor = d.change_1d >= 0 ? "#1a7a3e" : "#c0392b";
+            return (
+              <tr key={d.name + i} style={{ borderBottom: "1px solid #f0f0f0" }}>
+                <td style={{ padding: "7px 8px", color: "#aaa", fontSize: 12 }}>{i + 1}</td>
+                <td style={{ padding: "7px 8px", fontWeight: 700, fontSize: 13 }}>{d.name}</td>
+                <td style={{ padding: "7px 8px", textAlign: "right", fontWeight: 600 }}>{formatVol(d.volume_24h)}</td>
+                <td style={{ padding: "7px 8px", textAlign: "right", color: "#666", fontSize: 12 }}>{formatVol(d.volume_7d)}</td>
+                <td style={{ padding: "7px 8px", textAlign: "right", fontWeight: 600, color: changeColor }}>
+                  {d.change_1d >= 0 ? "+" : ""}{d.change_1d}%
+                </td>
               </tr>
             );
           })}

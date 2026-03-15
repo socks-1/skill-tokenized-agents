@@ -3,7 +3,7 @@
  * All functions are read-only calls to public APIs — no auth required.
  */
 
-export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers";
+export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume";
 
 export interface MarketData {
   symbol: string;
@@ -87,6 +87,18 @@ export interface TopGainersData {
   gainers: TopGainer[];
 }
 
+export interface DexVolume {
+  name: string;
+  chains: string[];
+  volume_24h: number;
+  volume_7d: number;
+  change_1d: number;
+}
+
+export interface DexVolumeData {
+  dexes: DexVolume[];
+}
+
 export interface ServiceResult {
   service_type: ServiceType;
   result: string;
@@ -98,6 +110,7 @@ export interface ServiceResult {
   ai_models?: AiModelsData;
   trending?: TrendingData;
   top_gainers?: TopGainersData;
+  dex_volume?: DexVolumeData;
   timestamp: string;
   delivered_to: string;
 }
@@ -592,6 +605,73 @@ export async function deliverTopGainers(delivered_to: string, timestamp: string)
   return { service_type: "top-gainers", result, top_gainers, timestamp, delivered_to };
 }
 
+/**
+ * Fetches Solana DEX volume leaders from DeFi Llama.
+ * Filters to protocols where chains array contains 'Solana', sorted by 24h volume.
+ * Returns the top 8.
+ */
+export async function deliverDexVolume(delivered_to: string, timestamp: string): Promise<ServiceResult> {
+  const url =
+    "https://api.llama.fi/overview/dexs?chain=Solana" +
+    "&excludeTotalDataChart=true&excludeTotalDataChartBreakdown=true";
+
+  let dex_volume: DexVolumeData | undefined;
+
+  try {
+    const res = await fetch(url, {
+      headers: { Accept: "application/json" },
+      signal: AbortSignal.timeout(10000),
+    });
+
+    if (res.ok) {
+      const data = (await res.json()) as {
+        protocols: Array<{
+          name: string;
+          chains: string[];
+          total24h: number;
+          total7d: number;
+          change_1d: number;
+        }>;
+      };
+
+      const dexes: DexVolume[] = data.protocols
+        .filter((p) => Array.isArray(p.chains) && p.chains.includes("Solana") && p.chains.length <= 3)
+        .sort((a, b) => (b.total24h ?? 0) - (a.total24h ?? 0))
+        .slice(0, 8)
+        .map((p) => ({
+          name: p.name,
+          chains: p.chains,
+          volume_24h: p.total24h ?? 0,
+          volume_7d: p.total7d ?? 0,
+          change_1d: parseFloat((p.change_1d ?? 0).toFixed(2)),
+        }));
+
+      if (dexes.length > 0) {
+        dex_volume = { dexes };
+      }
+    }
+  } catch {
+    // Fall through with undefined dex_volume
+  }
+
+  const formatVol = (v: number) =>
+    v >= 1_000_000_000
+      ? `$${(v / 1_000_000_000).toFixed(1)}B`
+      : v >= 1_000_000
+      ? `$${(v / 1_000_000).toFixed(0)}M`
+      : `$${(v / 1_000).toFixed(0)}K`;
+
+  const result =
+    dex_volume && dex_volume.dexes.length > 0
+      ? dex_volume.dexes
+          .slice(0, 3)
+          .map((d) => `${d.name} ${formatVol(d.volume_24h)}`)
+          .join(" | ")
+      : "DEX volume data temporarily unavailable";
+
+  return { service_type: "dex-volume", result, dex_volume, timestamp, delivered_to };
+}
+
 export async function deliverService(delivered_to: string, serviceType: ServiceType): Promise<ServiceResult> {
   const timestamp = new Date().toISOString();
   if (serviceType === "solana-stats") return deliverSolanaStats(delivered_to, timestamp);
@@ -601,5 +681,6 @@ export async function deliverService(delivered_to: string, serviceType: ServiceT
   if (serviceType === "ai-models") return deliverAiModels(delivered_to, timestamp);
   if (serviceType === "trending-coins") return deliverTrending(delivered_to, timestamp);
   if (serviceType === "top-gainers") return deliverTopGainers(delivered_to, timestamp);
+  if (serviceType === "dex-volume") return deliverDexVolume(delivered_to, timestamp);
   return deliverCryptoPrices(delivered_to, timestamp);
 }
