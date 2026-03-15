@@ -179,8 +179,21 @@ interface SolTvlData {
   total_tvl_usd: number;
 }
 
+interface AiAgentToken {
+  symbol: string;
+  name: string;
+  price_usd: number;
+  change_24h_pct: number;
+  market_cap_usd: number;
+  market_cap_rank: number;
+}
+
+interface AiAgentTokensData {
+  tokens: AiAgentToken[];
+}
+
 interface ServiceResult {
-  service_type: "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl";
+  service_type: "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens";
   result: string;
   market_data?: MarketData[];
   solana_stats?: SolanaStats;
@@ -197,6 +210,7 @@ interface ServiceResult {
   btc_mempool?: BtcMempoolData;
   stablecoins?: StablecoinData;
   sol_tvl?: SolTvlData;
+  ai_agent_tokens?: AiAgentTokensData;
   timestamp: string;
   delivered_to: string;
 }
@@ -221,7 +235,7 @@ interface HealthStatus {
   issues: string[];
 }
 
-type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl";
+type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens";
 
 const SERVICE_OPTIONS: { id: ServiceType; label: string; description: string; price: string }[] = [
   {
@@ -312,6 +326,12 @@ const SERVICE_OPTIONS: { id: ServiceType; label: string; description: string; pr
     id: "sol-protocol-tvl",
     label: "Solana DeFi TVL",
     description: "Top Solana-native DeFi protocols ranked by total value locked — lending, staking, DEXs, and more",
+    price: "1 USDC",
+  },
+  {
+    id: "ai-agent-tokens",
+    label: "AI Agent Tokens",
+    description: "Top AI agent economy tokens by market cap — VIRTUAL, FET, ai16z, Venice, and more from CoinGecko",
     price: "1 USDC",
   },
 ];
@@ -488,6 +508,19 @@ const MOCK_SOL_TVL: SolTvlData = {
     { name: "Drift Protocol", category: "Derivatives", tvl_usd: 190_000_000, change_1d_pct: -1.20 },
   ],
   total_tvl_usd: 7_860_000_000,
+};
+
+const MOCK_AI_AGENT_TOKENS: AiAgentTokensData = {
+  tokens: [
+    { symbol: "VIRTUAL", name: "Virtuals Protocol", price_usd: 0.73, change_24h_pct: 3.15, market_cap_usd: 477_000_000, market_cap_rank: 98 },
+    { symbol: "FET", name: "Fetch.ai", price_usd: 0.20, change_24h_pct: 13.66, market_cap_usd: 452_000_000, market_cap_rank: 101 },
+    { symbol: "KITE", name: "ai16z Kite", price_usd: 0.22, change_24h_pct: -4.53, market_cap_usd: 395_000_000, market_cap_rank: 108 },
+    { symbol: "VVV", name: "Venice Token", price_usd: 6.22, change_24h_pct: -4.25, market_cap_usd: 277_000_000, market_cap_rank: 121 },
+    { symbol: "TRAC", name: "OriginTrail", price_usd: 0.32, change_24h_pct: 1.63, market_cap_usd: 143_000_000, market_cap_rank: 155 },
+    { symbol: "AWE", name: "Agent World Engine", price_usd: 0.053, change_24h_pct: 1.33, market_cap_usd: 102_000_000, market_cap_rank: 187 },
+    { symbol: "FAI", name: "Freysa AI", price_usd: 0.0068, change_24h_pct: -0.24, market_cap_usd: 55_800_000, market_cap_rank: 232 },
+    { symbol: "PIPPIN", name: "Pippin", price_usd: 0.36, change_24h_pct: -2.32, market_cap_usd: 364_000_000, market_cap_rank: 110 },
+  ],
 };
 
 const MOCK_SIGNATURE =
@@ -891,6 +924,17 @@ function buildTourSteps(serviceType: ServiceType, liveData?: ServiceResult): Pay
       service_type: "sol-protocol-tvl",
       result: st.protocols.slice(0, 4).map((p) => `${p.name} ${formatTvl(p.tvl_usd)}`).join(" | "),
       sol_tvl: st,
+      timestamp: new Date().toISOString(),
+      delivered_to: "Demo1234...abcd",
+    };
+  } else if (serviceType === "ai-agent-tokens") {
+    const at = liveData?.ai_agent_tokens ?? MOCK_AI_AGENT_TOKENS;
+    const formatMcap = (v: number) =>
+      v >= 1_000_000_000 ? `$${(v / 1_000_000_000).toFixed(2)}B` : `$${(v / 1_000_000).toFixed(0)}M`;
+    mockService = liveData ?? {
+      service_type: "ai-agent-tokens",
+      result: at.tokens.slice(0, 4).map((t) => `${t.symbol} ${formatMcap(t.market_cap_usd)} (${t.change_24h_pct >= 0 ? "+" : ""}${t.change_24h_pct}%)`).join(" | "),
+      ai_agent_tokens: at,
       timestamp: new Date().toISOString(),
       delivered_to: "Demo1234...abcd",
     };
@@ -1598,6 +1642,48 @@ function ServiceResultTable({ service }: { service: ServiceResult }) {
                   <td style={{ padding: "7px 8px", textAlign: "right", fontWeight: 700 }}>{formatTvl(p.tvl_usd)}</td>
                   <td style={{ padding: "7px 8px", textAlign: "right", color: changeColor, fontWeight: 600, fontSize: 13 }}>
                     {p.change_1d_pct >= 0 ? "+" : ""}{p.change_1d_pct.toFixed(2)}%
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
+
+  if (service.service_type === "ai-agent-tokens" && service.ai_agent_tokens) {
+    const at = service.ai_agent_tokens;
+    const formatMcap = (v: number) =>
+      v >= 1_000_000_000 ? `$${(v / 1_000_000_000).toFixed(2)}B` : `$${(v / 1_000_000).toFixed(0)}M`;
+    return (
+      <div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+          <span style={{ fontSize: 12, color: "#777" }}>Top AI Agent tokens by market cap — CoinGecko</span>
+        </div>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+          <thead>
+            <tr style={{ borderBottom: "1px solid #eee" }}>
+              <th style={{ textAlign: "left", padding: "4px 8px", color: "#777", fontWeight: 500, fontSize: 12 }}>Token</th>
+              <th style={{ textAlign: "right", padding: "4px 8px", color: "#777", fontWeight: 500, fontSize: 12 }}>Price</th>
+              <th style={{ textAlign: "right", padding: "4px 8px", color: "#777", fontWeight: 500, fontSize: 12 }}>Mkt Cap</th>
+              <th style={{ textAlign: "right", padding: "4px 8px", color: "#777", fontWeight: 500, fontSize: 12 }}>24h Δ</th>
+            </tr>
+          </thead>
+          <tbody>
+            {at.tokens.map((t) => {
+              const changeColor = t.change_24h_pct > 0 ? "#1a7a3e" : t.change_24h_pct < 0 ? "#c00" : "#999";
+              const priceStr = t.price_usd >= 1 ? `$${t.price_usd.toFixed(3)}` : `$${t.price_usd.toPrecision(4)}`;
+              return (
+                <tr key={t.symbol} style={{ borderBottom: "1px solid #f0f0f0" }}>
+                  <td style={{ padding: "7px 8px", fontWeight: 600 }}>
+                    {t.symbol}
+                    <span style={{ color: "#999", fontWeight: 400, fontSize: 11, marginLeft: 4 }}>{t.name}</span>
+                  </td>
+                  <td style={{ padding: "7px 8px", textAlign: "right", fontWeight: 700 }}>{priceStr}</td>
+                  <td style={{ padding: "7px 8px", textAlign: "right", color: "#444" }}>{formatMcap(t.market_cap_usd)}</td>
+                  <td style={{ padding: "7px 8px", textAlign: "right", color: changeColor, fontWeight: 600, fontSize: 13 }}>
+                    {t.change_24h_pct >= 0 ? "+" : ""}{t.change_24h_pct.toFixed(2)}%
                   </td>
                 </tr>
               );

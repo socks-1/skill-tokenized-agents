@@ -3,7 +3,7 @@
  * All functions are read-only calls to public APIs — no auth required.
  */
 
-export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl";
+export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens";
 
 export interface MarketData {
   symbol: string;
@@ -172,6 +172,19 @@ export interface SolTvlData {
   total_tvl_usd: number;    // sum of shown protocols
 }
 
+export interface AiAgentToken {
+  symbol: string;
+  name: string;
+  price_usd: number;
+  change_24h_pct: number;
+  market_cap_usd: number;
+  market_cap_rank: number;
+}
+
+export interface AiAgentTokensData {
+  tokens: AiAgentToken[];
+}
+
 export interface ServiceResult {
   service_type: ServiceType;
   result: string;
@@ -190,6 +203,7 @@ export interface ServiceResult {
   btc_mempool?: BtcMempoolData;
   stablecoins?: StablecoinData;
   sol_tvl?: SolTvlData;
+  ai_agent_tokens?: AiAgentTokensData;
   timestamp: string;
   delivered_to: string;
 }
@@ -1141,6 +1155,55 @@ export async function deliverSolTvl(delivered_to: string, timestamp: string): Pr
   return { service_type: "sol-protocol-tvl", result, sol_tvl, timestamp, delivered_to };
 }
 
+export async function deliverAiAgentTokens(delivered_to: string, timestamp: string): Promise<ServiceResult> {
+  let ai_agent_tokens: AiAgentTokensData | undefined;
+
+  try {
+    const url = "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&category=ai-agents&order=market_cap_desc&per_page=8&page=1&price_change_percentage=24h";
+    const res = await fetch(url, { headers: { Accept: "application/json" } });
+    if (res.ok) {
+      const data = await res.json() as Array<{
+        symbol: string;
+        name: string;
+        current_price: number;
+        price_change_percentage_24h: number | null;
+        market_cap: number;
+        market_cap_rank: number;
+      }>;
+
+      const tokens: AiAgentToken[] = data
+        .filter((d) => d.current_price != null && d.market_cap != null)
+        .map((d) => ({
+          symbol: d.symbol.toUpperCase(),
+          name: d.name,
+          price_usd: d.current_price,
+          change_24h_pct: parseFloat((d.price_change_percentage_24h ?? 0).toFixed(2)),
+          market_cap_usd: d.market_cap,
+          market_cap_rank: d.market_cap_rank,
+        }));
+
+      if (tokens.length > 0) {
+        ai_agent_tokens = { tokens };
+      }
+    }
+  } catch {
+    // Fall through with undefined ai_agent_tokens
+  }
+
+  const formatMcap = (v: number) =>
+    v >= 1_000_000_000 ? `$${(v / 1_000_000_000).toFixed(2)}B` : `$${(v / 1_000_000).toFixed(0)}M`;
+
+  const result =
+    ai_agent_tokens && ai_agent_tokens.tokens.length > 0
+      ? ai_agent_tokens.tokens
+          .slice(0, 4)
+          .map((t) => `${t.symbol} ${formatMcap(t.market_cap_usd)} (${t.change_24h_pct >= 0 ? "+" : ""}${t.change_24h_pct}%)`)
+          .join(" | ")
+      : "AI agent token data temporarily unavailable";
+
+  return { service_type: "ai-agent-tokens", result, ai_agent_tokens, timestamp, delivered_to };
+}
+
 export async function deliverService(delivered_to: string, serviceType: ServiceType): Promise<ServiceResult> {
   const timestamp = new Date().toISOString();
   if (serviceType === "solana-stats") return deliverSolanaStats(delivered_to, timestamp);
@@ -1157,5 +1220,6 @@ export async function deliverService(delivered_to: string, serviceType: ServiceT
   if (serviceType === "btc-mempool") return deliverBtcMempool(delivered_to, timestamp);
   if (serviceType === "stablecoins") return deliverStablecoins(delivered_to, timestamp);
   if (serviceType === "sol-protocol-tvl") return deliverSolTvl(delivered_to, timestamp);
+  if (serviceType === "ai-agent-tokens") return deliverAiAgentTokens(delivered_to, timestamp);
   return deliverCryptoPrices(delivered_to, timestamp);
 }
