@@ -3,7 +3,7 @@
  * All functions are read-only calls to public APIs — no auth required.
  */
 
-export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens";
+export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new";
 
 export interface MarketData {
   symbol: string;
@@ -113,6 +113,21 @@ export interface PumpTokenData {
   tokens: PumpToken[];
 }
 
+export interface PumpNewToken {
+  symbol: string;
+  name: string;
+  price_usd: number;
+  change_24h_pct: number;
+  volume_24h: number;
+  market_cap: number;
+  address: string;
+  pair_created_at: number;
+}
+
+export interface PumpNewData {
+  tokens: PumpNewToken[];
+}
+
 export interface ServiceResult {
   service_type: ServiceType;
   result: string;
@@ -126,6 +141,7 @@ export interface ServiceResult {
   top_gainers?: TopGainersData;
   dex_volume?: DexVolumeData;
   pumpfun_tokens?: PumpTokenData;
+  pump_new?: PumpNewData;
   timestamp: string;
   delivered_to: string;
 }
@@ -752,6 +768,80 @@ export async function deliverPumpTokens(delivered_to: string, timestamp: string)
   return { service_type: "pumpfun-tokens", result, pumpfun_tokens, timestamp, delivered_to };
 }
 
+/**
+ * Fetches the most recently launched tokens on pump.fun via DexScreener.
+ * Queries PumpSwap pairs on Solana and sorts by pair creation time (newest first).
+ * Complements "Hot Tokens" (top by volume) with a "fresh launches" view.
+ */
+export async function deliverPumpNew(delivered_to: string, timestamp: string): Promise<ServiceResult> {
+  const url = "https://api.dexscreener.com/latest/dex/search?q=pumpswap";
+
+  let pump_new: PumpNewData | undefined;
+
+  try {
+    const res = await fetch(url, {
+      headers: { Accept: "application/json" },
+      signal: AbortSignal.timeout(10000),
+    });
+
+    if (res.ok) {
+      const data = (await res.json()) as {
+        pairs: Array<{
+          chainId: string;
+          dexId: string;
+          baseToken: { address: string; name: string; symbol: string };
+          priceUsd?: string;
+          volume?: { h24?: number };
+          priceChange?: { h24?: number };
+          marketCap?: number;
+          fdv?: number;
+          pairCreatedAt?: number;
+        }>;
+      };
+
+      const tokens: PumpNewToken[] = (data.pairs ?? [])
+        .filter((p) => p.chainId === "solana" && p.dexId === "pumpswap" && p.pairCreatedAt)
+        .sort((a, b) => (b.pairCreatedAt ?? 0) - (a.pairCreatedAt ?? 0))
+        .slice(0, 6)
+        .map((p) => ({
+          symbol: p.baseToken.symbol,
+          name: p.baseToken.name,
+          price_usd: parseFloat(p.priceUsd ?? "0"),
+          change_24h_pct: parseFloat((p.priceChange?.h24 ?? 0).toFixed(2)),
+          volume_24h: p.volume?.h24 ?? 0,
+          market_cap: p.marketCap ?? p.fdv ?? 0,
+          address: p.baseToken.address,
+          pair_created_at: p.pairCreatedAt ?? 0,
+        }));
+
+      if (tokens.length > 0) {
+        pump_new = { tokens };
+      }
+    }
+  } catch {
+    // Fall through with undefined pump_new
+  }
+
+  const formatAge = (createdAt: number) => {
+    const ageMs = Date.now() - createdAt;
+    const hours = Math.floor(ageMs / 3_600_000);
+    const minutes = Math.floor((ageMs % 3_600_000) / 60_000);
+    if (hours >= 24) return `${Math.floor(hours / 24)}d ago`;
+    if (hours > 0) return `${hours}h ago`;
+    return `${minutes}m ago`;
+  };
+
+  const result =
+    pump_new && pump_new.tokens.length > 0
+      ? pump_new.tokens
+          .slice(0, 3)
+          .map((t) => `${t.symbol} (${formatAge(t.pair_created_at)})`)
+          .join(" | ")
+      : "New launch data temporarily unavailable";
+
+  return { service_type: "pump-new", result, pump_new, timestamp, delivered_to };
+}
+
 export async function deliverService(delivered_to: string, serviceType: ServiceType): Promise<ServiceResult> {
   const timestamp = new Date().toISOString();
   if (serviceType === "solana-stats") return deliverSolanaStats(delivered_to, timestamp);
@@ -763,5 +853,6 @@ export async function deliverService(delivered_to: string, serviceType: ServiceT
   if (serviceType === "top-gainers") return deliverTopGainers(delivered_to, timestamp);
   if (serviceType === "dex-volume") return deliverDexVolume(delivered_to, timestamp);
   if (serviceType === "pumpfun-tokens") return deliverPumpTokens(delivered_to, timestamp);
+  if (serviceType === "pump-new") return deliverPumpNew(delivered_to, timestamp);
   return deliverCryptoPrices(delivered_to, timestamp);
 }

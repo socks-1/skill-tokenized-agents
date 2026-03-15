@@ -120,8 +120,23 @@ interface PumpTokenData {
   tokens: PumpToken[];
 }
 
+interface PumpNewToken {
+  symbol: string;
+  name: string;
+  price_usd: number;
+  change_24h_pct: number;
+  volume_24h: number;
+  market_cap: number;
+  address: string;
+  pair_created_at: number;
+}
+
+interface PumpNewData {
+  tokens: PumpNewToken[];
+}
+
 interface ServiceResult {
-  service_type: "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens";
+  service_type: "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new";
   result: string;
   market_data?: MarketData[];
   solana_stats?: SolanaStats;
@@ -133,6 +148,7 @@ interface ServiceResult {
   top_gainers?: TopGainersData;
   dex_volume?: DexVolumeData;
   pumpfun_tokens?: PumpTokenData;
+  pump_new?: PumpNewData;
   timestamp: string;
   delivered_to: string;
 }
@@ -157,7 +173,7 @@ interface HealthStatus {
   issues: string[];
 }
 
-type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens";
+type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new";
 
 const SERVICE_OPTIONS: { id: ServiceType; label: string; description: string; price: string }[] = [
   {
@@ -218,6 +234,12 @@ const SERVICE_OPTIONS: { id: ServiceType; label: string; description: string; pr
     id: "pumpfun-tokens",
     label: "Pump.fun Hot Tokens",
     description: "Top tokens by 24h trading volume on PumpSwap — live from DexScreener",
+    price: "1 USDC",
+  },
+  {
+    id: "pump-new",
+    label: "Pump.fun New Launches",
+    description: "Most recently launched tokens on pump.fun — freshest additions with early momentum data",
     price: "1 USDC",
   },
 ];
@@ -335,6 +357,17 @@ const MOCK_PUMPFUN_TOKENS: PumpTokenData = {
     { symbol: "PONKE", name: "PONKE", price_usd: 0.0283, change_24h_pct: 12.7, volume_24h: 3_890_000, market_cap: 28_300_000, address: "5z3EqYQo9HiCnPNHatpump" },
     { symbol: "POPCAT", name: "Popcat", price_usd: 0.097, change_24h_pct: -2.1, volume_24h: 2_740_000, market_cap: 97_000_000, address: "7GCihgDB8fe6KNjn2MYtkzZcRjQy3t9GHdC8uHYmW2hr" },
     { symbol: "WIF", name: "dogwifhat", price_usd: 0.165, change_24h_pct: -2.4, volume_24h: 2_100_000, market_cap: 165_000_000, address: "EKpQGSJtjMFqKZ9KQanSqYXRcF8fBopzLHYxdM65zcjm" },
+  ],
+};
+
+const MOCK_PUMP_NEW: PumpNewData = {
+  tokens: [
+    { symbol: "DOGE2", name: "Doge 2.0", price_usd: 0.0000942, change_24h_pct: 371, volume_24h: 477_776, market_cap: 94_200, address: "AbcXyZ1234567890abcdefghijklmnopqrstuvwxpump", pair_created_at: Date.now() - 25 * 60_000 },
+    { symbol: "BRAINROT", name: "BrainRot", price_usd: 0.00006201, change_24h_pct: 161, volume_24h: 601_119, market_cap: 62_010, address: "BcdYzA2345678901bcdefghijklmnopqrstuvwxypump", pair_created_at: Date.now() - 2 * 3_600_000 },
+    { symbol: "INCOME", name: "Universal High Income", price_usd: 0.0001154, change_24h_pct: 217, volume_24h: 1_556_600, market_cap: 115_400, address: "CdeZaB3456789012cdefghijklmnopqrstuvwxyzpump", pair_created_at: Date.now() - 5 * 3_600_000 },
+    { symbol: "MOGGED", name: "MOGGED", price_usd: 0.0002017, change_24h_pct: 461, volume_24h: 1_794_778, market_cap: 201_768, address: "DefAbC4567890123defghijklmnopqrstuvwxyzapump", pair_created_at: Date.now() - 8 * 3_600_000 },
+    { symbol: "AMBALABU", name: "Boneca Ambalabu", price_usd: 0.0001095, change_24h_pct: 209, volume_24h: 606_381, market_cap: 109_542, address: "EfgBcD5678901234efghijklmnopqrstuvwxyzabpump", pair_created_at: Date.now() - 10 * 3_600_000 },
+    { symbol: "MOLLY", name: "The Immortal Fish", price_usd: 0.0001429, change_24h_pct: 295, volume_24h: 1_023_596, market_cap: 142_958, address: "FghCdE6789012345fghijklmnopqrstuvwxyzabcpump", pair_created_at: Date.now() - 13 * 3_600_000 },
   ],
 };
 
@@ -672,6 +705,26 @@ function buildTourSteps(serviceType: ServiceType, liveData?: ServiceResult): Pay
         .map((t) => `${t.symbol} ${formatVol(t.volume_24h)} vol`)
         .join(" | "),
       pumpfun_tokens: pt,
+      timestamp: new Date().toISOString(),
+      delivered_to: "Demo1234...abcd",
+    };
+  } else if (serviceType === "pump-new") {
+    const formatAge = (createdAt: number) => {
+      const ageMs = Date.now() - createdAt;
+      const hours = Math.floor(ageMs / 3_600_000);
+      const minutes = Math.floor((ageMs % 3_600_000) / 60_000);
+      if (hours >= 24) return `${Math.floor(hours / 24)}d ago`;
+      if (hours > 0) return `${hours}h ago`;
+      return `${minutes}m ago`;
+    };
+    const pn = liveData?.pump_new ?? MOCK_PUMP_NEW;
+    mockService = liveData ?? {
+      service_type: "pump-new",
+      result: pn.tokens
+        .slice(0, 3)
+        .map((t) => `${t.symbol} (${formatAge(t.pair_created_at)})`)
+        .join(" | "),
+      pump_new: pn,
       timestamp: new Date().toISOString(),
       delivered_to: "Demo1234...abcd",
     };
@@ -1144,6 +1197,61 @@ function ServiceResultTable({ service }: { service: ServiceResult }) {
                   {t.name !== t.symbol && <span style={{ color: "#888", fontSize: 11, marginLeft: 5 }}>{t.name}</span>}
                 </td>
                 <td style={{ padding: "7px 8px", textAlign: "right", fontWeight: 600 }}>{price}</td>
+                <td style={{ padding: "7px 8px", textAlign: "right", fontWeight: 600, color: changeColor }}>
+                  {t.change_24h_pct >= 0 ? "+" : ""}{t.change_24h_pct}%
+                </td>
+                <td style={{ padding: "7px 8px", textAlign: "right", color: "#666", fontSize: 12 }}>{formatVol(t.volume_24h)}</td>
+                <td style={{ padding: "7px 8px", textAlign: "right", color: "#666", fontSize: 12 }}>{formatMcap(t.market_cap)}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    );
+  }
+
+  if (service.service_type === "pump-new" && service.pump_new && service.pump_new.tokens.length > 0) {
+    const formatAge = (createdAt: number) => {
+      const ageMs = Date.now() - createdAt;
+      const hours = Math.floor(ageMs / 3_600_000);
+      const minutes = Math.floor((ageMs % 3_600_000) / 60_000);
+      if (hours >= 24) return `${Math.floor(hours / 24)}d ago`;
+      if (hours > 0) return `${hours}h ago`;
+      return `${minutes}m ago`;
+    };
+    const formatVol = (v: number) =>
+      v >= 1_000_000 ? `$${(v / 1_000_000).toFixed(1)}M` : `$${(v / 1_000).toFixed(0)}K`;
+    const formatMcap = (v: number) =>
+      v >= 1_000_000
+        ? `$${(v / 1_000_000).toFixed(1)}M`
+        : v > 0
+        ? `$${(v / 1_000).toFixed(0)}K`
+        : "—";
+    return (
+      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+        <thead>
+          <tr style={{ borderBottom: "1px solid #eee" }}>
+            <th style={{ textAlign: "left", padding: "4px 8px", color: "#777", fontWeight: 500, fontSize: 12 }}>#</th>
+            <th style={{ textAlign: "left", padding: "4px 8px", color: "#777", fontWeight: 500, fontSize: 12 }}>Token</th>
+            <th style={{ textAlign: "right", padding: "4px 8px", color: "#777", fontWeight: 500, fontSize: 12 }}>Age</th>
+            <th style={{ textAlign: "right", padding: "4px 8px", color: "#777", fontWeight: 500, fontSize: 12 }}>24h</th>
+            <th style={{ textAlign: "right", padding: "4px 8px", color: "#777", fontWeight: 500, fontSize: 12 }}>Vol 24h</th>
+            <th style={{ textAlign: "right", padding: "4px 8px", color: "#777", fontWeight: 500, fontSize: 12 }}>Mkt Cap</th>
+          </tr>
+        </thead>
+        <tbody>
+          {service.pump_new.tokens.map((t, i) => {
+            const changeColor = t.change_24h_pct >= 0 ? "#1a7a3e" : "#c0392b";
+            return (
+              <tr key={t.address} style={{ borderBottom: "1px solid #f0f0f0" }}>
+                <td style={{ padding: "7px 8px", color: "#aaa", fontSize: 12 }}>{i + 1}</td>
+                <td style={{ padding: "7px 8px" }}>
+                  <span style={{ fontWeight: 700, fontSize: 13 }}>{t.symbol}</span>
+                  {t.name !== t.symbol && <span style={{ color: "#888", fontSize: 11, marginLeft: 5 }}>{t.name}</span>}
+                </td>
+                <td style={{ padding: "7px 8px", textAlign: "right", color: "#7a44cc", fontWeight: 600, fontSize: 12 }}>
+                  {formatAge(t.pair_created_at)}
+                </td>
                 <td style={{ padding: "7px 8px", textAlign: "right", fontWeight: 600, color: changeColor }}>
                   {t.change_24h_pct >= 0 ? "+" : ""}{t.change_24h_pct}%
                 </td>
