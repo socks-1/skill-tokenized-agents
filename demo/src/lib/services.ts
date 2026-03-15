@@ -3,7 +3,7 @@
  * All functions are read-only calls to public APIs — no auth required.
  */
 
-export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins";
+export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl";
 
 export interface MarketData {
   symbol: string;
@@ -160,6 +160,18 @@ export interface StablecoinData {
   total_supply_usd: number; // sum of all shown stablecoins
 }
 
+export interface SolTvlProtocol {
+  name: string;
+  category: string;         // Lending | Liquid Staking | Dexs | Derivatives | etc.
+  tvl_usd: number;
+  change_1d_pct: number;    // 24h TVL change %
+}
+
+export interface SolTvlData {
+  protocols: SolTvlProtocol[];
+  total_tvl_usd: number;    // sum of shown protocols
+}
+
 export interface ServiceResult {
   service_type: ServiceType;
   result: string;
@@ -177,6 +189,7 @@ export interface ServiceResult {
   funding_rates?: FundingRateData;
   btc_mempool?: BtcMempoolData;
   stablecoins?: StablecoinData;
+  sol_tvl?: SolTvlData;
   timestamp: string;
   delivered_to: string;
 }
@@ -1065,6 +1078,69 @@ export async function deliverStablecoins(delivered_to: string, timestamp: string
   return { service_type: "stablecoins", result, stablecoins, timestamp, delivered_to };
 }
 
+/**
+ * Fetches top Solana-native DeFi protocols ranked by TVL from DeFi Llama.
+ * Covers Lending, Liquid Staking, DEXs, Derivatives, and more.
+ * Shows where capital is deployed on Solana — a structural health indicator.
+ */
+export async function deliverSolTvl(delivered_to: string, timestamp: string): Promise<ServiceResult> {
+  let sol_tvl: SolTvlData | undefined;
+
+  try {
+    const res = await fetch("https://api.llama.fi/protocols", {
+      headers: { Accept: "application/json" },
+      signal: AbortSignal.timeout(12000),
+    });
+
+    if (res.ok) {
+      const data = (await res.json()) as Array<{
+        name: string;
+        category: string;
+        chains: string[];
+        tvl: number;
+        change_1d?: number;
+      }>;
+
+      const protocols: SolTvlProtocol[] = data
+        .filter(
+          (p) =>
+            Array.isArray(p.chains) &&
+            p.chains[0] === "Solana" &&
+            p.category !== "CEX" &&
+            (p.tvl ?? 0) > 10_000_000
+        )
+        .sort((a, b) => (b.tvl ?? 0) - (a.tvl ?? 0))
+        .slice(0, 8)
+        .map((p) => ({
+          name: p.name,
+          category: p.category ?? "DeFi",
+          tvl_usd: p.tvl ?? 0,
+          change_1d_pct: parseFloat((p.change_1d ?? 0).toFixed(2)),
+        }));
+
+      if (protocols.length > 0) {
+        const total_tvl_usd = protocols.reduce((sum, p) => sum + p.tvl_usd, 0);
+        sol_tvl = { protocols, total_tvl_usd };
+      }
+    }
+  } catch {
+    // Fall through with undefined sol_tvl
+  }
+
+  const formatTvl = (v: number) =>
+    v >= 1_000_000_000 ? `$${(v / 1_000_000_000).toFixed(1)}B` : `$${(v / 1_000_000).toFixed(0)}M`;
+
+  const result =
+    sol_tvl && sol_tvl.protocols.length > 0
+      ? sol_tvl.protocols
+          .slice(0, 4)
+          .map((p) => `${p.name} ${formatTvl(p.tvl_usd)}`)
+          .join(" | ")
+      : "Solana DeFi TVL data temporarily unavailable";
+
+  return { service_type: "sol-protocol-tvl", result, sol_tvl, timestamp, delivered_to };
+}
+
 export async function deliverService(delivered_to: string, serviceType: ServiceType): Promise<ServiceResult> {
   const timestamp = new Date().toISOString();
   if (serviceType === "solana-stats") return deliverSolanaStats(delivered_to, timestamp);
@@ -1080,5 +1156,6 @@ export async function deliverService(delivered_to: string, serviceType: ServiceT
   if (serviceType === "funding-rates") return deliverFundingRates(delivered_to, timestamp);
   if (serviceType === "btc-mempool") return deliverBtcMempool(delivered_to, timestamp);
   if (serviceType === "stablecoins") return deliverStablecoins(delivered_to, timestamp);
+  if (serviceType === "sol-protocol-tvl") return deliverSolTvl(delivered_to, timestamp);
   return deliverCryptoPrices(delivered_to, timestamp);
 }

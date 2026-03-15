@@ -167,8 +167,20 @@ interface StablecoinData {
   total_supply_usd: number;
 }
 
+interface SolTvlProtocol {
+  name: string;
+  category: string;
+  tvl_usd: number;
+  change_1d_pct: number;
+}
+
+interface SolTvlData {
+  protocols: SolTvlProtocol[];
+  total_tvl_usd: number;
+}
+
 interface ServiceResult {
-  service_type: "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins";
+  service_type: "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl";
   result: string;
   market_data?: MarketData[];
   solana_stats?: SolanaStats;
@@ -184,6 +196,7 @@ interface ServiceResult {
   funding_rates?: FundingRateData;
   btc_mempool?: BtcMempoolData;
   stablecoins?: StablecoinData;
+  sol_tvl?: SolTvlData;
   timestamp: string;
   delivered_to: string;
 }
@@ -208,7 +221,7 @@ interface HealthStatus {
   issues: string[];
 }
 
-type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins";
+type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl";
 
 const SERVICE_OPTIONS: { id: ServiceType; label: string; description: string; price: string }[] = [
   {
@@ -293,6 +306,12 @@ const SERVICE_OPTIONS: { id: ServiceType; label: string; description: string; pr
     id: "stablecoins",
     label: "Stablecoin Supply",
     description: "Top stablecoins by circulating supply — USDT, USDC, DAI, USDe and more with 24h mint/burn trends",
+    price: "1 USDC",
+  },
+  {
+    id: "sol-protocol-tvl",
+    label: "Solana DeFi TVL",
+    description: "Top Solana-native DeFi protocols ranked by total value locked — lending, staking, DEXs, and more",
     price: "1 USDC",
   },
 ];
@@ -455,6 +474,20 @@ const MOCK_STABLECOINS: StablecoinData = {
     { symbol: "FDUSD", name: "First Digital USD", supply_usd: 1_900_000_000, change_24h_pct: -0.021, peg_mechanism: "fiat-backed" },
   ],
   total_supply_usd: 216_100_000_000,
+};
+
+const MOCK_SOL_TVL: SolTvlData = {
+  protocols: [
+    { name: "Kamino Lend", category: "Lending", tvl_usd: 2_030_000_000, change_1d_pct: 0.68 },
+    { name: "Jito Liquid Staking", category: "Liquid Staking", tvl_usd: 1_110_000_000, change_1d_pct: 0.62 },
+    { name: "Raydium AMM", category: "Dexs", tvl_usd: 1_050_000_000, change_1d_pct: 1.30 },
+    { name: "Jupiter Lend", category: "Lending", tvl_usd: 1_120_000_000, change_1d_pct: 0.44 },
+    { name: "Jupiter Perpetual Exchange", category: "Derivatives", tvl_usd: 880_000_000, change_1d_pct: 0.69 },
+    { name: "Sanctum Validator LSTs", category: "Liquid Staking", tvl_usd: 1_160_000_000, change_1d_pct: 0.74 },
+    { name: "Marinade Finance", category: "Liquid Staking", tvl_usd: 320_000_000, change_1d_pct: 0.81 },
+    { name: "Drift Protocol", category: "Derivatives", tvl_usd: 190_000_000, change_1d_pct: -1.20 },
+  ],
+  total_tvl_usd: 7_860_000_000,
 };
 
 const MOCK_SIGNATURE =
@@ -847,6 +880,17 @@ function buildTourSteps(serviceType: ServiceType, liveData?: ServiceResult): Pay
       service_type: "stablecoins",
       result: sc.coins.slice(0, 4).map((c) => `${c.symbol} ${formatB(c.supply_usd)}`).join(" | "),
       stablecoins: sc,
+      timestamp: new Date().toISOString(),
+      delivered_to: "Demo1234...abcd",
+    };
+  } else if (serviceType === "sol-protocol-tvl") {
+    const st = liveData?.sol_tvl ?? MOCK_SOL_TVL;
+    const formatTvl = (v: number) =>
+      v >= 1_000_000_000 ? `$${(v / 1_000_000_000).toFixed(1)}B` : `$${(v / 1_000_000).toFixed(0)}M`;
+    mockService = liveData ?? {
+      service_type: "sol-protocol-tvl",
+      result: st.protocols.slice(0, 4).map((p) => `${p.name} ${formatTvl(p.tvl_usd)}`).join(" | "),
+      sol_tvl: st,
       timestamp: new Date().toISOString(),
       delivered_to: "Demo1234...abcd",
     };
@@ -1515,6 +1559,46 @@ function ServiceResultTable({ service }: { service: ServiceResult }) {
                     {c.change_24h_pct >= 0 ? "+" : ""}{c.change_24h_pct.toFixed(3)}%
                   </td>
                   <td style={{ padding: "7px 8px", textAlign: "right", color: "#999", fontSize: 11 }}>{c.peg_mechanism}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
+
+  if (service.service_type === "sol-protocol-tvl" && service.sol_tvl) {
+    const st = service.sol_tvl;
+    const formatTvl = (v: number) =>
+      v >= 1_000_000_000 ? `$${(v / 1_000_000_000).toFixed(2)}B` : `$${(v / 1_000_000).toFixed(0)}M`;
+    const totalFormatted = formatTvl(st.total_tvl_usd);
+    return (
+      <div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+          <span style={{ fontSize: 12, color: "#777" }}>Total TVL shown:</span>
+          <span style={{ fontSize: 13, fontWeight: 700, color: "#2244aa" }}>{totalFormatted}</span>
+        </div>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+          <thead>
+            <tr style={{ borderBottom: "1px solid #eee" }}>
+              <th style={{ textAlign: "left", padding: "4px 8px", color: "#777", fontWeight: 500, fontSize: 12 }}>Protocol</th>
+              <th style={{ textAlign: "left", padding: "4px 8px", color: "#777", fontWeight: 500, fontSize: 12 }}>Category</th>
+              <th style={{ textAlign: "right", padding: "4px 8px", color: "#777", fontWeight: 500, fontSize: 12 }}>TVL</th>
+              <th style={{ textAlign: "right", padding: "4px 8px", color: "#777", fontWeight: 500, fontSize: 12 }}>24h Δ</th>
+            </tr>
+          </thead>
+          <tbody>
+            {st.protocols.map((p) => {
+              const changeColor = p.change_1d_pct > 0 ? "#1a7a3e" : p.change_1d_pct < 0 ? "#c00" : "#999";
+              return (
+                <tr key={p.name} style={{ borderBottom: "1px solid #f0f0f0" }}>
+                  <td style={{ padding: "7px 8px", fontWeight: 600 }}>{p.name}</td>
+                  <td style={{ padding: "7px 8px", color: "#666", fontSize: 12 }}>{p.category}</td>
+                  <td style={{ padding: "7px 8px", textAlign: "right", fontWeight: 700 }}>{formatTvl(p.tvl_usd)}</td>
+                  <td style={{ padding: "7px 8px", textAlign: "right", color: changeColor, fontWeight: 600, fontSize: 13 }}>
+                    {p.change_1d_pct >= 0 ? "+" : ""}{p.change_1d_pct.toFixed(2)}%
+                  </td>
                 </tr>
               );
             })}
