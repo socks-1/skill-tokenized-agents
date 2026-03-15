@@ -3,7 +3,7 @@
  * All functions are read-only calls to public APIs — no auth required.
  */
 
-export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume";
+export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens";
 
 export interface MarketData {
   symbol: string;
@@ -99,6 +99,20 @@ export interface DexVolumeData {
   dexes: DexVolume[];
 }
 
+export interface PumpToken {
+  symbol: string;
+  name: string;
+  price_usd: number;
+  change_24h_pct: number;
+  volume_24h: number;
+  market_cap: number;
+  address: string;
+}
+
+export interface PumpTokenData {
+  tokens: PumpToken[];
+}
+
 export interface ServiceResult {
   service_type: ServiceType;
   result: string;
@@ -111,6 +125,7 @@ export interface ServiceResult {
   trending?: TrendingData;
   top_gainers?: TopGainersData;
   dex_volume?: DexVolumeData;
+  pumpfun_tokens?: PumpTokenData;
   timestamp: string;
   delivered_to: string;
 }
@@ -672,6 +687,71 @@ export async function deliverDexVolume(delivered_to: string, timestamp: string):
   return { service_type: "dex-volume", result, dex_volume, timestamp, delivered_to };
 }
 
+/**
+ * Fetches top pump.fun tokens by 24h volume from DexScreener.
+ * Queries PumpSwap pairs on Solana, filters to the most active tokens.
+ */
+export async function deliverPumpTokens(delivered_to: string, timestamp: string): Promise<ServiceResult> {
+  const url = "https://api.dexscreener.com/latest/dex/search?q=pumpswap";
+
+  let pumpfun_tokens: PumpTokenData | undefined;
+
+  try {
+    const res = await fetch(url, {
+      headers: { Accept: "application/json" },
+      signal: AbortSignal.timeout(10000),
+    });
+
+    if (res.ok) {
+      const data = (await res.json()) as {
+        pairs: Array<{
+          chainId: string;
+          dexId: string;
+          baseToken: { address: string; name: string; symbol: string };
+          priceUsd?: string;
+          volume?: { h24?: number };
+          priceChange?: { h24?: number };
+          marketCap?: number;
+          fdv?: number;
+        }>;
+      };
+
+      const tokens: PumpToken[] = (data.pairs ?? [])
+        .filter((p) => p.chainId === "solana" && p.dexId === "pumpswap" && (p.volume?.h24 ?? 0) > 0)
+        .sort((a, b) => (b.volume?.h24 ?? 0) - (a.volume?.h24 ?? 0))
+        .slice(0, 6)
+        .map((p) => ({
+          symbol: p.baseToken.symbol,
+          name: p.baseToken.name,
+          price_usd: parseFloat(p.priceUsd ?? "0"),
+          change_24h_pct: parseFloat((p.priceChange?.h24 ?? 0).toFixed(2)),
+          volume_24h: p.volume?.h24 ?? 0,
+          market_cap: p.marketCap ?? p.fdv ?? 0,
+          address: p.baseToken.address,
+        }));
+
+      if (tokens.length > 0) {
+        pumpfun_tokens = { tokens };
+      }
+    }
+  } catch {
+    // Fall through with undefined pumpfun_tokens
+  }
+
+  const formatVol = (v: number) =>
+    v >= 1_000_000 ? `$${(v / 1_000_000).toFixed(1)}M` : `$${(v / 1_000).toFixed(0)}K`;
+
+  const result =
+    pumpfun_tokens && pumpfun_tokens.tokens.length > 0
+      ? pumpfun_tokens.tokens
+          .slice(0, 3)
+          .map((t) => `${t.symbol} ${formatVol(t.volume_24h)} vol`)
+          .join(" | ")
+      : "Pump.fun token data temporarily unavailable";
+
+  return { service_type: "pumpfun-tokens", result, pumpfun_tokens, timestamp, delivered_to };
+}
+
 export async function deliverService(delivered_to: string, serviceType: ServiceType): Promise<ServiceResult> {
   const timestamp = new Date().toISOString();
   if (serviceType === "solana-stats") return deliverSolanaStats(delivered_to, timestamp);
@@ -682,5 +762,6 @@ export async function deliverService(delivered_to: string, serviceType: ServiceT
   if (serviceType === "trending-coins") return deliverTrending(delivered_to, timestamp);
   if (serviceType === "top-gainers") return deliverTopGainers(delivered_to, timestamp);
   if (serviceType === "dex-volume") return deliverDexVolume(delivered_to, timestamp);
+  if (serviceType === "pumpfun-tokens") return deliverPumpTokens(delivered_to, timestamp);
   return deliverCryptoPrices(delivered_to, timestamp);
 }

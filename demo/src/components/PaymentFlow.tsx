@@ -106,8 +106,22 @@ interface DexVolumeData {
   dexes: DexVolume[];
 }
 
+interface PumpToken {
+  symbol: string;
+  name: string;
+  price_usd: number;
+  change_24h_pct: number;
+  volume_24h: number;
+  market_cap: number;
+  address: string;
+}
+
+interface PumpTokenData {
+  tokens: PumpToken[];
+}
+
 interface ServiceResult {
-  service_type: "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume";
+  service_type: "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens";
   result: string;
   market_data?: MarketData[];
   solana_stats?: SolanaStats;
@@ -118,6 +132,7 @@ interface ServiceResult {
   trending?: TrendingData;
   top_gainers?: TopGainersData;
   dex_volume?: DexVolumeData;
+  pumpfun_tokens?: PumpTokenData;
   timestamp: string;
   delivered_to: string;
 }
@@ -142,7 +157,7 @@ interface HealthStatus {
   issues: string[];
 }
 
-type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume";
+type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens";
 
 const SERVICE_OPTIONS: { id: ServiceType; label: string; description: string; price: string }[] = [
   {
@@ -197,6 +212,12 @@ const SERVICE_OPTIONS: { id: ServiceType; label: string; description: string; pr
     id: "dex-volume",
     label: "Solana DEX Volume Leaders",
     description: "Top Solana DEXes by 24h trading volume — PumpSwap, Raydium, Orca, and more",
+    price: "1 USDC",
+  },
+  {
+    id: "pumpfun-tokens",
+    label: "Pump.fun Hot Tokens",
+    description: "Top tokens by 24h trading volume on PumpSwap — live from DexScreener",
     price: "1 USDC",
   },
 ];
@@ -303,6 +324,17 @@ const MOCK_DEX_VOLUME: DexVolumeData = {
     { name: "Meteora DLMM", chains: ["Solana"], volume_24h: 137050558, volume_7d: 850000000, change_1d: 8.1 },
     { name: "Orca DEX", chains: ["Solana", "Eclipse"], volume_24h: 88362624, volume_7d: 620000000, change_1d: -1.5 },
     { name: "Phoenix", chains: ["Solana"], volume_24h: 45000000, volume_7d: 290000000, change_1d: 5.3 },
+  ],
+};
+
+const MOCK_PUMPFUN_TOKENS: PumpTokenData = {
+  tokens: [
+    { symbol: "MEMECARD", name: "MEMECARD", price_usd: 0.000918, change_24h_pct: -17.8, volume_24h: 9_814_035, market_cap: 918_302, address: "ACc3ZBq1c9h7pofwn2J8b8bvRHvqMFwynVg8neLZpump" },
+    { symbol: "GOAT", name: "Goatseus Maximus", price_usd: 0.0412, change_24h_pct: 34.2, volume_24h: 7_340_000, market_cap: 41_200_000, address: "CzLSujWBLFsSjncfkh59rUFqvafWcY5tzedWJSuypump" },
+    { symbol: "FWOG", name: "FWOG", price_usd: 0.00714, change_24h_pct: -5.3, volume_24h: 5_120_000, market_cap: 7_140_000, address: "A8C3XmzFpump" },
+    { symbol: "PONKE", name: "PONKE", price_usd: 0.0283, change_24h_pct: 12.7, volume_24h: 3_890_000, market_cap: 28_300_000, address: "5z3EqYQo9HiCnPNHatpump" },
+    { symbol: "POPCAT", name: "Popcat", price_usd: 0.097, change_24h_pct: -2.1, volume_24h: 2_740_000, market_cap: 97_000_000, address: "7GCihgDB8fe6KNjn2MYtkzZcRjQy3t9GHdC8uHYmW2hr" },
+    { symbol: "WIF", name: "dogwifhat", price_usd: 0.165, change_24h_pct: -2.4, volume_24h: 2_100_000, market_cap: 165_000_000, address: "EKpQGSJtjMFqKZ9KQanSqYXRcF8fBopzLHYxdM65zcjm" },
   ],
 };
 
@@ -626,6 +658,20 @@ function buildTourSteps(serviceType: ServiceType, liveData?: ServiceResult): Pay
         .map((d) => `${d.name} ${formatVol(d.volume_24h)}`)
         .join(" | "),
       dex_volume: dv,
+      timestamp: new Date().toISOString(),
+      delivered_to: "Demo1234...abcd",
+    };
+  } else if (serviceType === "pumpfun-tokens") {
+    const formatVol = (v: number) =>
+      v >= 1_000_000 ? `$${(v / 1_000_000).toFixed(1)}M` : `$${(v / 1_000).toFixed(0)}K`;
+    const pt = liveData?.pumpfun_tokens ?? MOCK_PUMPFUN_TOKENS;
+    mockService = liveData ?? {
+      service_type: "pumpfun-tokens",
+      result: pt.tokens
+        .slice(0, 3)
+        .map((t) => `${t.symbol} ${formatVol(t.volume_24h)} vol`)
+        .join(" | "),
+      pumpfun_tokens: pt,
       timestamp: new Date().toISOString(),
       delivered_to: "Demo1234...abcd",
     };
@@ -1046,6 +1092,63 @@ function ServiceResultTable({ service }: { service: ServiceResult }) {
                 <td style={{ padding: "7px 8px", textAlign: "right", fontWeight: 600, color: changeColor }}>
                   {d.change_1d >= 0 ? "+" : ""}{d.change_1d}%
                 </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    );
+  }
+
+  if (service.service_type === "pumpfun-tokens" && service.pumpfun_tokens && service.pumpfun_tokens.tokens.length > 0) {
+    const formatVol = (v: number) =>
+      v >= 1_000_000 ? `$${(v / 1_000_000).toFixed(1)}M` : `$${(v / 1_000).toFixed(0)}K`;
+    const formatMcap = (v: number) =>
+      v >= 1_000_000_000
+        ? `$${(v / 1_000_000_000).toFixed(1)}B`
+        : v >= 1_000_000
+        ? `$${(v / 1_000_000).toFixed(1)}M`
+        : v > 0
+        ? `$${(v / 1_000).toFixed(0)}K`
+        : "—";
+    return (
+      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+        <thead>
+          <tr style={{ borderBottom: "1px solid #eee" }}>
+            <th style={{ textAlign: "left", padding: "4px 8px", color: "#777", fontWeight: 500, fontSize: 12 }}>#</th>
+            <th style={{ textAlign: "left", padding: "4px 8px", color: "#777", fontWeight: 500, fontSize: 12 }}>Token</th>
+            <th style={{ textAlign: "right", padding: "4px 8px", color: "#777", fontWeight: 500, fontSize: 12 }}>Price</th>
+            <th style={{ textAlign: "right", padding: "4px 8px", color: "#777", fontWeight: 500, fontSize: 12 }}>24h</th>
+            <th style={{ textAlign: "right", padding: "4px 8px", color: "#777", fontWeight: 500, fontSize: 12 }}>Vol 24h</th>
+            <th style={{ textAlign: "right", padding: "4px 8px", color: "#777", fontWeight: 500, fontSize: 12 }}>Mkt Cap</th>
+          </tr>
+        </thead>
+        <tbody>
+          {service.pumpfun_tokens.tokens.map((t, i) => {
+            const price =
+              t.price_usd < 0.000001
+                ? `$${t.price_usd.toFixed(10)}`
+                : t.price_usd < 0.0001
+                ? `$${t.price_usd.toFixed(8)}`
+                : t.price_usd < 0.01
+                ? `$${t.price_usd.toFixed(6)}`
+                : t.price_usd < 1
+                ? `$${t.price_usd.toFixed(4)}`
+                : `$${t.price_usd.toLocaleString()}`;
+            const changeColor = t.change_24h_pct >= 0 ? "#1a7a3e" : "#c0392b";
+            return (
+              <tr key={t.address} style={{ borderBottom: "1px solid #f0f0f0" }}>
+                <td style={{ padding: "7px 8px", color: "#aaa", fontSize: 12 }}>{i + 1}</td>
+                <td style={{ padding: "7px 8px" }}>
+                  <span style={{ fontWeight: 700, fontSize: 13 }}>{t.symbol}</span>
+                  {t.name !== t.symbol && <span style={{ color: "#888", fontSize: 11, marginLeft: 5 }}>{t.name}</span>}
+                </td>
+                <td style={{ padding: "7px 8px", textAlign: "right", fontWeight: 600 }}>{price}</td>
+                <td style={{ padding: "7px 8px", textAlign: "right", fontWeight: 600, color: changeColor }}>
+                  {t.change_24h_pct >= 0 ? "+" : ""}{t.change_24h_pct}%
+                </td>
+                <td style={{ padding: "7px 8px", textAlign: "right", color: "#666", fontSize: 12 }}>{formatVol(t.volume_24h)}</td>
+                <td style={{ padding: "7px 8px", textAlign: "right", color: "#666", fontSize: 12 }}>{formatMcap(t.market_cap)}</td>
               </tr>
             );
           })}
