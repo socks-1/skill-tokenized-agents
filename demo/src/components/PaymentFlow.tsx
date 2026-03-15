@@ -146,8 +146,16 @@ interface FundingRateData {
   rates: FundingRate[];
 }
 
+interface BtcMempoolData {
+  count: number;
+  vsize_mb: number;
+  fee_fastest: number;
+  fee_30min: number;
+  fee_60min: number;
+}
+
 interface ServiceResult {
-  service_type: "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates";
+  service_type: "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool";
   result: string;
   market_data?: MarketData[];
   solana_stats?: SolanaStats;
@@ -161,6 +169,7 @@ interface ServiceResult {
   pumpfun_tokens?: PumpTokenData;
   pump_new?: PumpNewData;
   funding_rates?: FundingRateData;
+  btc_mempool?: BtcMempoolData;
   timestamp: string;
   delivered_to: string;
 }
@@ -185,7 +194,7 @@ interface HealthStatus {
   issues: string[];
 }
 
-type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates";
+type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool";
 
 const SERVICE_OPTIONS: { id: ServiceType; label: string; description: string; price: string }[] = [
   {
@@ -258,6 +267,12 @@ const SERVICE_OPTIONS: { id: ServiceType; label: string; description: string; pr
     id: "funding-rates",
     label: "Perp Funding Rates",
     description: "Live 8h funding rates for major perpetuals on Hyperliquid — bullish/bearish positioning signal",
+    price: "1 USDC",
+  },
+  {
+    id: "btc-mempool",
+    label: "Bitcoin Mempool",
+    description: "Live Bitcoin network congestion — pending tx count, mempool size, and fee rates from mempool.space",
     price: "1 USDC",
   },
 ];
@@ -400,6 +415,14 @@ const MOCK_FUNDING_RATES: FundingRateData = {
     { symbol: "LINK", rate_8h: 0.00007, mark_price: 14.8, open_interest: 7_000_000 },
     { symbol: "SUI", rate_8h: 0.00015, mark_price: 2.91, open_interest: 15_000_000 },
   ],
+};
+
+const MOCK_BTC_MEMPOOL: BtcMempoolData = {
+  count: 42_815,
+  vsize_mb: 193.4,
+  fee_fastest: 21,
+  fee_30min: 14,
+  fee_60min: 8,
 };
 
 const MOCK_SIGNATURE =
@@ -772,6 +795,15 @@ function buildTourSteps(serviceType: ServiceType, liveData?: ServiceResult): Pay
         .map((r) => `${r.symbol} ${formatRate(r.rate_8h)}/8h`)
         .join(" | "),
       funding_rates: fr,
+      timestamp: new Date().toISOString(),
+      delivered_to: "Demo1234...abcd",
+    };
+  } else if (serviceType === "btc-mempool") {
+    const bm = liveData?.btc_mempool ?? MOCK_BTC_MEMPOOL;
+    mockService = liveData ?? {
+      service_type: "btc-mempool",
+      result: `${bm.count.toLocaleString()} pending txs | ${bm.vsize_mb} MB | Fast: ${bm.fee_fastest} sat/vB | 30min: ${bm.fee_30min} sat/vB | 1h: ${bm.fee_60min} sat/vB`,
+      btc_mempool: bm,
       timestamp: new Date().toISOString(),
       delivered_to: "Demo1234...abcd",
     };
@@ -1364,6 +1396,45 @@ function ServiceResultTable({ service }: { service: ServiceResult }) {
           })}
         </tbody>
       </table>
+    );
+  }
+
+  if (service.service_type === "btc-mempool" && service.btc_mempool) {
+    const bm = service.btc_mempool;
+    const congestion = bm.fee_fastest > 50 ? "High" : bm.fee_fastest > 20 ? "Moderate" : "Low";
+    const congestionColor = bm.fee_fastest > 50 ? "#c00" : bm.fee_fastest > 20 ? "#d97706" : "#1a7a3e";
+    const rows: { label: string; value: string; note?: string }[] = [
+      { label: "Pending Txs", value: bm.count.toLocaleString(), note: "unconfirmed transactions" },
+      { label: "Mempool Size", value: `${bm.vsize_mb} MB`, note: "virtual bytes queued" },
+      { label: "Next Block", value: `${bm.fee_fastest} sat/vB`, note: "fastest confirmation" },
+      { label: "~30 min", value: `${bm.fee_30min} sat/vB`, note: "half-hour estimate" },
+      { label: "~1 hour", value: `${bm.fee_60min} sat/vB`, note: "economy rate" },
+    ];
+    return (
+      <div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+          <span style={{ fontSize: 12, color: "#777" }}>Network congestion:</span>
+          <span style={{ fontSize: 13, fontWeight: 700, color: congestionColor }}>{congestion}</span>
+        </div>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+          <thead>
+            <tr style={{ borderBottom: "1px solid #eee" }}>
+              <th style={{ textAlign: "left", padding: "4px 8px", color: "#777", fontWeight: 500, fontSize: 12 }}>Metric</th>
+              <th style={{ textAlign: "right", padding: "4px 8px", color: "#777", fontWeight: 500, fontSize: 12 }}>Value</th>
+              <th style={{ textAlign: "right", padding: "4px 8px", color: "#777", fontWeight: 500, fontSize: 12 }}>Note</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.label} style={{ borderBottom: "1px solid #f0f0f0" }}>
+                <td style={{ padding: "7px 8px", fontWeight: 600 }}>{r.label}</td>
+                <td style={{ padding: "7px 8px", textAlign: "right", fontWeight: 700 }}>{r.value}</td>
+                <td style={{ padding: "7px 8px", textAlign: "right", color: "#999", fontSize: 11 }}>{r.note}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     );
   }
 

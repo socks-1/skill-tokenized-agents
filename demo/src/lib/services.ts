@@ -3,7 +3,7 @@
  * All functions are read-only calls to public APIs — no auth required.
  */
 
-export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates";
+export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool";
 
 export interface MarketData {
   symbol: string;
@@ -139,6 +139,14 @@ export interface FundingRateData {
   rates: FundingRate[];
 }
 
+export interface BtcMempoolData {
+  count: number;         // pending transaction count
+  vsize_mb: number;      // mempool virtual size in MB
+  fee_fastest: number;   // sat/vB for next block confirmation
+  fee_30min: number;     // sat/vB for ~30 min confirmation
+  fee_60min: number;     // sat/vB for ~1 hour confirmation
+}
+
 export interface ServiceResult {
   service_type: ServiceType;
   result: string;
@@ -154,6 +162,7 @@ export interface ServiceResult {
   pumpfun_tokens?: PumpTokenData;
   pump_new?: PumpNewData;
   funding_rates?: FundingRateData;
+  btc_mempool?: BtcMempoolData;
   timestamp: string;
   delivered_to: string;
 }
@@ -924,6 +933,59 @@ export async function deliverFundingRates(delivered_to: string, timestamp: strin
   return { service_type: "funding-rates", result, funding_rates, timestamp, delivered_to };
 }
 
+/**
+ * Fetches Bitcoin mempool stats and recommended fee rates from mempool.space.
+ * Shows pending tx count, mempool size, and fee rates (fastest/30min/1h) in sat/vB.
+ * High fee rates signal network congestion; useful as a Bitcoin on-chain health signal.
+ */
+export async function deliverBtcMempool(delivered_to: string, timestamp: string): Promise<ServiceResult> {
+  let btc_mempool: BtcMempoolData | undefined;
+
+  try {
+    const [mempoolRes, feesRes] = await Promise.all([
+      fetch("https://mempool.space/api/mempool", {
+        headers: { Accept: "application/json" },
+        signal: AbortSignal.timeout(8000),
+      }),
+      fetch("https://mempool.space/api/v1/fees/recommended", {
+        headers: { Accept: "application/json" },
+        signal: AbortSignal.timeout(8000),
+      }),
+    ]);
+
+    if (mempoolRes.ok && feesRes.ok) {
+      const mempoolData = (await mempoolRes.json()) as {
+        count: number;
+        vsize: number;
+        total_fee: number;
+      };
+      const feesData = (await feesRes.json()) as {
+        fastestFee: number;
+        halfHourFee: number;
+        hourFee: number;
+        economyFee: number;
+        minimumFee: number;
+      };
+
+      btc_mempool = {
+        count: mempoolData.count,
+        vsize_mb: parseFloat((mempoolData.vsize / 1_000_000).toFixed(2)),
+        fee_fastest: feesData.fastestFee,
+        fee_30min: feesData.halfHourFee,
+        fee_60min: feesData.hourFee,
+      };
+    }
+  } catch {
+    // Fall through with undefined btc_mempool
+  }
+
+  const result = btc_mempool
+    ? `${btc_mempool.count.toLocaleString()} pending txs | ${btc_mempool.vsize_mb} MB | Fast: ${btc_mempool.fee_fastest} sat/vB | 30min: ${btc_mempool.fee_30min} sat/vB | 1h: ${btc_mempool.fee_60min} sat/vB`
+    : "Bitcoin mempool data temporarily unavailable";
+
+  return { service_type: "btc-mempool", result, btc_mempool, timestamp, delivered_to };
+}
+
 export async function deliverService(delivered_to: string, serviceType: ServiceType): Promise<ServiceResult> {
   const timestamp = new Date().toISOString();
   if (serviceType === "solana-stats") return deliverSolanaStats(delivered_to, timestamp);
@@ -937,5 +999,6 @@ export async function deliverService(delivered_to: string, serviceType: ServiceT
   if (serviceType === "pumpfun-tokens") return deliverPumpTokens(delivered_to, timestamp);
   if (serviceType === "pump-new") return deliverPumpNew(delivered_to, timestamp);
   if (serviceType === "funding-rates") return deliverFundingRates(delivered_to, timestamp);
+  if (serviceType === "btc-mempool") return deliverBtcMempool(delivered_to, timestamp);
   return deliverCryptoPrices(delivered_to, timestamp);
 }
