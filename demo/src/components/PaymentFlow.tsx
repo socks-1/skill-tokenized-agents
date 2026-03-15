@@ -192,8 +192,20 @@ interface AiAgentTokensData {
   tokens: AiAgentToken[];
 }
 
+interface SolRevenueProtocol {
+  name: string;
+  category: string;
+  revenue_24h: number;
+  revenue_7d: number;
+}
+
+interface SolRevenueData {
+  protocols: SolRevenueProtocol[];
+  total_revenue_24h: number;
+}
+
 interface ServiceResult {
-  service_type: "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens";
+  service_type: "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue";
   result: string;
   market_data?: MarketData[];
   solana_stats?: SolanaStats;
@@ -211,6 +223,7 @@ interface ServiceResult {
   stablecoins?: StablecoinData;
   sol_tvl?: SolTvlData;
   ai_agent_tokens?: AiAgentTokensData;
+  sol_revenue?: SolRevenueData;
   timestamp: string;
   delivered_to: string;
 }
@@ -235,7 +248,7 @@ interface HealthStatus {
   issues: string[];
 }
 
-type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens";
+type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue";
 
 const SERVICE_OPTIONS: { id: ServiceType; label: string; description: string; price: string }[] = [
   {
@@ -332,6 +345,12 @@ const SERVICE_OPTIONS: { id: ServiceType; label: string; description: string; pr
     id: "ai-agent-tokens",
     label: "AI Agent Tokens",
     description: "Top AI agent economy tokens by market cap — VIRTUAL, FET, ai16z, Venice, and more from CoinGecko",
+    price: "1 USDC",
+  },
+  {
+    id: "sol-revenue",
+    label: "Solana Protocol Revenue",
+    description: "Top Solana protocols ranked by 24h fee revenue — PumpSwap, pump.fun, Jupiter Perps, and more",
     price: "1 USDC",
   },
 ];
@@ -521,6 +540,20 @@ const MOCK_AI_AGENT_TOKENS: AiAgentTokensData = {
     { symbol: "FAI", name: "Freysa AI", price_usd: 0.0068, change_24h_pct: -0.24, market_cap_usd: 55_800_000, market_cap_rank: 232 },
     { symbol: "PIPPIN", name: "Pippin", price_usd: 0.36, change_24h_pct: -2.32, market_cap_usd: 364_000_000, market_cap_rank: 110 },
   ],
+};
+
+const MOCK_SOL_REVENUE: SolRevenueData = {
+  protocols: [
+    { name: "PumpSwap", category: "Dexs", revenue_24h: 1_745_079, revenue_7d: 12_005_125 },
+    { name: "pump.fun", category: "Launchpad", revenue_24h: 758_906, revenue_7d: 5_911_285 },
+    { name: "Jupiter Perpetual Exchange", category: "Derivatives", revenue_24h: 376_925, revenue_7d: 7_766_482 },
+    { name: "Axiom", category: "Trading App", revenue_24h: 345_705, revenue_7d: 1_963_415 },
+    { name: "GMGN", category: "Telegram Bot", revenue_24h: 277_575, revenue_7d: 2_087_814 },
+    { name: "Meteora DLMM", category: "Dexs", revenue_24h: 196_627, revenue_7d: 2_356_395 },
+    { name: "Phantom Wallet", category: "Wallets", revenue_24h: 155_694, revenue_7d: 1_434_864 },
+    { name: "Kamino Lend", category: "Lending", revenue_24h: 148_353, revenue_7d: 967_493 },
+  ],
+  total_revenue_24h: 4_005_864,
 };
 
 const MOCK_SIGNATURE =
@@ -935,6 +968,17 @@ function buildTourSteps(serviceType: ServiceType, liveData?: ServiceResult): Pay
       service_type: "ai-agent-tokens",
       result: at.tokens.slice(0, 4).map((t) => `${t.symbol} ${formatMcap(t.market_cap_usd)} (${t.change_24h_pct >= 0 ? "+" : ""}${t.change_24h_pct}%)`).join(" | "),
       ai_agent_tokens: at,
+      timestamp: new Date().toISOString(),
+      delivered_to: "Demo1234...abcd",
+    };
+  } else if (serviceType === "sol-revenue") {
+    const sr = liveData?.sol_revenue ?? MOCK_SOL_REVENUE;
+    const formatRev = (v: number) =>
+      v >= 1_000_000 ? `$${(v / 1_000_000).toFixed(2)}M` : `$${(v / 1_000).toFixed(0)}K`;
+    mockService = liveData ?? {
+      service_type: "sol-revenue",
+      result: sr.protocols.slice(0, 4).map((p) => `${p.name} ${formatRev(p.revenue_24h)}/24h`).join(" | "),
+      sol_revenue: sr,
       timestamp: new Date().toISOString(),
       delivered_to: "Demo1234...abcd",
     };
@@ -1688,6 +1732,41 @@ function ServiceResultTable({ service }: { service: ServiceResult }) {
                 </tr>
               );
             })}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
+
+  if (service.service_type === "sol-revenue" && service.sol_revenue) {
+    const sr = service.sol_revenue;
+    const formatRev = (v: number) =>
+      v >= 1_000_000 ? `$${(v / 1_000_000).toFixed(2)}M` : `$${(v / 1_000).toFixed(0)}K`;
+    const totalFormatted = formatRev(sr.total_revenue_24h);
+    return (
+      <div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+          <span style={{ fontSize: 12, color: "#777" }}>Total 24h revenue shown:</span>
+          <span style={{ fontSize: 13, fontWeight: 700, color: "#2244aa" }}>{totalFormatted}</span>
+        </div>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+          <thead>
+            <tr style={{ borderBottom: "1px solid #eee" }}>
+              <th style={{ textAlign: "left", padding: "4px 8px", color: "#777", fontWeight: 500, fontSize: 12 }}>Protocol</th>
+              <th style={{ textAlign: "left", padding: "4px 8px", color: "#777", fontWeight: 500, fontSize: 12 }}>Category</th>
+              <th style={{ textAlign: "right", padding: "4px 8px", color: "#777", fontWeight: 500, fontSize: 12 }}>24h Revenue</th>
+              <th style={{ textAlign: "right", padding: "4px 8px", color: "#777", fontWeight: 500, fontSize: 12 }}>7d Revenue</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sr.protocols.map((p) => (
+              <tr key={p.name} style={{ borderBottom: "1px solid #f0f0f0" }}>
+                <td style={{ padding: "7px 8px", fontWeight: 600 }}>{p.name}</td>
+                <td style={{ padding: "7px 8px", color: "#666", fontSize: 12 }}>{p.category}</td>
+                <td style={{ padding: "7px 8px", textAlign: "right", fontWeight: 700 }}>{formatRev(p.revenue_24h)}</td>
+                <td style={{ padding: "7px 8px", textAlign: "right", color: "#444" }}>{formatRev(p.revenue_7d)}</td>
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>

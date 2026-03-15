@@ -3,7 +3,7 @@
  * All functions are read-only calls to public APIs — no auth required.
  */
 
-export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens";
+export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue";
 
 export interface MarketData {
   symbol: string;
@@ -185,6 +185,18 @@ export interface AiAgentTokensData {
   tokens: AiAgentToken[];
 }
 
+export interface SolRevenueProtocol {
+  name: string;
+  category: string;
+  revenue_24h: number;   // USD
+  revenue_7d: number;    // USD
+}
+
+export interface SolRevenueData {
+  protocols: SolRevenueProtocol[];
+  total_revenue_24h: number;
+}
+
 export interface ServiceResult {
   service_type: ServiceType;
   result: string;
@@ -204,6 +216,7 @@ export interface ServiceResult {
   stablecoins?: StablecoinData;
   sol_tvl?: SolTvlData;
   ai_agent_tokens?: AiAgentTokensData;
+  sol_revenue?: SolRevenueData;
   timestamp: string;
   delivered_to: string;
 }
@@ -1204,6 +1217,78 @@ export async function deliverAiAgentTokens(delivered_to: string, timestamp: stri
   return { service_type: "ai-agent-tokens", result, ai_agent_tokens, timestamp, delivered_to };
 }
 
+/**
+ * Fetches 24h fee revenue for top Solana protocols from DeFi Llama.
+ * Shows which protocols are earning the most real revenue — from trading fees,
+ * launchpad cuts, and perpetual funding — a direct measure of on-chain activity.
+ * PumpSwap, pump.fun, and Jupiter Perpetuals consistently lead.
+ */
+export async function deliverSolRevenue(delivered_to: string, timestamp: string): Promise<ServiceResult> {
+  let sol_revenue: SolRevenueData | undefined;
+
+  // Categories to exclude — "Chain" is just base-layer validator income, not protocol revenue
+  const EXCLUDE_CATEGORIES = new Set(["Chain"]);
+
+  try {
+    const res = await fetch(
+      "https://api.llama.fi/overview/fees?excludeTotalDataChart=true&excludeTotalDataChartBreakdown=true",
+      {
+        headers: { Accept: "application/json" },
+        signal: AbortSignal.timeout(12000),
+      }
+    );
+
+    if (res.ok) {
+      const data = (await res.json()) as {
+        protocols: Array<{
+          name: string;
+          category: string;
+          chains: string[];
+          total24h: number | null;
+          total7d: number | null;
+        }>;
+      };
+
+      const protocols: SolRevenueProtocol[] = (data.protocols ?? [])
+        .filter(
+          (p) =>
+            Array.isArray(p.chains) &&
+            p.chains.includes("Solana") &&
+            !EXCLUDE_CATEGORIES.has(p.category) &&
+            (p.total24h ?? 0) > 0
+        )
+        .sort((a, b) => (b.total24h ?? 0) - (a.total24h ?? 0))
+        .slice(0, 8)
+        .map((p) => ({
+          name: p.name,
+          category: p.category ?? "DeFi",
+          revenue_24h: p.total24h ?? 0,
+          revenue_7d: p.total7d ?? 0,
+        }));
+
+      if (protocols.length > 0) {
+        const total_revenue_24h = protocols.reduce((sum, p) => sum + p.revenue_24h, 0);
+        sol_revenue = { protocols, total_revenue_24h };
+      }
+    }
+  } catch {
+    // Fall through with undefined sol_revenue
+  }
+
+  const formatRev = (v: number) =>
+    v >= 1_000_000 ? `$${(v / 1_000_000).toFixed(2)}M` : `$${(v / 1_000).toFixed(0)}K`;
+
+  const result =
+    sol_revenue && sol_revenue.protocols.length > 0
+      ? sol_revenue.protocols
+          .slice(0, 4)
+          .map((p) => `${p.name} ${formatRev(p.revenue_24h)}/24h`)
+          .join(" | ")
+      : "Protocol revenue data temporarily unavailable";
+
+  return { service_type: "sol-revenue", result, sol_revenue, timestamp, delivered_to };
+}
+
 export async function deliverService(delivered_to: string, serviceType: ServiceType): Promise<ServiceResult> {
   const timestamp = new Date().toISOString();
   if (serviceType === "solana-stats") return deliverSolanaStats(delivered_to, timestamp);
@@ -1221,5 +1306,6 @@ export async function deliverService(delivered_to: string, serviceType: ServiceT
   if (serviceType === "stablecoins") return deliverStablecoins(delivered_to, timestamp);
   if (serviceType === "sol-protocol-tvl") return deliverSolTvl(delivered_to, timestamp);
   if (serviceType === "ai-agent-tokens") return deliverAiAgentTokens(delivered_to, timestamp);
+  if (serviceType === "sol-revenue") return deliverSolRevenue(delivered_to, timestamp);
   return deliverCryptoPrices(delivered_to, timestamp);
 }
