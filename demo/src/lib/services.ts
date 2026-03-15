@@ -3,7 +3,7 @@
  * All functions are read-only calls to public APIs — no auth required.
  */
 
-export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins";
+export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers";
 
 export interface MarketData {
   symbol: string;
@@ -74,6 +74,19 @@ export interface TrendingData {
   coins: TrendingCoin[];
 }
 
+export interface TopGainer {
+  symbol: string;
+  name: string;
+  price_usd: number;
+  change_24h_pct: number;
+  volume_24h: number;
+  market_cap: number;
+}
+
+export interface TopGainersData {
+  gainers: TopGainer[];
+}
+
 export interface ServiceResult {
   service_type: ServiceType;
   result: string;
@@ -84,6 +97,7 @@ export interface ServiceResult {
   solana_ecosystem?: SolanaEcosystemData;
   ai_models?: AiModelsData;
   trending?: TrendingData;
+  top_gainers?: TopGainersData;
   timestamp: string;
   delivered_to: string;
 }
@@ -519,6 +533,65 @@ export async function deliverTrending(delivered_to: string, timestamp: string): 
   return { service_type: "trending-coins", result, trending, timestamp, delivered_to };
 }
 
+/**
+ * Fetches the top crypto gainers over the last 24h from CoinGecko.
+ * Filters for coins with >5% gain AND >$1M daily volume to surface meaningful movers.
+ */
+export async function deliverTopGainers(delivered_to: string, timestamp: string): Promise<ServiceResult> {
+  const url =
+    "https://api.coingecko.com/api/v3/coins/markets" +
+    "?vs_currency=usd&order=price_change_percentage_24h_desc&per_page=50&page=1" +
+    "&price_change_percentage=24h&sparkline=false";
+
+  let top_gainers: TopGainersData | undefined;
+
+  try {
+    const res = await fetch(url, {
+      headers: { Accept: "application/json" },
+      signal: AbortSignal.timeout(8000),
+    });
+
+    if (res.ok) {
+      const data = (await res.json()) as Array<{
+        symbol: string;
+        name: string;
+        current_price: number;
+        price_change_percentage_24h: number;
+        total_volume: number;
+        market_cap: number;
+      }>;
+
+      const gainers: TopGainer[] = data
+        .filter((c) => c.price_change_percentage_24h > 5 && c.total_volume > 1_000_000)
+        .slice(0, 8)
+        .map((c) => ({
+          symbol: c.symbol.toUpperCase(),
+          name: c.name,
+          price_usd: c.current_price,
+          change_24h_pct: parseFloat(c.price_change_percentage_24h.toFixed(2)),
+          volume_24h: c.total_volume,
+          market_cap: c.market_cap,
+        }));
+
+      if (gainers.length > 0) {
+        top_gainers = { gainers };
+      }
+    }
+  } catch {
+    // Fall through with undefined top_gainers
+  }
+
+  const result =
+    top_gainers && top_gainers.gainers.length > 0
+      ? top_gainers.gainers
+          .slice(0, 4)
+          .map((g) => `${g.symbol} +${g.change_24h_pct}%`)
+          .join(" | ")
+      : "Top gainer data temporarily unavailable";
+
+  return { service_type: "top-gainers", result, top_gainers, timestamp, delivered_to };
+}
+
 export async function deliverService(delivered_to: string, serviceType: ServiceType): Promise<ServiceResult> {
   const timestamp = new Date().toISOString();
   if (serviceType === "solana-stats") return deliverSolanaStats(delivered_to, timestamp);
@@ -527,5 +600,6 @@ export async function deliverService(delivered_to: string, serviceType: ServiceT
   if (serviceType === "solana-ecosystem") return deliverSolanaEcosystem(delivered_to, timestamp);
   if (serviceType === "ai-models") return deliverAiModels(delivered_to, timestamp);
   if (serviceType === "trending-coins") return deliverTrending(delivered_to, timestamp);
+  if (serviceType === "top-gainers") return deliverTopGainers(delivered_to, timestamp);
   return deliverCryptoPrices(delivered_to, timestamp);
 }

@@ -81,8 +81,21 @@ interface TrendingData {
   coins: TrendingCoin[];
 }
 
+interface TopGainer {
+  symbol: string;
+  name: string;
+  price_usd: number;
+  change_24h_pct: number;
+  volume_24h: number;
+  market_cap: number;
+}
+
+interface TopGainersData {
+  gainers: TopGainer[];
+}
+
 interface ServiceResult {
-  service_type: "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins";
+  service_type: "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers";
   result: string;
   market_data?: MarketData[];
   solana_stats?: SolanaStats;
@@ -91,6 +104,7 @@ interface ServiceResult {
   solana_ecosystem?: SolanaEcosystemData;
   ai_models?: AiModelsData;
   trending?: TrendingData;
+  top_gainers?: TopGainersData;
   timestamp: string;
   delivered_to: string;
 }
@@ -115,7 +129,7 @@ interface HealthStatus {
   issues: string[];
 }
 
-type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins";
+type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers";
 
 const SERVICE_OPTIONS: { id: ServiceType; label: string; description: string; price: string }[] = [
   {
@@ -158,6 +172,12 @@ const SERVICE_OPTIONS: { id: ServiceType; label: string; description: string; pr
     id: "trending-coins",
     label: "Trending Coins",
     description: "Top 7 most-searched coins on CoinGecko right now with price and 24h change",
+    price: "1 USDC",
+  },
+  {
+    id: "top-gainers",
+    label: "Top Gainers",
+    description: "Biggest 24h price movers across crypto with >$1M daily volume",
     price: "1 USDC",
   },
 ];
@@ -243,6 +263,17 @@ const MOCK_TRENDING: TrendingData = {
     { id: "bittensor", name: "Bittensor", symbol: "TAO", market_cap_rank: 34, price_usd: 247, change_24h_pct: 4.2, market_cap: "$1.7B" },
     { id: "solana", name: "Solana", symbol: "SOL", market_cap_rank: 6, price_usd: 127, change_24h_pct: -1.8, market_cap: "$66B" },
     { id: "dogecoin", name: "Dogecoin", symbol: "DOGE", market_cap_rank: 8, price_usd: 0.157, change_24h_pct: -2.4, market_cap: "$23B" },
+  ],
+};
+
+const MOCK_TOP_GAINERS: TopGainersData = {
+  gainers: [
+    { symbol: "MNT", name: "Mantle", price_usd: 0.797, change_24h_pct: 11.5, volume_24h: 95_600_000, market_cap: 1_200_000_000 },
+    { symbol: "TAO", name: "Bittensor", price_usd: 249.37, change_24h_pct: 8.2, volume_24h: 203_400_000, market_cap: 1_700_000_000 },
+    { symbol: "INJ", name: "Injective", price_usd: 14.82, change_24h_pct: 7.6, volume_24h: 87_300_000, market_cap: 1_400_000_000 },
+    { symbol: "HYPE", name: "Hyperliquid", price_usd: 18.45, change_24h_pct: 6.9, volume_24h: 143_200_000, market_cap: 3_600_000_000 },
+    { symbol: "JTO", name: "Jito", price_usd: 2.51, change_24h_pct: 6.1, volume_24h: 52_100_000, market_cap: 630_000_000 },
+    { symbol: "BONK", name: "Bonk", price_usd: 0.0000152, change_24h_pct: 5.8, volume_24h: 118_700_000, market_cap: 1_100_000_000 },
   ],
 };
 
@@ -536,6 +567,18 @@ function buildTourSteps(serviceType: ServiceType, liveData?: ServiceResult): Pay
         })
         .join(" | "),
       trending: tr,
+      timestamp: new Date().toISOString(),
+      delivered_to: "Demo1234...abcd",
+    };
+  } else if (serviceType === "top-gainers") {
+    const tg = liveData?.top_gainers ?? MOCK_TOP_GAINERS;
+    mockService = liveData ?? {
+      service_type: "top-gainers",
+      result: tg.gainers
+        .slice(0, 4)
+        .map((g) => `${g.symbol} +${g.change_24h_pct}%`)
+        .join(" | "),
+      top_gainers: tg,
       timestamp: new Date().toISOString(),
       delivered_to: "Demo1234...abcd",
     };
@@ -872,6 +915,52 @@ function ServiceResultTable({ service }: { service: ServiceResult }) {
                 <td style={{ padding: "7px 8px", textAlign: "right", color: "#666", fontSize: 12 }}>
                   {c.market_cap ?? (c.market_cap_rank ? `#${c.market_cap_rank}` : "—")}
                 </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    );
+  }
+
+  if (service.service_type === "top-gainers" && service.top_gainers && service.top_gainers.gainers.length > 0) {
+    return (
+      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+        <thead>
+          <tr style={{ borderBottom: "1px solid #eee" }}>
+            <th style={{ textAlign: "left", padding: "4px 8px", color: "#777", fontWeight: 500, fontSize: 12 }}>#</th>
+            <th style={{ textAlign: "left", padding: "4px 8px", color: "#777", fontWeight: 500, fontSize: 12 }}>Coin</th>
+            <th style={{ textAlign: "right", padding: "4px 8px", color: "#777", fontWeight: 500, fontSize: 12 }}>Price</th>
+            <th style={{ textAlign: "right", padding: "4px 8px", color: "#777", fontWeight: 500, fontSize: 12 }}>24h</th>
+            <th style={{ textAlign: "right", padding: "4px 8px", color: "#777", fontWeight: 500, fontSize: 12 }}>Volume</th>
+          </tr>
+        </thead>
+        <tbody>
+          {service.top_gainers.gainers.map((g, i) => {
+            const price =
+              g.price_usd < 0.0001
+                ? `$${g.price_usd.toFixed(8)}`
+                : g.price_usd < 0.01
+                ? `$${g.price_usd.toFixed(6)}`
+                : g.price_usd < 1
+                ? `$${g.price_usd.toFixed(4)}`
+                : `$${g.price_usd.toLocaleString()}`;
+            const vol =
+              g.volume_24h >= 1_000_000_000
+                ? `$${(g.volume_24h / 1_000_000_000).toFixed(1)}B`
+                : `$${(g.volume_24h / 1_000_000).toFixed(0)}M`;
+            return (
+              <tr key={g.symbol + i} style={{ borderBottom: "1px solid #f0f0f0" }}>
+                <td style={{ padding: "7px 8px", color: "#aaa", fontSize: 12 }}>{i + 1}</td>
+                <td style={{ padding: "7px 8px" }}>
+                  <span style={{ fontWeight: 700, fontSize: 13 }}>{g.symbol}</span>
+                  <span style={{ color: "#888", fontSize: 11, marginLeft: 5 }}>{g.name}</span>
+                </td>
+                <td style={{ padding: "7px 8px", textAlign: "right", fontWeight: 600 }}>{price}</td>
+                <td style={{ padding: "7px 8px", textAlign: "right", fontWeight: 600, color: "#1a7a3e" }}>
+                  +{g.change_24h_pct}%
+                </td>
+                <td style={{ padding: "7px 8px", textAlign: "right", color: "#666", fontSize: 12 }}>{vol}</td>
               </tr>
             );
           })}
