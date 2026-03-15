@@ -154,8 +154,21 @@ interface BtcMempoolData {
   fee_60min: number;
 }
 
+interface StablecoinEntry {
+  symbol: string;
+  name: string;
+  supply_usd: number;
+  change_24h_pct: number;
+  peg_mechanism: string;
+}
+
+interface StablecoinData {
+  coins: StablecoinEntry[];
+  total_supply_usd: number;
+}
+
 interface ServiceResult {
-  service_type: "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool";
+  service_type: "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins";
   result: string;
   market_data?: MarketData[];
   solana_stats?: SolanaStats;
@@ -170,6 +183,7 @@ interface ServiceResult {
   pump_new?: PumpNewData;
   funding_rates?: FundingRateData;
   btc_mempool?: BtcMempoolData;
+  stablecoins?: StablecoinData;
   timestamp: string;
   delivered_to: string;
 }
@@ -194,7 +208,7 @@ interface HealthStatus {
   issues: string[];
 }
 
-type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool";
+type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins";
 
 const SERVICE_OPTIONS: { id: ServiceType; label: string; description: string; price: string }[] = [
   {
@@ -273,6 +287,12 @@ const SERVICE_OPTIONS: { id: ServiceType; label: string; description: string; pr
     id: "btc-mempool",
     label: "Bitcoin Mempool",
     description: "Live Bitcoin network congestion — pending tx count, mempool size, and fee rates from mempool.space",
+    price: "1 USDC",
+  },
+  {
+    id: "stablecoins",
+    label: "Stablecoin Supply",
+    description: "Top stablecoins by circulating supply — USDT, USDC, DAI, USDe and more with 24h mint/burn trends",
     price: "1 USDC",
   },
 ];
@@ -423,6 +443,18 @@ const MOCK_BTC_MEMPOOL: BtcMempoolData = {
   fee_fastest: 21,
   fee_30min: 14,
   fee_60min: 8,
+};
+
+const MOCK_STABLECOINS: StablecoinData = {
+  coins: [
+    { symbol: "USDT", name: "Tether", supply_usd: 144_000_000_000, change_24h_pct: 0.012, peg_mechanism: "fiat-backed" },
+    { symbol: "USDC", name: "USD Coin", supply_usd: 56_000_000_000, change_24h_pct: -0.008, peg_mechanism: "fiat-backed" },
+    { symbol: "USDe", name: "Ethena USDe", supply_usd: 5_600_000_000, change_24h_pct: 0.031, peg_mechanism: "crypto-backed" },
+    { symbol: "DAI", name: "Dai", supply_usd: 5_200_000_000, change_24h_pct: -0.005, peg_mechanism: "crypto-backed" },
+    { symbol: "USDS", name: "Sky Dollar", supply_usd: 3_400_000_000, change_24h_pct: 0.002, peg_mechanism: "crypto-backed" },
+    { symbol: "FDUSD", name: "First Digital USD", supply_usd: 1_900_000_000, change_24h_pct: -0.021, peg_mechanism: "fiat-backed" },
+  ],
+  total_supply_usd: 216_100_000_000,
 };
 
 const MOCK_SIGNATURE =
@@ -804,6 +836,17 @@ function buildTourSteps(serviceType: ServiceType, liveData?: ServiceResult): Pay
       service_type: "btc-mempool",
       result: `${bm.count.toLocaleString()} pending txs | ${bm.vsize_mb} MB | Fast: ${bm.fee_fastest} sat/vB | 30min: ${bm.fee_30min} sat/vB | 1h: ${bm.fee_60min} sat/vB`,
       btc_mempool: bm,
+      timestamp: new Date().toISOString(),
+      delivered_to: "Demo1234...abcd",
+    };
+  } else if (serviceType === "stablecoins") {
+    const sc = liveData?.stablecoins ?? MOCK_STABLECOINS;
+    const formatB = (v: number) =>
+      v >= 1_000_000_000 ? `$${(v / 1_000_000_000).toFixed(1)}B` : `$${(v / 1_000_000).toFixed(0)}M`;
+    mockService = liveData ?? {
+      service_type: "stablecoins",
+      result: sc.coins.slice(0, 4).map((c) => `${c.symbol} ${formatB(c.supply_usd)}`).join(" | "),
+      stablecoins: sc,
       timestamp: new Date().toISOString(),
       delivered_to: "Demo1234...abcd",
     };
@@ -1432,6 +1475,49 @@ function ServiceResultTable({ service }: { service: ServiceResult }) {
                 <td style={{ padding: "7px 8px", textAlign: "right", color: "#999", fontSize: 11 }}>{r.note}</td>
               </tr>
             ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
+
+  if (service.service_type === "stablecoins" && service.stablecoins) {
+    const sc = service.stablecoins;
+    const formatSupply = (v: number) =>
+      v >= 1_000_000_000 ? `$${(v / 1_000_000_000).toFixed(2)}B` : `$${(v / 1_000_000).toFixed(0)}M`;
+    const totalFormatted = formatSupply(sc.total_supply_usd);
+    return (
+      <div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+          <span style={{ fontSize: 12, color: "#777" }}>Total shown supply:</span>
+          <span style={{ fontSize: 13, fontWeight: 700, color: "#2244aa" }}>{totalFormatted}</span>
+        </div>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+          <thead>
+            <tr style={{ borderBottom: "1px solid #eee" }}>
+              <th style={{ textAlign: "left", padding: "4px 8px", color: "#777", fontWeight: 500, fontSize: 12 }}>Stablecoin</th>
+              <th style={{ textAlign: "right", padding: "4px 8px", color: "#777", fontWeight: 500, fontSize: 12 }}>Supply</th>
+              <th style={{ textAlign: "right", padding: "4px 8px", color: "#777", fontWeight: 500, fontSize: 12 }}>24h Δ</th>
+              <th style={{ textAlign: "right", padding: "4px 8px", color: "#777", fontWeight: 500, fontSize: 12 }}>Mechanism</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sc.coins.map((c) => {
+              const changeColor = c.change_24h_pct > 0 ? "#1a7a3e" : c.change_24h_pct < 0 ? "#c00" : "#999";
+              return (
+                <tr key={c.symbol} style={{ borderBottom: "1px solid #f0f0f0" }}>
+                  <td style={{ padding: "7px 8px", fontWeight: 600 }}>
+                    {c.symbol}
+                    <span style={{ color: "#999", fontWeight: 400, fontSize: 11, marginLeft: 4 }}>{c.name}</span>
+                  </td>
+                  <td style={{ padding: "7px 8px", textAlign: "right", fontWeight: 700 }}>{formatSupply(c.supply_usd)}</td>
+                  <td style={{ padding: "7px 8px", textAlign: "right", color: changeColor, fontWeight: 600, fontSize: 13 }}>
+                    {c.change_24h_pct >= 0 ? "+" : ""}{c.change_24h_pct.toFixed(3)}%
+                  </td>
+                  <td style={{ padding: "7px 8px", textAlign: "right", color: "#999", fontSize: 11 }}>{c.peg_mechanism}</td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

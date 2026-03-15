@@ -3,7 +3,7 @@
  * All functions are read-only calls to public APIs — no auth required.
  */
 
-export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool";
+export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins";
 
 export interface MarketData {
   symbol: string;
@@ -147,6 +147,19 @@ export interface BtcMempoolData {
   fee_60min: number;     // sat/vB for ~1 hour confirmation
 }
 
+export interface StablecoinEntry {
+  symbol: string;
+  name: string;
+  supply_usd: number;       // current circulating supply in USD
+  change_24h_pct: number;   // 24h supply change %
+  peg_mechanism: string;    // fiat-backed | crypto-backed | algorithmic | etc.
+}
+
+export interface StablecoinData {
+  coins: StablecoinEntry[];
+  total_supply_usd: number; // sum of all shown stablecoins
+}
+
 export interface ServiceResult {
   service_type: ServiceType;
   result: string;
@@ -163,6 +176,7 @@ export interface ServiceResult {
   pump_new?: PumpNewData;
   funding_rates?: FundingRateData;
   btc_mempool?: BtcMempoolData;
+  stablecoins?: StablecoinData;
   timestamp: string;
   delivered_to: string;
 }
@@ -986,6 +1000,71 @@ export async function deliverBtcMempool(delivered_to: string, timestamp: string)
   return { service_type: "btc-mempool", result, btc_mempool, timestamp, delivered_to };
 }
 
+/**
+ * Fetches top stablecoins by circulating supply from DeFi Llama.
+ * Shows USDT, USDC, DAI, USDe, USDS, and more with 24h supply change.
+ * Total stablecoin market cap is a key "dry powder" indicator for crypto markets.
+ */
+export async function deliverStablecoins(delivered_to: string, timestamp: string): Promise<ServiceResult> {
+  let stablecoins: StablecoinData | undefined;
+
+  try {
+    const res = await fetch("https://stablecoins.llama.fi/stablecoins?includePrices=true", {
+      headers: { Accept: "application/json" },
+      signal: AbortSignal.timeout(10000),
+    });
+
+    if (res.ok) {
+      const data = (await res.json()) as {
+        peggedAssets: Array<{
+          name: string;
+          symbol: string;
+          pegMechanism: string;
+          circulating: { peggedUSD?: number };
+          circulatingPrevDay: { peggedUSD?: number };
+        }>;
+      };
+
+      const coins: StablecoinEntry[] = (data.peggedAssets ?? [])
+        .filter((s) => (s.circulating?.peggedUSD ?? 0) > 100_000_000) // >$100M supply only
+        .sort((a, b) => (b.circulating?.peggedUSD ?? 0) - (a.circulating?.peggedUSD ?? 0))
+        .slice(0, 8)
+        .map((s) => {
+          const current = s.circulating?.peggedUSD ?? 0;
+          const prev = s.circulatingPrevDay?.peggedUSD ?? current;
+          const change_24h_pct = prev > 0 ? parseFloat((((current - prev) / prev) * 100).toFixed(3)) : 0;
+          return {
+            symbol: s.symbol,
+            name: s.name,
+            supply_usd: current,
+            change_24h_pct,
+            peg_mechanism: s.pegMechanism ?? "unknown",
+          };
+        });
+
+      if (coins.length > 0) {
+        const total_supply_usd = coins.reduce((sum, c) => sum + c.supply_usd, 0);
+        stablecoins = { coins, total_supply_usd };
+      }
+    }
+  } catch {
+    // Fall through with undefined stablecoins
+  }
+
+  const formatBillions = (v: number) =>
+    v >= 1_000_000_000 ? `$${(v / 1_000_000_000).toFixed(1)}B` : `$${(v / 1_000_000).toFixed(0)}M`;
+
+  const result =
+    stablecoins && stablecoins.coins.length > 0
+      ? stablecoins.coins
+          .slice(0, 4)
+          .map((c) => `${c.symbol} ${formatBillions(c.supply_usd)}`)
+          .join(" | ")
+      : "Stablecoin data temporarily unavailable";
+
+  return { service_type: "stablecoins", result, stablecoins, timestamp, delivered_to };
+}
+
 export async function deliverService(delivered_to: string, serviceType: ServiceType): Promise<ServiceResult> {
   const timestamp = new Date().toISOString();
   if (serviceType === "solana-stats") return deliverSolanaStats(delivered_to, timestamp);
@@ -1000,5 +1079,6 @@ export async function deliverService(delivered_to: string, serviceType: ServiceT
   if (serviceType === "pump-new") return deliverPumpNew(delivered_to, timestamp);
   if (serviceType === "funding-rates") return deliverFundingRates(delivered_to, timestamp);
   if (serviceType === "btc-mempool") return deliverBtcMempool(delivered_to, timestamp);
+  if (serviceType === "stablecoins") return deliverStablecoins(delivered_to, timestamp);
   return deliverCryptoPrices(delivered_to, timestamp);
 }
