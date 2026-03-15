@@ -204,8 +204,21 @@ interface SolRevenueData {
   total_revenue_24h: number;
 }
 
+interface EthGasLevel {
+  label: string;
+  gwei: number;
+  wait: string;
+  cost_usd: number;
+}
+
+interface EthGasData {
+  levels: EthGasLevel[];
+  eth_price_usd: number;
+  base_fee_gwei: number;
+}
+
 interface ServiceResult {
-  service_type: "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue";
+  service_type: "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas";
   result: string;
   market_data?: MarketData[];
   solana_stats?: SolanaStats;
@@ -224,6 +237,7 @@ interface ServiceResult {
   sol_tvl?: SolTvlData;
   ai_agent_tokens?: AiAgentTokensData;
   sol_revenue?: SolRevenueData;
+  eth_gas?: EthGasData;
   timestamp: string;
   delivered_to: string;
 }
@@ -248,7 +262,7 @@ interface HealthStatus {
   issues: string[];
 }
 
-type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue";
+type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas";
 
 const SERVICE_OPTIONS: { id: ServiceType; label: string; description: string; price: string }[] = [
   {
@@ -351,6 +365,12 @@ const SERVICE_OPTIONS: { id: ServiceType; label: string; description: string; pr
     id: "sol-revenue",
     label: "Solana Protocol Revenue",
     description: "Top Solana protocols ranked by 24h fee revenue — PumpSwap, pump.fun, Jupiter Perps, and more",
+    price: "1 USDC",
+  },
+  {
+    id: "eth-gas",
+    label: "Ethereum Gas Tracker",
+    description: "Real-time Ethereum gas prices across speed tiers — estimated cost to transfer ETH in USD",
     price: "1 USDC",
   },
 ];
@@ -554,6 +574,17 @@ const MOCK_SOL_REVENUE: SolRevenueData = {
     { name: "Kamino Lend", category: "Lending", revenue_24h: 148_353, revenue_7d: 967_493 },
   ],
   total_revenue_24h: 4_005_864,
+};
+
+const MOCK_ETH_GAS: EthGasData = {
+  base_fee_gwei: 0.17,
+  eth_price_usd: 2100,
+  levels: [
+    { label: "Slow",     gwei: 0.188, wait: "~5+ min",  cost_usd: 0.00829 },
+    { label: "Standard", gwei: 0.221, wait: "~1–3 min", cost_usd: 0.00975 },
+    { label: "Fast",     gwei: 0.289, wait: "~30s",     cost_usd: 0.01274 },
+    { label: "Rapid",    gwei: 2.144, wait: "~15s",     cost_usd: 0.09453 },
+  ],
 };
 
 const MOCK_SIGNATURE =
@@ -979,6 +1010,16 @@ function buildTourSteps(serviceType: ServiceType, liveData?: ServiceResult): Pay
       service_type: "sol-revenue",
       result: sr.protocols.slice(0, 4).map((p) => `${p.name} ${formatRev(p.revenue_24h)}/24h`).join(" | "),
       sol_revenue: sr,
+      timestamp: new Date().toISOString(),
+      delivered_to: "Demo1234...abcd",
+    };
+  } else if (serviceType === "eth-gas") {
+    const eg = liveData?.eth_gas ?? MOCK_ETH_GAS;
+    mockService = liveData ?? {
+      service_type: "eth-gas",
+      result: `Base: ${eg.base_fee_gwei} Gwei | ` +
+        eg.levels.slice(1, 4).map((l) => `${l.label}: ${l.gwei} Gwei`).join(" | "),
+      eth_gas: eg,
       timestamp: new Date().toISOString(),
       delivered_to: "Demo1234...abcd",
     };
@@ -1765,6 +1806,42 @@ function ServiceResultTable({ service }: { service: ServiceResult }) {
                 <td style={{ padding: "7px 8px", color: "#666", fontSize: 12 }}>{p.category}</td>
                 <td style={{ padding: "7px 8px", textAlign: "right", fontWeight: 700 }}>{formatRev(p.revenue_24h)}</td>
                 <td style={{ padding: "7px 8px", textAlign: "right", color: "#444" }}>{formatRev(p.revenue_7d)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
+
+  if (service.service_type === "eth-gas" && service.eth_gas) {
+    const eg = service.eth_gas;
+    return (
+      <div>
+        <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 10 }}>
+          <span style={{ fontSize: 12, color: "#777" }}>Base fee:</span>
+          <span style={{ fontSize: 13, fontWeight: 700, color: "#2244aa" }}>{eg.base_fee_gwei} Gwei</span>
+          <span style={{ fontSize: 12, color: "#777" }}>ETH price:</span>
+          <span style={{ fontSize: 13, fontWeight: 600 }}>${eg.eth_price_usd.toLocaleString()}</span>
+        </div>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+          <thead>
+            <tr style={{ borderBottom: "1px solid #eee" }}>
+              <th style={{ textAlign: "left",  padding: "4px 8px", color: "#777", fontWeight: 500, fontSize: 12 }}>Speed</th>
+              <th style={{ textAlign: "right", padding: "4px 8px", color: "#777", fontWeight: 500, fontSize: 12 }}>Max Fee (Gwei)</th>
+              <th style={{ textAlign: "right", padding: "4px 8px", color: "#777", fontWeight: 500, fontSize: 12 }}>Est. Wait</th>
+              <th style={{ textAlign: "right", padding: "4px 8px", color: "#777", fontWeight: 500, fontSize: 12 }}>Transfer Cost</th>
+            </tr>
+          </thead>
+          <tbody>
+            {eg.levels.map((l) => (
+              <tr key={l.label} style={{ borderBottom: "1px solid #f0f0f0" }}>
+                <td style={{ padding: "7px 8px", fontWeight: 600 }}>{l.label}</td>
+                <td style={{ padding: "7px 8px", textAlign: "right" }}>{l.gwei}</td>
+                <td style={{ padding: "7px 8px", textAlign: "right", color: "#666", fontSize: 12 }}>{l.wait}</td>
+                <td style={{ padding: "7px 8px", textAlign: "right", fontWeight: 600 }}>
+                  ${l.cost_usd < 0.001 ? l.cost_usd.toFixed(5) : l.cost_usd.toFixed(4)}
+                </td>
               </tr>
             ))}
           </tbody>

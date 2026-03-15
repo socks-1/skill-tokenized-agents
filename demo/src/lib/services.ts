@@ -3,7 +3,7 @@
  * All functions are read-only calls to public APIs — no auth required.
  */
 
-export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue";
+export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas";
 
 export interface MarketData {
   symbol: string;
@@ -197,6 +197,19 @@ export interface SolRevenueData {
   total_revenue_24h: number;
 }
 
+export interface EthGasLevel {
+  label: string;       // "Slow" | "Standard" | "Fast" | "Rapid"
+  gwei: number;        // max fee per gas in Gwei
+  wait: string;        // estimated inclusion time
+  cost_usd: number;    // estimated cost for simple ETH transfer (21,000 gas) in USD
+}
+
+export interface EthGasData {
+  levels: EthGasLevel[];
+  eth_price_usd: number;
+  base_fee_gwei: number;
+}
+
 export interface ServiceResult {
   service_type: ServiceType;
   result: string;
@@ -217,6 +230,7 @@ export interface ServiceResult {
   sol_tvl?: SolTvlData;
   ai_agent_tokens?: AiAgentTokensData;
   sol_revenue?: SolRevenueData;
+  eth_gas?: EthGasData;
   timestamp: string;
   delivered_to: string;
 }
@@ -1289,6 +1303,82 @@ export async function deliverSolRevenue(delivered_to: string, timestamp: string)
   return { service_type: "sol-revenue", result, sol_revenue, timestamp, delivered_to };
 }
 
+/**
+ * Fetches live Ethereum gas prices from Owlracle free API and ETH price from CoinGecko.
+ * Shows Slow / Standard / Fast / Rapid speed tiers with Gwei and estimated transfer cost in USD.
+ */
+export async function deliverEthGas(delivered_to: string, timestamp: string): Promise<ServiceResult> {
+  let eth_gas: EthGasData | undefined;
+
+  const LABELS = ["Slow", "Standard", "Fast", "Rapid"];
+  const WAITS  = ["~5+ min", "~1–3 min", "~30s", "~15s"];
+
+  try {
+    const [gasRes, priceRes] = await Promise.all([
+      fetch("https://api.owlracle.info/v3/eth/gas", {
+        headers: { Accept: "application/json" },
+        signal: AbortSignal.timeout(8000),
+      }),
+      fetch(
+        "https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd",
+        {
+          headers: { Accept: "application/json" },
+          signal: AbortSignal.timeout(8000),
+        }
+      ),
+    ]);
+
+    if (gasRes.ok && priceRes.ok) {
+      const gasData = (await gasRes.json()) as {
+        speeds: Array<{
+          maxFeePerGas: number;
+          baseFee: number;
+        }>;
+      };
+      const priceData = (await priceRes.json()) as {
+        ethereum?: { usd: number };
+      };
+
+      const ethPrice = priceData.ethereum?.usd ?? 0;
+      const speeds = gasData.speeds ?? [];
+      const baseFee = speeds[0]?.baseFee ?? 0;
+
+      const levels: EthGasLevel[] = speeds.slice(0, 4).map((s, i) => {
+        const gweiVal = s.maxFeePerGas ?? 0;
+        const costEth = gweiVal * 1e-9 * 21_000;
+        const costUsd = Math.round(costEth * ethPrice * 100000) / 100000;
+        return {
+          label: LABELS[i] ?? `Tier ${i + 1}`,
+          gwei: Math.round(gweiVal * 1000) / 1000,
+          wait: WAITS[i] ?? "unknown",
+          cost_usd: costUsd,
+        };
+      });
+
+      if (levels.length > 0) {
+        eth_gas = {
+          levels,
+          eth_price_usd: ethPrice,
+          base_fee_gwei: Math.round(baseFee * 1000) / 1000,
+        };
+      }
+    }
+  } catch {
+    // Fall through with undefined eth_gas
+  }
+
+  const result =
+    eth_gas && eth_gas.levels.length > 0
+      ? `Base: ${eth_gas.base_fee_gwei} Gwei | ` +
+        eth_gas.levels
+          .slice(1, 4)
+          .map((l) => `${l.label}: ${l.gwei} Gwei`)
+          .join(" | ")
+      : "Ethereum gas data temporarily unavailable";
+
+  return { service_type: "eth-gas", result, eth_gas, timestamp, delivered_to };
+}
+
 export async function deliverService(delivered_to: string, serviceType: ServiceType): Promise<ServiceResult> {
   const timestamp = new Date().toISOString();
   if (serviceType === "solana-stats") return deliverSolanaStats(delivered_to, timestamp);
@@ -1307,5 +1397,6 @@ export async function deliverService(delivered_to: string, serviceType: ServiceT
   if (serviceType === "sol-protocol-tvl") return deliverSolTvl(delivered_to, timestamp);
   if (serviceType === "ai-agent-tokens") return deliverAiAgentTokens(delivered_to, timestamp);
   if (serviceType === "sol-revenue") return deliverSolRevenue(delivered_to, timestamp);
+  if (serviceType === "eth-gas") return deliverEthGas(delivered_to, timestamp);
   return deliverCryptoPrices(delivered_to, timestamp);
 }
