@@ -135,8 +135,19 @@ interface PumpNewData {
   tokens: PumpNewToken[];
 }
 
+interface FundingRate {
+  symbol: string;
+  rate_8h: number;
+  mark_price: number;
+  open_interest: number;
+}
+
+interface FundingRateData {
+  rates: FundingRate[];
+}
+
 interface ServiceResult {
-  service_type: "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new";
+  service_type: "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates";
   result: string;
   market_data?: MarketData[];
   solana_stats?: SolanaStats;
@@ -149,6 +160,7 @@ interface ServiceResult {
   dex_volume?: DexVolumeData;
   pumpfun_tokens?: PumpTokenData;
   pump_new?: PumpNewData;
+  funding_rates?: FundingRateData;
   timestamp: string;
   delivered_to: string;
 }
@@ -173,7 +185,7 @@ interface HealthStatus {
   issues: string[];
 }
 
-type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new";
+type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates";
 
 const SERVICE_OPTIONS: { id: ServiceType; label: string; description: string; price: string }[] = [
   {
@@ -240,6 +252,12 @@ const SERVICE_OPTIONS: { id: ServiceType; label: string; description: string; pr
     id: "pump-new",
     label: "Pump.fun New Launches",
     description: "Most recently launched tokens on pump.fun — freshest additions with early momentum data",
+    price: "1 USDC",
+  },
+  {
+    id: "funding-rates",
+    label: "Perp Funding Rates",
+    description: "Live 8h funding rates for major perpetuals on Hyperliquid — bullish/bearish positioning signal",
     price: "1 USDC",
   },
 ];
@@ -368,6 +386,19 @@ const MOCK_PUMP_NEW: PumpNewData = {
     { symbol: "MOGGED", name: "MOGGED", price_usd: 0.0002017, change_24h_pct: 461, volume_24h: 1_794_778, market_cap: 201_768, address: "DefAbC4567890123defghijklmnopqrstuvwxyzapump", pair_created_at: Date.now() - 8 * 3_600_000 },
     { symbol: "AMBALABU", name: "Boneca Ambalabu", price_usd: 0.0001095, change_24h_pct: 209, volume_24h: 606_381, market_cap: 109_542, address: "EfgBcD5678901234efghijklmnopqrstuvwxyzabpump", pair_created_at: Date.now() - 10 * 3_600_000 },
     { symbol: "MOLLY", name: "The Immortal Fish", price_usd: 0.0001429, change_24h_pct: 295, volume_24h: 1_023_596, market_cap: 142_958, address: "FghCdE6789012345fghijklmnopqrstuvwxyzabcpump", pair_created_at: Date.now() - 13 * 3_600_000 },
+  ],
+};
+
+const MOCK_FUNDING_RATES: FundingRateData = {
+  rates: [
+    { symbol: "BTC", rate_8h: 0.0001, mark_price: 67890, open_interest: 245_000_000 },
+    { symbol: "ETH", rate_8h: 0.00008, mark_price: 2080, open_interest: 98_000_000 },
+    { symbol: "SOL", rate_8h: -0.00003, mark_price: 87, open_interest: 32_000_000 },
+    { symbol: "BNB", rate_8h: 0.00005, mark_price: 412, open_interest: 18_000_000 },
+    { symbol: "DOGE", rate_8h: 0.00012, mark_price: 0.157, open_interest: 22_000_000 },
+    { symbol: "AVAX", rate_8h: -0.00002, mark_price: 21.4, open_interest: 8_000_000 },
+    { symbol: "LINK", rate_8h: 0.00007, mark_price: 14.8, open_interest: 7_000_000 },
+    { symbol: "SUI", rate_8h: 0.00015, mark_price: 2.91, open_interest: 15_000_000 },
   ],
 };
 
@@ -725,6 +756,22 @@ function buildTourSteps(serviceType: ServiceType, liveData?: ServiceResult): Pay
         .map((t) => `${t.symbol} (${formatAge(t.pair_created_at)})`)
         .join(" | "),
       pump_new: pn,
+      timestamp: new Date().toISOString(),
+      delivered_to: "Demo1234...abcd",
+    };
+  } else if (serviceType === "funding-rates") {
+    const formatRate = (r: number) => {
+      const pct = (r * 100).toFixed(4);
+      return r >= 0 ? `+${pct}%` : `${pct}%`;
+    };
+    const fr = liveData?.funding_rates ?? MOCK_FUNDING_RATES;
+    mockService = liveData ?? {
+      service_type: "funding-rates",
+      result: fr.rates
+        .slice(0, 4)
+        .map((r) => `${r.symbol} ${formatRate(r.rate_8h)}/8h`)
+        .join(" | "),
+      funding_rates: fr,
       timestamp: new Date().toISOString(),
       delivered_to: "Demo1234...abcd",
     };
@@ -1257,6 +1304,61 @@ function ServiceResultTable({ service }: { service: ServiceResult }) {
                 </td>
                 <td style={{ padding: "7px 8px", textAlign: "right", color: "#666", fontSize: 12 }}>{formatVol(t.volume_24h)}</td>
                 <td style={{ padding: "7px 8px", textAlign: "right", color: "#666", fontSize: 12 }}>{formatMcap(t.market_cap)}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    );
+  }
+
+  if (service.service_type === "funding-rates" && service.funding_rates && service.funding_rates.rates.length > 0) {
+    const formatRate = (r: number) => {
+      const pct = (r * 100).toFixed(4);
+      return r >= 0 ? `+${pct}%` : `${pct}%`;
+    };
+    const formatOI = (v: number) =>
+      v >= 1_000_000_000
+        ? `$${(v / 1_000_000_000).toFixed(1)}B`
+        : v >= 1_000_000
+        ? `$${(v / 1_000_000).toFixed(0)}M`
+        : `$${(v / 1_000).toFixed(0)}K`;
+    const formatPrice = (p: number) =>
+      p >= 1_000 ? `$${p.toLocaleString(undefined, { maximumFractionDigits: 0 })}` :
+      p >= 1 ? `$${p.toFixed(2)}` :
+      p >= 0.01 ? `$${p.toFixed(4)}` :
+      `$${p.toFixed(6)}`;
+    return (
+      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+        <thead>
+          <tr style={{ borderBottom: "1px solid #eee" }}>
+            <th style={{ textAlign: "left", padding: "4px 8px", color: "#777", fontWeight: 500, fontSize: 12 }}>Perp</th>
+            <th style={{ textAlign: "right", padding: "4px 8px", color: "#777", fontWeight: 500, fontSize: 12 }}>Rate / 8h</th>
+            <th style={{ textAlign: "right", padding: "4px 8px", color: "#777", fontWeight: 500, fontSize: 12 }}>Signal</th>
+            <th style={{ textAlign: "right", padding: "4px 8px", color: "#777", fontWeight: 500, fontSize: 12 }}>Mark</th>
+            <th style={{ textAlign: "right", padding: "4px 8px", color: "#777", fontWeight: 500, fontSize: 12 }}>OI</th>
+          </tr>
+        </thead>
+        <tbody>
+          {service.funding_rates.rates.map((r) => {
+            const rateColor = r.rate_8h > 0.0002 ? "#c0392b" : r.rate_8h < -0.0001 ? "#1a7a3e" : "#555";
+            const signal = r.rate_8h > 0.0001 ? "longs pay" : r.rate_8h < -0.0001 ? "shorts pay" : "neutral";
+            const signalColor = r.rate_8h > 0.0001 ? "#c0392b" : r.rate_8h < -0.0001 ? "#1a7a3e" : "#888";
+            return (
+              <tr key={r.symbol} style={{ borderBottom: "1px solid #f0f0f0" }}>
+                <td style={{ padding: "7px 8px", fontWeight: 700, fontSize: 13 }}>{r.symbol}-PERP</td>
+                <td style={{ padding: "7px 8px", textAlign: "right", fontWeight: 700, color: rateColor }}>
+                  {formatRate(r.rate_8h)}
+                </td>
+                <td style={{ padding: "7px 8px", textAlign: "right", fontSize: 11, color: signalColor, fontWeight: 600 }}>
+                  {signal}
+                </td>
+                <td style={{ padding: "7px 8px", textAlign: "right", color: "#666", fontSize: 12 }}>
+                  {formatPrice(r.mark_price)}
+                </td>
+                <td style={{ padding: "7px 8px", textAlign: "right", color: "#666", fontSize: 12 }}>
+                  {formatOI(r.open_interest)}
+                </td>
               </tr>
             );
           })}

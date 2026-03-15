@@ -3,7 +3,7 @@
  * All functions are read-only calls to public APIs — no auth required.
  */
 
-export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new";
+export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates";
 
 export interface MarketData {
   symbol: string;
@@ -128,6 +128,17 @@ export interface PumpNewData {
   tokens: PumpNewToken[];
 }
 
+export interface FundingRate {
+  symbol: string;
+  rate_8h: number;   // funding rate per 8h period as a decimal (e.g. 0.0001 = 0.01%)
+  mark_price: number;
+  open_interest: number;
+}
+
+export interface FundingRateData {
+  rates: FundingRate[];
+}
+
 export interface ServiceResult {
   service_type: ServiceType;
   result: string;
@@ -142,6 +153,7 @@ export interface ServiceResult {
   dex_volume?: DexVolumeData;
   pumpfun_tokens?: PumpTokenData;
   pump_new?: PumpNewData;
+  funding_rates?: FundingRateData;
   timestamp: string;
   delivered_to: string;
 }
@@ -842,6 +854,76 @@ export async function deliverPumpNew(delivered_to: string, timestamp: string): P
   return { service_type: "pump-new", result, pump_new, timestamp, delivered_to };
 }
 
+/**
+ * Fetches perpetual futures funding rates from Hyperliquid's public API.
+ * Shows the current 8h funding rate for major perps — positive means longs pay
+ * shorts (bullish positioning), negative means shorts pay longs (bearish).
+ */
+export async function deliverFundingRates(delivered_to: string, timestamp: string): Promise<ServiceResult> {
+  const url = "https://api.hyperliquid.xyz/info";
+
+  // Coins to display — show a relevant cross-section of the market
+  const FEATURED = ["BTC", "ETH", "SOL", "BNB", "DOGE", "AVAX", "LINK", "SUI"];
+
+  let funding_rates: FundingRateData | undefined;
+
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ type: "metaAndAssetCtxs" }),
+      signal: AbortSignal.timeout(10000),
+    });
+
+    if (res.ok) {
+      const data = (await res.json()) as [
+        { universe: Array<{ name: string; szDecimals: number; maxLeverage: number }> },
+        Array<{ funding: string; openInterest: string; markPx: string }>
+      ];
+
+      const [meta, ctxs] = data;
+      const rates: FundingRate[] = [];
+
+      meta.universe.forEach((asset, i) => {
+        if (!FEATURED.includes(asset.name)) return;
+        const ctx = ctxs[i];
+        if (!ctx) return;
+        const markPx = parseFloat(ctx.markPx);
+        rates.push({
+          symbol: asset.name,
+          rate_8h: parseFloat(ctx.funding),
+          mark_price: markPx,
+          open_interest: parseFloat(ctx.openInterest) * markPx, // convert to USD notional
+        });
+      });
+
+      // Sort by featured order
+      rates.sort((a, b) => FEATURED.indexOf(a.symbol) - FEATURED.indexOf(b.symbol));
+
+      if (rates.length > 0) {
+        funding_rates = { rates };
+      }
+    }
+  } catch {
+    // Fall through with undefined funding_rates
+  }
+
+  const formatRate = (r: number) => {
+    const pct = (r * 100).toFixed(4);
+    return r >= 0 ? `+${pct}%` : `${pct}%`;
+  };
+
+  const result =
+    funding_rates && funding_rates.rates.length > 0
+      ? funding_rates.rates
+          .slice(0, 4)
+          .map((r) => `${r.symbol} ${formatRate(r.rate_8h)}/8h`)
+          .join(" | ")
+      : "Funding rate data temporarily unavailable";
+
+  return { service_type: "funding-rates", result, funding_rates, timestamp, delivered_to };
+}
+
 export async function deliverService(delivered_to: string, serviceType: ServiceType): Promise<ServiceResult> {
   const timestamp = new Date().toISOString();
   if (serviceType === "solana-stats") return deliverSolanaStats(delivered_to, timestamp);
@@ -854,5 +936,6 @@ export async function deliverService(delivered_to: string, serviceType: ServiceT
   if (serviceType === "dex-volume") return deliverDexVolume(delivered_to, timestamp);
   if (serviceType === "pumpfun-tokens") return deliverPumpTokens(delivered_to, timestamp);
   if (serviceType === "pump-new") return deliverPumpNew(delivered_to, timestamp);
+  if (serviceType === "funding-rates") return deliverFundingRates(delivered_to, timestamp);
   return deliverCryptoPrices(delivered_to, timestamp);
 }
