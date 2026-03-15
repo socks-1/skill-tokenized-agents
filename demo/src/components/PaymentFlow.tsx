@@ -264,114 +264,136 @@ interface HealthStatus {
 
 type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas";
 
-const SERVICE_OPTIONS: { id: ServiceType; label: string; description: string; price: string }[] = [
+type ServiceCategory = "All" | "Solana" | "Pump.fun" | "Market Data" | "DeFi" | "AI & Tech";
+
+const SERVICE_CATEGORIES: ServiceCategory[] = ["All", "Solana", "Pump.fun", "Market Data", "DeFi", "AI & Tech"];
+
+const SERVICE_OPTIONS: { id: ServiceType; label: string; description: string; price: string; category: ServiceCategory }[] = [
   {
     id: "crypto-prices",
     label: "Crypto Market Prices",
     description: "Live BTC, ETH, and SOL prices with 24h change",
     price: "1 USDC",
+    category: "Market Data",
   },
   {
     id: "solana-stats",
     label: "Solana Network Stats",
     description: "Current TPS, slot, epoch, and validator count",
     price: "1 USDC",
+    category: "Solana",
   },
   {
     id: "defi-yields",
     label: "Solana DeFi Yields",
     description: "Top Solana protocol APY rates by TVL (via DeFi Llama)",
     price: "1 USDC",
+    category: "Solana",
   },
   {
     id: "fear-greed",
     label: "Crypto Sentiment",
     description: "Fear & Greed Index (0–100) with 7-day trend history",
     price: "1 USDC",
+    category: "Market Data",
   },
   {
     id: "solana-ecosystem",
     label: "Solana Ecosystem Tokens",
     description: "Live prices for JUP, RAY, JTO, BONK, WIF, PYTH, ORCA with 24h change",
     price: "1 USDC",
+    category: "Solana",
   },
   {
     id: "ai-models",
     label: "Top AI Models",
     description: "Most-liked AI language models on Hugging Face — DeepSeek, Llama, GPT, and more",
     price: "1 USDC",
+    category: "AI & Tech",
   },
   {
     id: "trending-coins",
     label: "Trending Coins",
     description: "Top 7 most-searched coins on CoinGecko right now with price and 24h change",
     price: "1 USDC",
+    category: "Market Data",
   },
   {
     id: "top-gainers",
     label: "Top Gainers",
     description: "Biggest 24h price movers across crypto with >$1M daily volume",
     price: "1 USDC",
+    category: "Market Data",
   },
   {
     id: "dex-volume",
     label: "Solana DEX Volume Leaders",
     description: "Top Solana DEXes by 24h trading volume — PumpSwap, Raydium, Orca, and more",
     price: "1 USDC",
+    category: "Solana",
   },
   {
     id: "pumpfun-tokens",
     label: "Pump.fun Hot Tokens",
     description: "Top tokens by 24h trading volume on PumpSwap — live from DexScreener",
     price: "1 USDC",
+    category: "Pump.fun",
   },
   {
     id: "pump-new",
     label: "Pump.fun New Launches",
     description: "Most recently launched tokens on pump.fun — freshest additions with early momentum data",
     price: "1 USDC",
+    category: "Pump.fun",
   },
   {
     id: "funding-rates",
     label: "Perp Funding Rates",
     description: "Live 8h funding rates for major perpetuals on Hyperliquid — bullish/bearish positioning signal",
     price: "1 USDC",
+    category: "DeFi",
   },
   {
     id: "btc-mempool",
     label: "Bitcoin Mempool",
     description: "Live Bitcoin network congestion — pending tx count, mempool size, and fee rates from mempool.space",
     price: "1 USDC",
+    category: "DeFi",
   },
   {
     id: "stablecoins",
     label: "Stablecoin Supply",
     description: "Top stablecoins by circulating supply — USDT, USDC, DAI, USDe and more with 24h mint/burn trends",
     price: "1 USDC",
+    category: "DeFi",
   },
   {
     id: "sol-protocol-tvl",
     label: "Solana DeFi TVL",
     description: "Top Solana-native DeFi protocols ranked by total value locked — lending, staking, DEXs, and more",
     price: "1 USDC",
+    category: "Solana",
   },
   {
     id: "ai-agent-tokens",
     label: "AI Agent Tokens",
     description: "Top AI agent economy tokens by market cap — VIRTUAL, FET, ai16z, Venice, and more from CoinGecko",
     price: "1 USDC",
+    category: "AI & Tech",
   },
   {
     id: "sol-revenue",
     label: "Solana Protocol Revenue",
     description: "Top Solana protocols ranked by 24h fee revenue — PumpSwap, pump.fun, Jupiter Perps, and more",
     price: "1 USDC",
+    category: "Solana",
   },
   {
     id: "eth-gas",
     label: "Ethereum Gas Tracker",
     description: "Real-time Ethereum gas prices across speed tiers — estimated cost to transfer ETH in USD",
     price: "1 USDC",
+    category: "DeFi",
   },
 ];
 
@@ -1861,6 +1883,7 @@ export default function PaymentFlow() {
   const [tourStep, setTourStep] = useState<number>(-1);
   const [isTourRunning, setIsTourRunning] = useState(false);
   const [selectedService, setSelectedService] = useState<ServiceType>("crypto-prices");
+  const [selectedCategory, setSelectedCategory] = useState<ServiceCategory>("All");
   const [showCode, setShowCode] = useState(false);
   const [preview, setPreview] = useState<PreviewState>({ status: "idle" });
   const [countdown, setCountdown] = useState<number | null>(null);
@@ -2061,8 +2084,48 @@ export default function PaymentFlow() {
         <p style={{ fontSize: 13, fontWeight: 600, color: "#333", marginBottom: 8 }}>
           Choose a service:
         </p>
+
+        {/* Category tabs */}
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
+          {SERVICE_CATEGORIES.map((cat) => {
+            const count = cat === "All" ? SERVICE_OPTIONS.length : SERVICE_OPTIONS.filter(o => o.category === cat).length;
+            const isActive = selectedCategory === cat;
+            return (
+              <button
+                key={cat}
+                onClick={() => {
+                  if (!isTourRunning && !isLoading) {
+                    setSelectedCategory(cat);
+                    // Auto-select first service in the new category if current selection isn't in it
+                    const filtered = cat === "All" ? SERVICE_OPTIONS : SERVICE_OPTIONS.filter(o => o.category === cat);
+                    if (filtered.length > 0 && !filtered.find(o => o.id === selectedService)) {
+                      setSelectedService(filtered[0].id);
+                      if (state.status !== "idle") resetTour();
+                      setPreview({ status: "idle" });
+                    }
+                  }
+                }}
+                disabled={isTourRunning || isLoading}
+                style={{
+                  padding: "4px 10px",
+                  fontSize: 12,
+                  fontWeight: isActive ? 700 : 500,
+                  color: isActive ? "#fff" : "#444",
+                  background: isActive ? "#2244aa" : "#eee",
+                  border: "none",
+                  borderRadius: 20,
+                  cursor: isTourRunning || isLoading ? "not-allowed" : "pointer",
+                  transition: "background 0.15s, color 0.15s",
+                }}
+              >
+                {cat} <span style={{ opacity: 0.75 }}>({count})</span>
+              </button>
+            );
+          })}
+        </div>
+
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {SERVICE_OPTIONS.map((opt) => (
+          {SERVICE_OPTIONS.filter(opt => selectedCategory === "All" || opt.category === selectedCategory).map((opt) => (
             <label
               key={opt.id}
               style={{
