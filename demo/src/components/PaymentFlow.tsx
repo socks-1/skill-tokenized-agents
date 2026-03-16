@@ -2291,6 +2291,114 @@ function ServiceResultTable({ service }: { service: ServiceResult }) {
   return <p style={{ color: "#555", fontSize: 14 }}>{service.result}</p>;
 }
 
+// ---------------------------------------------------------------------------
+// Agent Discovery Panel — demonstrates ERC-8004-inspired /.well-known/agent.json
+// ---------------------------------------------------------------------------
+function AgentDiscoveryPanel() {
+  const [discoveryState, setDiscoveryState] = useState<
+    | { status: "idle" }
+    | { status: "loading" }
+    | { status: "done"; data: Record<string, unknown> }
+    | { status: "error"; message: string }
+  >({ status: "idle" });
+
+  const fetchAgentJson = async () => {
+    setDiscoveryState({ status: "loading" });
+    try {
+      const res = await fetch("/.well-known/agent.json");
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json() as Record<string, unknown>;
+      setDiscoveryState({ status: "done", data });
+    } catch (e) {
+      setDiscoveryState({ status: "error", message: String(e) });
+    }
+  };
+
+  return (
+    <div
+      style={{
+        background: "#fff",
+        border: "1px solid #e8e8e8",
+        borderRadius: 10,
+        padding: "18px 20px",
+        marginTop: 16,
+      }}
+    >
+      <h3 style={{ margin: "0 0 8px 0", fontSize: 15, fontWeight: 700 }}>
+        Agent Discovery
+      </h3>
+      <p style={{ margin: "0 0 14px 0", fontSize: 13, color: "#555", lineHeight: 1.5 }}>
+        AI agents discover this service via the{" "}
+        <code style={{ background: "#f0f0f0", padding: "1px 5px", borderRadius: 3, fontSize: 12 }}>
+          /.well-known/agent.json
+        </code>{" "}
+        endpoint — inspired by{" "}
+        <a
+          href="https://eips.ethereum.org/EIPS/eip-8004"
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ color: "#2244aa" }}
+        >
+          ERC-8004
+        </a>
+        . It lists all capabilities, pricing, and payment methods in a machine-readable format.
+      </p>
+
+      <button
+        onClick={fetchAgentJson}
+        disabled={discoveryState.status === "loading"}
+        style={{
+          padding: "7px 16px",
+          background: discoveryState.status === "done" ? "#e8f5e9" : "#2244aa",
+          color: discoveryState.status === "done" ? "#1b5e20" : "white",
+          border: "none",
+          borderRadius: 6,
+          fontSize: 13,
+          fontWeight: 600,
+          cursor: discoveryState.status === "loading" ? "default" : "pointer",
+          opacity: discoveryState.status === "loading" ? 0.7 : 1,
+        }}
+      >
+        {discoveryState.status === "loading"
+          ? "Fetching…"
+          : discoveryState.status === "done"
+          ? "✓ Fetched"
+          : "GET /.well-known/agent.json"}
+      </button>
+
+      {discoveryState.status === "done" && (
+        <div style={{ marginTop: 14 }}>
+          <div
+            style={{
+              background: "#f8f9fa",
+              border: "1px solid #e0e0e0",
+              borderRadius: 6,
+              padding: "12px 14px",
+              fontFamily: "monospace",
+              fontSize: 12,
+              color: "#333",
+              whiteSpace: "pre-wrap",
+              maxHeight: 320,
+              overflowY: "auto",
+            }}
+          >
+            {JSON.stringify(discoveryState.data, null, 2)}
+          </div>
+          <p style={{ marginTop: 8, fontSize: 12, color: "#888" }}>
+            An agent can parse this JSON to discover available services, pricing, and payment endpoint — no human needed.
+          </p>
+        </div>
+      )}
+
+      {discoveryState.status === "error" && (
+        <p style={{ marginTop: 10, fontSize: 13, color: "#c00" }}>
+          Error: {discoveryState.message}
+        </p>
+      )}
+    </div>
+  );
+}
+
 export default function PaymentFlow() {
   const { publicKey, signTransaction, connected } = useWallet();
   const { connection } = useConnection();
@@ -2637,6 +2745,9 @@ export default function PaymentFlow() {
           selectedLabel={selectedOption?.label ?? selectedService}
         />
       )}
+
+      {/* Agent Discovery panel — only on x402 tab */}
+      {activeProtocol === "x402" && <AgentDiscoveryPanel />}
 
       {/* Solana / pump.fun flow */}
       {activeProtocol === "solana" && (<>
