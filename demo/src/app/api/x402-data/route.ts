@@ -1,61 +1,60 @@
 /**
  * GET /api/x402-data?service=crypto-prices
  *
- * Demonstrates the x402 (HTTP 402 Payment Required) protocol for AI agent micropayments.
+ * Implements the x402 (HTTP 402 Payment Required) protocol for AI agent micropayments.
  *
  * HOW IT WORKS:
  * 1. Request without payment → HTTP 402 with machine-readable payment requirements
- * 2. Agent reads the 402 body, creates a USDC payment on Base, submits proof
- * 3. Request with X-PAYMENT header → data delivered
+ * 2. Agent reads the 402 body, creates a USDC payment on Base Sepolia, submits proof
+ * 3. Request with X-PAYMENT header → verified against x402.org/facilitator → data delivered
  *
- * PRODUCTION SETUP:
- * - Replace RECEIVER_ADDRESS with your Base wallet address
- * - Use x402 facilitator (https://facilitator.x402.org) for real signature verification
- * - Average agent transaction: ~$0.31 USDC (per Circle Q1 2026 data)
- *
- * DEMO/TEST MODE:
- * - Pass X-X402-DEMO: true header to skip payment verification
- * - Facilitator verification is stubbed in demo mode
+ * NETWORK: Base Sepolia (eip155:84532) — testnet USDC
+ * FACILITATOR: https://x402.org/facilitator (Coinbase-hosted)
+ * RECEIVER: 0xB7555297d48C60A6f932Fe6404ecF8b20BD3f1AB
+ * PRICE: $0.001 USDC per request
  *
  * AGENT INTEGRATION EXAMPLE (Python):
  *   import httpx, base64, json
  *   resp = httpx.get("/api/x402-data?service=crypto-prices")
  *   if resp.status_code == 402:
  *       payment_req = resp.json()
- *       # sign + submit USDC payment via Coinbase AgentKit
- *       payment_proof = agent_wallet.pay(payment_req["accepts"][0])
- *       data = httpx.get("/api/x402-data", headers={"X-PAYMENT": payment_proof})
+ *       # sign USDC payment via Coinbase AgentKit or viem wallet
+ *       proof = agent_wallet.pay(payment_req["accepts"][0])
+ *       data = httpx.get("/api/x402-data", headers={"X-PAYMENT": proof})
+ *
+ * DEMO/TEST MODE:
+ *   Add header X-X402-Demo: true to skip payment verification (for testing only).
  */
 import { NextRequest, NextResponse } from "next/server";
 import { deliverService, ALL_SERVICE_TYPES, type ServiceType } from "@/lib/services";
 
 const VALID_SERVICES = ALL_SERVICE_TYPES;
 
-// Base mainnet USDC contract address
-const USDC_BASE = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
+// Base Sepolia USDC contract address (testnet)
+const USDC_BASE_SEPOLIA = "0x036CbD53842c5426634e7929541eC2318f3dCF7e";
 
-// Replace with your actual Base wallet to receive USDC payments in production
-const RECEIVER_ADDRESS = process.env.X402_RECEIVER ?? "0x0000000000000000000000000000000000000001";
+// Receiver address on Base Sepolia
+const RECEIVER_ADDRESS =
+  process.env.X402_RECEIVER ?? "0xB7555297d48C60A6f932Fe6404ecF8b20BD3f1AB";
 
 // Price per request: $0.001 USDC (1000 USDC micro-units at 6 decimals)
 const PRICE_MICRO_USDC = "1000";
 
-// x402 compliant HTTP 402 response body
-// See: https://www.x402.org/protocol
+// x402 v2 payment requirements (returned with 402)
 function buildPaymentRequired(url: string): object {
   return {
-    x402Version: 1,
+    x402Version: 2,
     accepts: [
       {
         scheme: "exact",
-        network: "eip155:8453", // Base mainnet
+        network: "eip155:84532", // Base Sepolia
         maxAmountRequired: PRICE_MICRO_USDC,
         resource: url,
-        description: "One data query from skill-tokenized-agents API ($0.001 USDC)",
+        description: "One data query from skill-tokenized-agents ($0.001 USDC on Base Sepolia)",
         mimeType: "application/json",
         payTo: RECEIVER_ADDRESS,
         maxTimeoutSeconds: 300,
-        asset: USDC_BASE,
+        asset: USDC_BASE_SEPOLIA,
         extra: {
           name: "USDC",
           version: "2",
@@ -67,20 +66,43 @@ function buildPaymentRequired(url: string): object {
 }
 
 /**
- * Stub verifier for demo mode.
- * In production: POST to https://facilitator.x402.org/verify with the payment header.
+ * Verify payment header against the x402.org hosted facilitator.
+ * The facilitator checks the EIP-3009 signature and validates the payment.
  */
-async function verifyPaymentHeader(paymentHeader: string, url: string): Promise<boolean> {
+async function verifyPaymentWithFacilitator(
+  paymentHeader: string,
+  paymentRequirements: object
+): Promise<{ valid: boolean; reason?: string }> {
   try {
     const decoded = Buffer.from(paymentHeader, "base64").toString("utf8");
-    const payment = JSON.parse(decoded) as { payload?: { authorization?: string }; scheme?: string };
+    const paymentPayload = JSON.parse(decoded) as { x402Version?: number };
 
-    // Minimal structural validation (production would verify EIP-3009 signature on-chain)
-    const hasAuthorization = !!payment?.payload?.authorization;
-    const isExactScheme = payment?.scheme === "exact";
-    return hasAuthorization && isExactScheme;
-  } catch {
-    return false;
+    const response = await fetch("https://x402.org/facilitator/verify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        x402Version: paymentPayload.x402Version ?? 2,
+        paymentPayload,
+        paymentRequirements,
+      }),
+    });
+
+    const result = (await response.json()) as {
+      isValid?: boolean;
+      invalidReason?: string;
+      invalidMessage?: string;
+    };
+
+    if (result.isValid === true) {
+      return { valid: true };
+    }
+    return {
+      valid: false,
+      reason: result.invalidReason ?? result.invalidMessage ?? "invalid_payment",
+    };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "verification_error";
+    return { valid: false, reason: message };
   }
 }
 
@@ -101,18 +123,26 @@ export async function GET(req: NextRequest) {
       headers: {
         "Content-Type": "application/json",
         "Access-Control-Allow-Origin": "*",
-        // x402 convention: advertise protocol version
-        "X-X402-Version": "1",
+        "X-X402-Version": "2",
       },
     });
   }
 
-  // Verify payment if provided (skip in demo mode)
+  // Verify payment against hosted facilitator (skip in demo mode)
   if (paymentHeader && !isDemoMode) {
-    const valid = await verifyPaymentHeader(paymentHeader, url);
+    const paymentRequirements = buildPaymentRequired(url);
+    const { valid, reason } = await verifyPaymentWithFacilitator(
+      paymentHeader,
+      paymentRequirements
+    );
+
     if (!valid) {
       return NextResponse.json(
-        { error: "Invalid or expired payment. Resubmit payment." },
+        {
+          error: "Invalid or rejected payment.",
+          reason,
+          hint: "Ensure payment is on eip155:84532 (Base Sepolia) with USDC at 0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+        },
         { status: 402 }
       );
     }
@@ -130,9 +160,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(data, {
       headers: {
         "Cache-Control": "no-store",
-        // x402 convention: include payment response proof
         "X-PAYMENT-RESPONSE": isDemoMode ? "demo-mode-no-payment" : "payment-verified",
-        "X-X402-Version": "1",
+        "X-X402-Version": "2",
+        "Access-Control-Allow-Origin": "*",
       },
     });
   } catch (err) {

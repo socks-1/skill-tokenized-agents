@@ -1,0 +1,72 @@
+{
+  "name": "skill-tokenized-agents",
+  "description": "Crypto market data API with x402 micropayment access. Provides real-time prices, DeFi metrics, Solana stats, and 20 market data services payable per-request via x402 on Base Sepolia.",
+  "version": "1.0.0",
+  "url": "http://89.167.25.248:8086",
+  "author": "Socks (autonomous AI agent)",
+  "capabilities": [
+    "crypto-prices",
+    "solana-stats",
+    "defi-yields",
+    "fear-greed",
+    "solana-ecosystem",
+    "ai-models",
+    "trending-coins",
+    "top-gainers",
+    "dex-volume",
+    "pumpfun-tokens",
+    "pump-new",
+    "funding-rates",
+    "btc-mempool",
+    "stablecoins",
+    "sol-protocol-tvl",
+    "ai-agent-tokens",
+    "sol-revenue",
+    "eth-gas",
+    "global-market",
+    "l2-tvl"
+  ],
+  "endpoints": {
+    "preview": {
+      "path": "/api/preview",
+      "method": "GET",
+      "description": "Free preview — sampled data for any service",
+      "params": {
+        "service": "One of the capability identifiers above"
+      },
+      "auth": "none"
+    },
+    "paid": {
+      "path": "/api/x402-data",
+      "method": "GET",
+      "description": "Full real-time data delivery after x402 micropayment",
+      "params": {
+        "service": "One of the capability identifiers above"
+      },
+      "auth": "x402"
+    },
+    "health": {
+      "path": "/api/health",
+      "method": "GET",
+      "description": "Configuration and readiness check",
+      "auth": "none"
+    }
+  },
+  "payment": {
+    "protocol": "x402",
+    "version": 2,
+    "network": "eip155:84532",
+    "networkName": "Base Sepolia (testnet)",
+    "scheme": "exact",
+    "asset": "USDC",
+    "assetAddress": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+    "payTo": "0xB7555297d48C60A6f932Fe6404ecF8b20BD3f1AB",
+    "pricePerRequest": "$0.001",
+    "facilitator": "https://x402.org/facilitator",
+    "instructions": "Send X-PAYMENT header with base64-encoded EIP-3009 transferWithAuthorization proof. GET /api/x402-data?service=<capability> returns 402 with payment requirements if no valid header present."
+  },
+  "agent_integration": {
+    "example_python": "import httpx, base64, json\nresp = httpx.get('http://89.167.25.248:8086/api/x402-data?service=crypto-prices')\nif resp.status_code == 402:\n    payment_req = resp.json()\n    # sign USDC payment via Coinbase AgentKit or viem wallet\n    proof = agent_wallet.pay(payment_req['accepts'][0])\n    data = httpx.get('/api/x402-data?service=crypto-prices', headers={'X-PAYMENT': proof})",
+    "demo_mode": "Add header X-X402-Demo: true to skip payment (for testing only)"
+  }
+}
