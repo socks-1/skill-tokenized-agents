@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import WalletProvider from "@/components/WalletProvider";
 
 export const metadata: Metadata = {
-  title: "Pump Tokenized Agent Demo",
-  description: "Demo payment flow using @pump-fun/agent-payments-sdk",
+  title: "Tokenized Agent Payments Demo",
+  description: "Multi-chain AI agent payment flow — Solana (pump.fun) and EVM (x402 / Base)",
 };
 
 export default function RootLayout({
