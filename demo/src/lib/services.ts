@@ -3,10 +3,10 @@
  * All functions are read-only calls to public APIs — no auth required.
  */
 
-export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees";
+export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume";
 
 /** All valid service type strings — use this for runtime validation instead of duplicating the list. */
-export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees"];
+export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume"];
 
 export interface MarketData {
   symbol: string;
@@ -284,6 +284,21 @@ export interface DefiFeesData {
   entries: DefiFeesEntry[];
 }
 
+export interface CexExchange {
+  rank: number;
+  name: string;
+  volume_btc_24h: number;
+  volume_usd_24h: number;
+  trust_score: number;
+  year_established: number | null;
+  country: string | null;
+}
+
+export interface CexVolumeData {
+  exchanges: CexExchange[];
+  btc_price_usd: number;
+}
+
 export interface ServiceResult {
   service_type: ServiceType;
   result: string;
@@ -311,6 +326,7 @@ export interface ServiceResult {
   polymarket_data?: PolymarketData;
   narratives?: NarrativeData;
   defi_fees?: DefiFeesData;
+  cex_volume?: CexVolumeData;
   timestamp: string;
   delivered_to: string;
 }
@@ -1797,6 +1813,73 @@ export async function deliverDefiFees(delivered_to: string, timestamp: string): 
   return { service_type: "defi-fees", result, defi_fees, timestamp, delivered_to };
 }
 
+export async function deliverCexVolume(delivered_to: string, timestamp: string): Promise<ServiceResult> {
+  let cex_volume: CexVolumeData | undefined;
+
+  try {
+    // Fetch BTC price and top exchanges in parallel
+    const [btcRes, exchangesRes] = await Promise.all([
+      fetch(
+        "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd",
+        { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(10000) }
+      ),
+      fetch(
+        "https://api.coingecko.com/api/v3/exchanges?per_page=10&page=1",
+        { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(10000) }
+      ),
+    ]);
+
+    if (btcRes.ok && exchangesRes.ok) {
+      const btcData = (await btcRes.json()) as { bitcoin: { usd: number } };
+      const btcPrice = btcData.bitcoin.usd;
+
+      const rawExchanges = (await exchangesRes.json()) as Array<{
+        id: string;
+        name: string;
+        trust_score: number | null;
+        trust_score_rank: number;
+        trade_volume_24h_btc: number;
+        year_established: number | null;
+        country: string | null;
+      }>;
+
+      const exchanges: CexExchange[] = rawExchanges
+        .filter((e) => e.trade_volume_24h_btc > 0)
+        .slice(0, 10)
+        .map((e, i) => ({
+          rank: i + 1,
+          name: e.name,
+          volume_btc_24h: Math.round(e.trade_volume_24h_btc),
+          volume_usd_24h: Math.round(e.trade_volume_24h_btc * btcPrice),
+          trust_score: e.trust_score ?? 0,
+          year_established: e.year_established,
+          country: e.country,
+        }));
+
+      if (exchanges.length > 0) {
+        cex_volume = { exchanges, btc_price_usd: btcPrice };
+      }
+    }
+  } catch {
+    // Fall through with undefined cex_volume
+  }
+
+  const fmtVol = (v: number) =>
+    v >= 1_000_000_000
+      ? `$${(v / 1_000_000_000).toFixed(1)}B`
+      : `$${(v / 1_000_000).toFixed(0)}M`;
+
+  const result =
+    cex_volume && cex_volume.exchanges.length > 0
+      ? cex_volume.exchanges
+          .slice(0, 3)
+          .map((e) => `${e.name} ${fmtVol(e.volume_usd_24h)}`)
+          .join(" | ")
+      : "CEX volume data temporarily unavailable";
+
+  return { service_type: "cex-volume", result, cex_volume, timestamp, delivered_to };
+}
+
 export async function deliverService(delivered_to: string, serviceType: ServiceType): Promise<ServiceResult> {
   const timestamp = new Date().toISOString();
   if (serviceType === "solana-stats") return deliverSolanaStats(delivered_to, timestamp);
@@ -1822,5 +1905,6 @@ export async function deliverService(delivered_to: string, serviceType: ServiceT
   if (serviceType === "polymarket") return deliverPolymarket(delivered_to, timestamp);
   if (serviceType === "narratives") return deliverNarratives(delivered_to, timestamp);
   if (serviceType === "defi-fees") return deliverDefiFees(delivered_to, timestamp);
+  if (serviceType === "cex-volume") return deliverCexVolume(delivered_to, timestamp);
   return deliverCryptoPrices(delivered_to, timestamp);
 }

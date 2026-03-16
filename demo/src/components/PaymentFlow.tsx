@@ -32,6 +32,7 @@ import type {
   PolymarketData,
   NarrativeData,
   DefiFeesData,
+  CexVolumeData,
 } from "@/lib/services";
 
 interface InvoiceParams {
@@ -241,6 +242,13 @@ const SERVICE_OPTIONS: { id: ServiceType; label: string; description: string; pr
     description: "Top DeFi protocols ranked by 30-day fees collected — see which protocols are generating the most on-chain revenue",
     price: "1 USDC",
     category: "DeFi",
+  },
+  {
+    id: "cex-volume",
+    label: "CEX Volume Rankings",
+    description: "Top 10 centralized exchanges ranked by 24h spot trading volume — Binance, Coinbase, Kraken and more with trust scores",
+    price: "1 USDC",
+    category: "Market Data",
   },
 ];
 
@@ -533,6 +541,22 @@ const MOCK_DEFI_FEES: DefiFeesData = {
     { name: "pump.fun", category: "Launchpad", total30d: 24_800_000, total24h: 758_000, change_1m: -22.0, chains: ["Solana"] },
     { name: "Kamino Lend", category: "Lending", total30d: 18_200_000, total24h: 560_000, change_1m: 6.3, chains: ["Solana"] },
     { name: "Raydium", category: "Dexs", total30d: 16_700_000, total24h: 510_000, change_1m: -9.1, chains: ["Solana"] },
+  ],
+};
+
+const MOCK_CEX_VOLUME: CexVolumeData = {
+  btc_price_usd: 82000,
+  exchanges: [
+    { rank: 1, name: "Binance", volume_btc_24h: 1_320_000, volume_usd_24h: 108_240_000_000, trust_score: 10, year_established: 2017, country: "Cayman Islands" },
+    { rank: 2, name: "Bybit", volume_btc_24h: 420_000, volume_usd_24h: 34_440_000_000, trust_score: 10, year_established: 2018, country: "United Arab Emirates" },
+    { rank: 3, name: "Coinbase Exchange", volume_btc_24h: 180_000, volume_usd_24h: 14_760_000_000, trust_score: 10, year_established: 2012, country: "United States" },
+    { rank: 4, name: "OKX", volume_btc_24h: 160_000, volume_usd_24h: 13_120_000_000, trust_score: 10, year_established: 2017, country: "Seychelles" },
+    { rank: 5, name: "Kraken", volume_btc_24h: 95_000, volume_usd_24h: 7_790_000_000, trust_score: 10, year_established: 2011, country: "United States" },
+    { rank: 6, name: "Gate.io", volume_btc_24h: 88_000, volume_usd_24h: 7_216_000_000, trust_score: 9, year_established: 2013, country: "Cayman Islands" },
+    { rank: 7, name: "Bitget", volume_btc_24h: 75_000, volume_usd_24h: 6_150_000_000, trust_score: 9, year_established: 2018, country: "Singapore" },
+    { rank: 8, name: "HTX", volume_btc_24h: 62_000, volume_usd_24h: 5_084_000_000, trust_score: 8, year_established: 2013, country: "Seychelles" },
+    { rank: 9, name: "KuCoin", volume_btc_24h: 55_000, volume_usd_24h: 4_510_000_000, trust_score: 8, year_established: 2017, country: "Seychelles" },
+    { rank: 10, name: "MEXC", volume_btc_24h: 48_000, volume_usd_24h: 3_936_000_000, trust_score: 7, year_established: 2018, country: "Seychelles" },
   ],
 };
 
@@ -1378,6 +1402,16 @@ function buildTourSteps(serviceType: ServiceType, liveData?: ServiceResult): Pay
       service_type: "defi-fees",
       result: ff.entries.slice(0, 3).map((e) => `${e.name} ${fmtFee(e.total30d)} 30d`).join(" | "),
       defi_fees: ff,
+      timestamp: new Date().toISOString(),
+      delivered_to: "Demo1234...abcd",
+    };
+  } else if (serviceType === "cex-volume") {
+    const cv = liveData?.cex_volume ?? MOCK_CEX_VOLUME;
+    const fmtVol = (v: number) => v >= 1_000_000_000 ? `$${(v / 1_000_000_000).toFixed(1)}B` : `$${(v / 1_000_000).toFixed(0)}M`;
+    mockService = liveData ?? {
+      service_type: "cex-volume",
+      result: cv.exchanges.slice(0, 3).map((e) => `${e.name} ${fmtVol(e.volume_usd_24h)}`).join(" | "),
+      cex_volume: cv,
       timestamp: new Date().toISOString(),
       delivered_to: "Demo1234...abcd",
     };
@@ -2455,6 +2489,62 @@ function ServiceResultTable({ service }: { service: ServiceResult }) {
         </table>
         <p style={{ marginTop: 8, fontSize: 12, color: "#888" }}>
           {ff.entries.length} protocols · sorted by 30d fees · via DeFi Llama
+        </p>
+      </div>
+    );
+  }
+
+  if (service.service_type === "cex-volume" && service.cex_volume) {
+    const cv = service.cex_volume;
+    const fmtVol = (v: number) =>
+      v >= 1_000_000_000
+        ? `$${(v / 1_000_000_000).toFixed(1)}B`
+        : `$${(v / 1_000_000).toFixed(0)}M`;
+    return (
+      <div>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+          <thead>
+            <tr style={{ borderBottom: "2px solid #e8e8e8" }}>
+              <th style={{ padding: "6px 8px", textAlign: "left", fontSize: 12, color: "#888", fontWeight: 600 }}>#</th>
+              <th style={{ padding: "6px 8px", textAlign: "left", fontSize: 12, color: "#888", fontWeight: 600 }}>Exchange</th>
+              <th style={{ padding: "6px 8px", textAlign: "right", fontSize: 12, color: "#888", fontWeight: 600 }}>24h Volume</th>
+              <th style={{ padding: "6px 8px", textAlign: "right", fontSize: 12, color: "#888", fontWeight: 600 }}>Trust</th>
+            </tr>
+          </thead>
+          <tbody>
+            {cv.exchanges.map((e) => (
+              <tr key={e.rank} style={{ borderBottom: "1px solid #f0f0f0" }}>
+                <td style={{ padding: "7px 8px", color: "#aaa", fontSize: 12, fontWeight: 500 }}>{e.rank}</td>
+                <td style={{ padding: "7px 8px" }}>
+                  <span style={{ fontWeight: 500, fontSize: 13 }}>{e.name}</span>
+                  {e.year_established && (
+                    <span style={{ display: "block", fontSize: 11, color: "#aaa", marginTop: 1 }}>
+                      est. {e.year_established}{e.country ? ` · ${e.country}` : ""}
+                    </span>
+                  )}
+                </td>
+                <td style={{ padding: "7px 8px", textAlign: "right", fontWeight: 600, fontSize: 13, color: "#444" }}>
+                  {fmtVol(e.volume_usd_24h)}
+                </td>
+                <td style={{ padding: "7px 8px", textAlign: "right" }}>
+                  <span style={{
+                    display: "inline-block",
+                    padding: "2px 7px",
+                    borderRadius: 10,
+                    fontSize: 12,
+                    fontWeight: 700,
+                    background: e.trust_score >= 9 ? "#e6f7ee" : e.trust_score >= 7 ? "#fff8e6" : "#fff0f0",
+                    color: e.trust_score >= 9 ? "#1a7a3a" : e.trust_score >= 7 ? "#b8750a" : "#c0392b",
+                  }}>
+                    {e.trust_score}/10
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <p style={{ marginTop: 8, fontSize: 12, color: "#888" }}>
+          {cv.exchanges.length} exchanges · sorted by 24h spot volume · via CoinGecko
         </p>
       </div>
     );
