@@ -3,10 +3,10 @@
  * All functions are read-only calls to public APIs — no auth required.
  */
 
-export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl";
+export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst";
 
 /** All valid service type strings — use this for runtime validation instead of duplicating the list. */
-export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl"];
+export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst"];
 
 export interface MarketData {
   symbol: string;
@@ -235,6 +235,18 @@ export interface L2TvlData {
   total_tvl_usd: number;
 }
 
+export interface SolLstToken {
+  symbol: string;
+  project: string;
+  apy: number;
+  tvl_usd: number;
+}
+
+export interface SolLstData {
+  tokens: SolLstToken[];
+  avg_apy: number;
+}
+
 export interface ServiceResult {
   service_type: ServiceType;
   result: string;
@@ -258,6 +270,7 @@ export interface ServiceResult {
   eth_gas?: EthGasData;
   global_market?: GlobalMarketData;
   l2_tvl?: L2TvlData;
+  sol_lst?: SolLstData;
   timestamp: string;
   delivered_to: string;
 }
@@ -1512,6 +1525,73 @@ export async function deliverL2Tvl(delivered_to: string, timestamp: string): Pro
   return { service_type: "l2-tvl", result, l2_tvl, timestamp, delivered_to };
 }
 
+// Known Solana liquid staking projects in DeFi Llama yields API
+const SOL_LST_PROJECTS = new Set([
+  "jito-liquid-staking",
+  "marinade-liquid-staking",
+  "jupiter-staked-sol",
+  "drift-staked-sol",
+  "blazestake",
+  "phantom-sol",
+  "bybit-staked-sol",
+  "jpool",
+  "binance-staked-sol",
+  "the-vault-liquid-staking",
+  "doublezero-staked-sol",
+]);
+
+export async function deliverSolLst(delivered_to: string, timestamp: string): Promise<ServiceResult> {
+  let sol_lst: SolLstData | undefined;
+
+  try {
+    const res = await fetch("https://yields.llama.fi/pools", {
+      headers: { Accept: "application/json" },
+      signal: AbortSignal.timeout(10000),
+    });
+    if (res.ok) {
+      const json = await res.json() as { data: Array<{
+        project: string;
+        symbol: string;
+        chain: string;
+        apy: number | null;
+        tvlUsd: number | null;
+      }> };
+      const data = json.data ?? [];
+
+      const tokens: SolLstToken[] = data
+        .filter((p) => p.chain === "Solana" && SOL_LST_PROJECTS.has(p.project) && (p.apy ?? 0) > 0 && (p.tvlUsd ?? 0) > 1_000_000)
+        .map((p) => ({
+          symbol: p.symbol,
+          project: p.project.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
+          apy: parseFloat((p.apy ?? 0).toFixed(2)),
+          tvl_usd: p.tvlUsd ?? 0,
+        }))
+        .sort((a, b) => b.tvl_usd - a.tvl_usd)
+        .slice(0, 8);
+
+      if (tokens.length > 0) {
+        const avg_apy = parseFloat((tokens.reduce((s, t) => s + t.apy, 0) / tokens.length).toFixed(2));
+        sol_lst = { tokens, avg_apy };
+      }
+    }
+  } catch {
+    // Fall through with undefined sol_lst
+  }
+
+  const fmtTvl = (v: number) =>
+    v >= 1_000_000_000 ? `$${(v / 1_000_000_000).toFixed(1)}B` : `$${(v / 1_000_000).toFixed(0)}M`;
+
+  const result =
+    sol_lst && sol_lst.tokens.length > 0
+      ? sol_lst.tokens
+          .slice(0, 4)
+          .map((t) => `${t.symbol} ${t.apy.toFixed(1)}% APY`)
+          .join(" | ")
+      : "Solana LST yield data temporarily unavailable";
+
+  return { service_type: "sol-lst", result, sol_lst, timestamp, delivered_to };
+}
+
 export async function deliverService(delivered_to: string, serviceType: ServiceType): Promise<ServiceResult> {
   const timestamp = new Date().toISOString();
   if (serviceType === "solana-stats") return deliverSolanaStats(delivered_to, timestamp);
@@ -1533,5 +1613,6 @@ export async function deliverService(delivered_to: string, serviceType: ServiceT
   if (serviceType === "eth-gas") return deliverEthGas(delivered_to, timestamp);
   if (serviceType === "global-market") return deliverGlobalMarket(delivered_to, timestamp);
   if (serviceType === "l2-tvl") return deliverL2Tvl(delivered_to, timestamp);
+  if (serviceType === "sol-lst") return deliverSolLst(delivered_to, timestamp);
   return deliverCryptoPrices(delivered_to, timestamp);
 }

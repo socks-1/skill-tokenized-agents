@@ -28,6 +28,7 @@ import type {
   EthGasData,
   GlobalMarketData,
   L2TvlData,
+  SolLstData,
 } from "@/lib/services";
 
 interface InvoiceParams {
@@ -201,6 +202,13 @@ const SERVICE_OPTIONS: { id: ServiceType; label: string; description: string; pr
     description: "Top Ethereum Layer 2 chains ranked by total value locked — Arbitrum, Base, Optimism, zkSync, Starknet and more",
     price: "1 USDC",
     category: "DeFi",
+  },
+  {
+    id: "sol-lst",
+    label: "Solana Liquid Staking Yields",
+    description: "Top Solana liquid staking tokens (jitoSOL, mSOL, jupSOL, bSOL and more) with current APY and TVL — via DeFi Llama",
+    price: "1 USDC",
+    category: "Solana",
   },
 ];
 
@@ -439,6 +447,20 @@ const MOCK_L2_TVL: L2TvlData = {
     { name: "Blast", tvl_usd: 35_000_000, change_1d_pct: -0.8 },
   ],
   total_tvl_usd: 7_175_000_000,
+};
+
+const MOCK_SOL_LST: SolLstData = {
+  tokens: [
+    { symbol: "JITOSOL", project: "Jito Liquid Staking", apy: 5.91, tvl_usd: 1_187_000_000 },
+    { symbol: "JUPSOL", project: "Jupiter Staked Sol", apy: 6.35, tvl_usd: 403_000_000 },
+    { symbol: "MSOL", project: "Marinade Liquid Staking", apy: 7.03, tvl_usd: 264_000_000 },
+    { symbol: "DSOL", project: "Drift Staked Sol", apy: 6.53, tvl_usd: 247_000_000 },
+    { symbol: "PSOL", project: "Phantom Sol", apy: 6.68, tvl_usd: 127_000_000 },
+    { symbol: "BSOL", project: "Blazestake", apy: 5.56, tvl_usd: 96_000_000 },
+    { symbol: "JSOL", project: "Jpool", apy: 5.60, tvl_usd: 117_000_000 },
+    { symbol: "VSOL", project: "The Vault Liquid Staking", apy: 5.64, tvl_usd: 117_000_000 },
+  ],
+  avg_apy: 6.16,
 };
 
 const MOCK_SIGNATURE =
@@ -894,6 +916,15 @@ function buildTourSteps(serviceType: ServiceType, liveData?: ServiceResult): Pay
       service_type: "l2-tvl",
       result: l2.chains.slice(0, 4).map((c) => `${c.name} ${fmtTvl(c.tvl_usd)}`).join(" | "),
       l2_tvl: l2,
+      timestamp: new Date().toISOString(),
+      delivered_to: "Demo1234...abcd",
+    };
+  } else if (serviceType === "sol-lst") {
+    const lst = liveData?.sol_lst ?? MOCK_SOL_LST;
+    mockService = liveData ?? {
+      service_type: "sol-lst",
+      result: lst.tokens.slice(0, 4).map((t) => `${t.symbol} ${t.apy.toFixed(1)}% APY`).join(" | "),
+      sol_lst: lst,
       timestamp: new Date().toISOString(),
       delivered_to: "Demo1234...abcd",
     };
@@ -1787,6 +1818,39 @@ function ServiceResultTable({ service }: { service: ServiceResult }) {
         </table>
         <p style={{ marginTop: 8, fontSize: 12, color: "#888" }}>
           Showing top {l2.chains.length} L2s · Total: {fmtTvl(l2.total_tvl_usd)} · via DeFi Llama
+        </p>
+      </div>
+    );
+  }
+
+  if (service.service_type === "sol-lst" && service.sol_lst) {
+    const lst = service.sol_lst;
+    const fmtTvl = (v: number) => v >= 1e9 ? `$${(v / 1e9).toFixed(1)}B` : `$${(v / 1e6).toFixed(0)}M`;
+    return (
+      <div>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 15 }}>
+          <thead>
+            <tr style={{ borderBottom: "2px solid #e8e8e8" }}>
+              <th style={{ padding: "6px 8px", textAlign: "left", fontSize: 12, color: "#888", fontWeight: 600 }}>Token</th>
+              <th style={{ padding: "6px 8px", textAlign: "right", fontSize: 12, color: "#888", fontWeight: 600 }}>APY</th>
+              <th style={{ padding: "6px 8px", textAlign: "right", fontSize: 12, color: "#888", fontWeight: 600 }}>TVL</th>
+            </tr>
+          </thead>
+          <tbody>
+            {lst.tokens.map((t) => (
+              <tr key={t.symbol} style={{ borderBottom: "1px solid #f0f0f0" }}>
+                <td style={{ padding: "7px 8px" }}>
+                  <span style={{ fontWeight: 700 }}>{t.symbol}</span>
+                  <span style={{ fontSize: 12, color: "#888", marginLeft: 6 }}>{t.project}</span>
+                </td>
+                <td style={{ padding: "7px 8px", textAlign: "right", fontWeight: 700, color: "#1a7a3a" }}>{t.apy.toFixed(2)}%</td>
+                <td style={{ padding: "7px 8px", textAlign: "right", fontWeight: 600 }}>{fmtTvl(t.tvl_usd)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <p style={{ marginTop: 8, fontSize: 12, color: "#888" }}>
+          {lst.tokens.length} LSTs · Avg APY: {lst.avg_apy.toFixed(2)}% · via DeFi Llama
         </p>
       </div>
     );
