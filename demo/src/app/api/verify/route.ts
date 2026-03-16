@@ -8,9 +8,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyPayment } from "@/lib/pump-agent";
 import type { InvoiceParams } from "@/lib/pump-agent";
-import { deliverService, type ServiceType } from "@/lib/services";
+import { deliverService, ALL_SERVICE_TYPES, type ServiceType } from "@/lib/services";
 
-const VALID_SERVICES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas"];
+const VALID_SERVICES = ALL_SERVICE_TYPES;
 
 export async function POST(req: NextRequest) {
   try {
