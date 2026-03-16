@@ -27,6 +27,7 @@ import type {
   SolRevenueData,
   EthGasData,
   GlobalMarketData,
+  L2TvlData,
 } from "@/lib/services";
 
 interface InvoiceParams {
@@ -193,6 +194,13 @@ const SERVICE_OPTIONS: { id: ServiceType; label: string; description: string; pr
     description: "Total crypto market cap, BTC & ETH dominance, 24h volume, DeFi size — the macro pulse in one glance",
     price: "1 USDC",
     category: "Market Data",
+  },
+  {
+    id: "l2-tvl",
+    label: "L2 Chain TVL Rankings",
+    description: "Top Ethereum Layer 2 chains ranked by total value locked — Arbitrum, Base, Optimism, zkSync, Starknet and more",
+    price: "1 USDC",
+    category: "DeFi",
   },
 ];
 
@@ -417,6 +425,20 @@ const MOCK_GLOBAL_MARKET: GlobalMarketData = {
   active_cryptos: 17_200,
   defi_market_cap_usd: 96_000_000_000,
   stablecoin_volume_24h_usd: 40_000_000_000,
+};
+
+const MOCK_L2_TVL: L2TvlData = {
+  chains: [
+    { name: "Arbitrum", tvl_usd: 2_066_000_000, change_1d_pct: 1.2 },
+    { name: "Base", tvl_usd: 4_230_000_000, change_1d_pct: 2.8 },
+    { name: "Optimism", tvl_usd: 213_000_000, change_1d_pct: -0.5 },
+    { name: "Starknet", tvl_usd: 267_000_000, change_1d_pct: 3.1 },
+    { name: "Scroll", tvl_usd: 201_000_000, change_1d_pct: 0.9 },
+    { name: "Linea", tvl_usd: 99_000_000, change_1d_pct: -1.2 },
+    { name: "zkSync Era", tvl_usd: 64_000_000, change_1d_pct: 0.4 },
+    { name: "Blast", tvl_usd: 35_000_000, change_1d_pct: -0.8 },
+  ],
+  total_tvl_usd: 7_175_000_000,
 };
 
 const MOCK_SIGNATURE =
@@ -862,6 +884,16 @@ function buildTourSteps(serviceType: ServiceType, liveData?: ServiceResult): Pay
       service_type: "global-market",
       result: `Market: ${fmtT(gm.total_market_cap_usd)} (${gm.market_cap_change_24h_pct >= 0 ? "+" : ""}${gm.market_cap_change_24h_pct.toFixed(1)}%) | BTC ${gm.btc_dominance.toFixed(1)}% | ETH ${gm.eth_dominance.toFixed(1)}% | Vol: ${fmtT(gm.total_volume_24h_usd)}`,
       global_market: gm,
+      timestamp: new Date().toISOString(),
+      delivered_to: "Demo1234...abcd",
+    };
+  } else if (serviceType === "l2-tvl") {
+    const l2 = liveData?.l2_tvl ?? MOCK_L2_TVL;
+    const fmtTvl = (v: number) => v >= 1e9 ? `$${(v / 1e9).toFixed(1)}B` : `$${(v / 1e6).toFixed(0)}M`;
+    mockService = liveData ?? {
+      service_type: "l2-tvl",
+      result: l2.chains.slice(0, 4).map((c) => `${c.name} ${fmtTvl(c.tvl_usd)}`).join(" | "),
+      l2_tvl: l2,
       timestamp: new Date().toISOString(),
       delivered_to: "Demo1234...abcd",
     };
@@ -1724,6 +1756,38 @@ function ServiceResultTable({ service }: { service: ServiceResult }) {
             ))}
           </tbody>
         </table>
+      </div>
+    );
+  }
+
+  if (service.service_type === "l2-tvl" && service.l2_tvl) {
+    const l2 = service.l2_tvl;
+    const fmtTvl = (v: number) => v >= 1e9 ? `$${(v / 1e9).toFixed(1)}B` : `$${(v / 1e6).toFixed(0)}M`;
+    return (
+      <div>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 15 }}>
+          <thead>
+            <tr style={{ borderBottom: "2px solid #e8e8e8" }}>
+              <th style={{ padding: "6px 8px", textAlign: "left", fontSize: 12, color: "#888", fontWeight: 600 }}>Chain</th>
+              <th style={{ padding: "6px 8px", textAlign: "right", fontSize: 12, color: "#888", fontWeight: 600 }}>TVL</th>
+              <th style={{ padding: "6px 8px", textAlign: "right", fontSize: 12, color: "#888", fontWeight: 600 }}>24h</th>
+            </tr>
+          </thead>
+          <tbody>
+            {l2.chains.map((c) => (
+              <tr key={c.name} style={{ borderBottom: "1px solid #f0f0f0" }}>
+                <td style={{ padding: "7px 8px", fontWeight: 600 }}>{c.name}</td>
+                <td style={{ padding: "7px 8px", textAlign: "right", fontWeight: 700 }}>{fmtTvl(c.tvl_usd)}</td>
+                <td style={{ padding: "7px 8px", textAlign: "right", color: c.change_1d_pct >= 0 ? "#1a7a3a" : "#c0392b", fontWeight: 600, fontSize: 13 }}>
+                  {c.change_1d_pct >= 0 ? "+" : ""}{c.change_1d_pct.toFixed(1)}%
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <p style={{ marginTop: 8, fontSize: 12, color: "#888" }}>
+          Showing top {l2.chains.length} L2s · Total: {fmtTvl(l2.total_tvl_usd)} · via DeFi Llama
+        </p>
       </div>
     );
   }

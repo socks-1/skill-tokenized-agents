@@ -3,10 +3,10 @@
  * All functions are read-only calls to public APIs — no auth required.
  */
 
-export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market";
+export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl";
 
 /** All valid service type strings — use this for runtime validation instead of duplicating the list. */
-export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market"];
+export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl"];
 
 export interface MarketData {
   symbol: string;
@@ -224,6 +224,17 @@ export interface GlobalMarketData {
   stablecoin_volume_24h_usd: number;   // 24h stablecoin trading volume in USD
 }
 
+export interface L2Chain {
+  name: string;
+  tvl_usd: number;
+  change_1d_pct: number;
+}
+
+export interface L2TvlData {
+  chains: L2Chain[];
+  total_tvl_usd: number;
+}
+
 export interface ServiceResult {
   service_type: ServiceType;
   result: string;
@@ -246,6 +257,7 @@ export interface ServiceResult {
   sol_revenue?: SolRevenueData;
   eth_gas?: EthGasData;
   global_market?: GlobalMarketData;
+  l2_tvl?: L2TvlData;
   timestamp: string;
   delivered_to: string;
 }
@@ -1451,6 +1463,55 @@ export async function deliverGlobalMarket(delivered_to: string, timestamp: strin
   return { service_type: "global-market", result, global_market, timestamp, delivered_to };
 }
 
+const L2_CHAIN_NAMES = ["Arbitrum", "Base", "OP Mainnet", "zkSync Era", "Starknet", "Scroll", "Linea", "Blast", "Polygon zkEVM", "Manta", "Taiko", "Mode"];
+
+export async function deliverL2Tvl(delivered_to: string, timestamp: string): Promise<ServiceResult> {
+  let l2_tvl: L2TvlData | undefined;
+
+  try {
+    const res = await fetch("https://api.llama.fi/v2/chains", { headers: { Accept: "application/json" } });
+    if (res.ok) {
+      const data = await res.json() as Array<{
+        name: string;
+        tvl: number;
+        change_1d: number | null;
+      }>;
+
+      const chains: L2Chain[] = data
+        .filter((c) => L2_CHAIN_NAMES.includes(c.name) && c.tvl > 0)
+        .map((c) => ({
+          name: c.name === "OP Mainnet" ? "Optimism" : c.name,
+          tvl_usd: c.tvl,
+          change_1d_pct: parseFloat((c.change_1d ?? 0).toFixed(2)),
+        }))
+        .sort((a, b) => b.tvl_usd - a.tvl_usd)
+        .slice(0, 8);
+
+      if (chains.length > 0) {
+        l2_tvl = {
+          chains,
+          total_tvl_usd: chains.reduce((sum, c) => sum + c.tvl_usd, 0),
+        };
+      }
+    }
+  } catch {
+    // Fall through with undefined l2_tvl
+  }
+
+  const formatTvl = (v: number) =>
+    v >= 1_000_000_000 ? `$${(v / 1_000_000_000).toFixed(1)}B` : `$${(v / 1_000_000).toFixed(0)}M`;
+
+  const result =
+    l2_tvl && l2_tvl.chains.length > 0
+      ? l2_tvl.chains
+          .slice(0, 4)
+          .map((c) => `${c.name} ${formatTvl(c.tvl_usd)}`)
+          .join(" | ")
+      : "L2 TVL data temporarily unavailable";
+
+  return { service_type: "l2-tvl", result, l2_tvl, timestamp, delivered_to };
+}
+
 export async function deliverService(delivered_to: string, serviceType: ServiceType): Promise<ServiceResult> {
   const timestamp = new Date().toISOString();
   if (serviceType === "solana-stats") return deliverSolanaStats(delivered_to, timestamp);
@@ -1471,5 +1532,6 @@ export async function deliverService(delivered_to: string, serviceType: ServiceT
   if (serviceType === "sol-revenue") return deliverSolRevenue(delivered_to, timestamp);
   if (serviceType === "eth-gas") return deliverEthGas(delivered_to, timestamp);
   if (serviceType === "global-market") return deliverGlobalMarket(delivered_to, timestamp);
+  if (serviceType === "l2-tvl") return deliverL2Tvl(delivered_to, timestamp);
   return deliverCryptoPrices(delivered_to, timestamp);
 }
