@@ -26,6 +26,7 @@ import type {
   AiAgentTokensData,
   SolRevenueData,
   EthGasData,
+  GlobalMarketData,
 } from "@/lib/services";
 
 interface InvoiceParams {
@@ -185,6 +186,13 @@ const SERVICE_OPTIONS: { id: ServiceType; label: string; description: string; pr
     description: "Real-time Ethereum gas prices across speed tiers — estimated cost to transfer ETH in USD",
     price: "1 USDC",
     category: "DeFi",
+  },
+  {
+    id: "global-market",
+    label: "Global Crypto Market",
+    description: "Total crypto market cap, BTC & ETH dominance, 24h volume, DeFi size — the macro pulse in one glance",
+    price: "1 USDC",
+    category: "Market Data",
   },
 ];
 
@@ -398,6 +406,17 @@ const MOCK_ETH_GAS: EthGasData = {
     { label: "Fast",     gwei: 0.289, wait: "~30s",     cost_usd: 0.01274 },
     { label: "Rapid",    gwei: 2.144, wait: "~15s",     cost_usd: 0.09453 },
   ],
+};
+
+const MOCK_GLOBAL_MARKET: GlobalMarketData = {
+  total_market_cap_usd: 2_560_000_000_000,
+  total_volume_24h_usd: 77_600_000_000,
+  market_cap_change_24h_pct: 2.34,
+  btc_dominance: 56.9,
+  eth_dominance: 10.8,
+  active_cryptos: 17_200,
+  defi_market_cap_usd: 96_000_000_000,
+  stablecoin_volume_24h_usd: 40_000_000_000,
 };
 
 const MOCK_SIGNATURE =
@@ -833,6 +852,16 @@ function buildTourSteps(serviceType: ServiceType, liveData?: ServiceResult): Pay
       result: `Base: ${eg.base_fee_gwei} Gwei | ` +
         eg.levels.slice(1, 4).map((l) => `${l.label}: ${l.gwei} Gwei`).join(" | "),
       eth_gas: eg,
+      timestamp: new Date().toISOString(),
+      delivered_to: "Demo1234...abcd",
+    };
+  } else if (serviceType === "global-market") {
+    const gm = liveData?.global_market ?? MOCK_GLOBAL_MARKET;
+    const fmtT = (n: number) => n >= 1e12 ? `$${(n / 1e12).toFixed(2)}T` : `$${(n / 1e9).toFixed(1)}B`;
+    mockService = liveData ?? {
+      service_type: "global-market",
+      result: `Market: ${fmtT(gm.total_market_cap_usd)} (${gm.market_cap_change_24h_pct >= 0 ? "+" : ""}${gm.market_cap_change_24h_pct.toFixed(1)}%) | BTC ${gm.btc_dominance.toFixed(1)}% | ETH ${gm.eth_dominance.toFixed(1)}% | Vol: ${fmtT(gm.total_volume_24h_usd)}`,
+      global_market: gm,
       timestamp: new Date().toISOString(),
       delivered_to: "Demo1234...abcd",
     };
@@ -1655,6 +1684,42 @@ function ServiceResultTable({ service }: { service: ServiceResult }) {
                 <td style={{ padding: "7px 8px", textAlign: "right", fontWeight: 600 }}>
                   ${l.cost_usd < 0.001 ? l.cost_usd.toFixed(5) : l.cost_usd.toFixed(4)}
                 </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
+
+  if (service.service_type === "global-market" && service.global_market) {
+    const gm = service.global_market;
+    const fmtT = (n: number) => n >= 1e12 ? `$${(n / 1e12).toFixed(2)}T` : n >= 1e9 ? `$${(n / 1e9).toFixed(1)}B` : `$${(n / 1e6).toFixed(0)}M`;
+    const changeColor = gm.market_cap_change_24h_pct >= 0 ? "#1a7a3a" : "#c0392b";
+    const rows: Array<{ label: string; value: string; sub?: string }> = [
+      {
+        label: "Total Market Cap",
+        value: fmtT(gm.total_market_cap_usd),
+        sub: `${gm.market_cap_change_24h_pct >= 0 ? "+" : ""}${gm.market_cap_change_24h_pct.toFixed(2)}% 24h`,
+      },
+      { label: "24h Trading Volume", value: fmtT(gm.total_volume_24h_usd) },
+      { label: "BTC Dominance", value: `${gm.btc_dominance.toFixed(1)}%` },
+      { label: "ETH Dominance", value: `${gm.eth_dominance.toFixed(1)}%` },
+      { label: "Active Cryptocurrencies", value: gm.active_cryptos.toLocaleString() },
+      ...(gm.defi_market_cap_usd > 0 ? [{ label: "DeFi Market Cap", value: fmtT(gm.defi_market_cap_usd) }] : []),
+      ...(gm.stablecoin_volume_24h_usd > 0 ? [{ label: "Stablecoin 24h Volume", value: fmtT(gm.stablecoin_volume_24h_usd) }] : []),
+    ];
+    return (
+      <div>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.label} style={{ borderBottom: "1px solid #f0f0f0" }}>
+                <td style={{ padding: "7px 8px", color: "#555", fontSize: 13 }}>{row.label}</td>
+                <td style={{ padding: "7px 8px", textAlign: "right", fontWeight: 700 }}>{row.value}</td>
+                {row.sub !== undefined && (
+                  <td style={{ padding: "7px 8px", textAlign: "right", color: changeColor, fontSize: 12, fontWeight: 600 }}>{row.sub}</td>
+                )}
               </tr>
             ))}
           </tbody>
