@@ -31,6 +31,7 @@ import type {
   SolLstData,
   PolymarketData,
   NarrativeData,
+  DefiFeesData,
 } from "@/lib/services";
 
 interface InvoiceParams {
@@ -233,6 +234,13 @@ const SERVICE_OPTIONS: { id: ServiceType; label: string; description: string; pr
     description: "Top crypto categories/narratives ranked by 24h market cap change — see which sectors are leading or lagging",
     price: "1 USDC",
     category: "Market Data",
+  },
+  {
+    id: "defi-fees",
+    label: "DeFi Protocol Fee Rankings",
+    description: "Top DeFi protocols ranked by 30-day fees collected — see which protocols are generating the most on-chain revenue",
+    price: "1 USDC",
+    category: "DeFi",
   },
 ];
 
@@ -510,6 +518,21 @@ const MOCK_NARRATIVES: NarrativeData = {
     { name: "Real World Assets", market_cap: 6_800_000_000, change_24h_pct: -0.9, volume_24h: 890_000_000, top_coins: ["Ondo Finance", "Centrifuge", "Goldfinch"] },
     { name: "Privacy Coins", market_cap: 8_100_000_000, change_24h_pct: -1.4, volume_24h: 980_000_000, top_coins: ["Monero", "Zcash", "Dash"] },
     { name: "Prediction Markets", market_cap: 4_500_000_000, change_24h_pct: -1.2, volume_24h: 720_000_000, top_coins: ["Polymarket", "Augur", "Gnosis"] },
+  ],
+};
+
+const MOCK_DEFI_FEES: DefiFeesData = {
+  entries: [
+    { name: "Hyperliquid Perps", category: "Derivatives", total30d: 57_868_001, total24h: 2_150_000, change_1m: 12.4, chains: ["Hyperliquid L1"] },
+    { name: "PumpSwap", category: "Dexs", total30d: 53_716_465, total24h: 1_745_000, change_1m: -8.2, chains: ["Solana"] },
+    { name: "Aave V3", category: "Lending", total30d: 48_700_373, total24h: 1_580_000, change_1m: 5.7, chains: ["Ethereum", "OP Mainnet"] },
+    { name: "Lido", category: "Liquid Staking", total30d: 41_421_658, total24h: 1_320_000, change_1m: 3.1, chains: ["Ethereum"] },
+    { name: "Jupiter Perpetual Exchange", category: "Derivatives", total30d: 35_105_318, total24h: 1_100_000, change_1m: -4.5, chains: ["Solana"] },
+    { name: "Sky Lending", category: "CDP", total30d: 34_502_886, total24h: 1_050_000, change_1m: 2.2, chains: ["Ethereum"] },
+    { name: "Uniswap V3", category: "Dexs", total30d: 28_400_000, total24h: 920_000, change_1m: -1.8, chains: ["Ethereum", "Base"] },
+    { name: "pump.fun", category: "Launchpad", total30d: 24_800_000, total24h: 758_000, change_1m: -22.0, chains: ["Solana"] },
+    { name: "Kamino Lend", category: "Lending", total30d: 18_200_000, total24h: 560_000, change_1m: 6.3, chains: ["Solana"] },
+    { name: "Raydium", category: "Dexs", total30d: 16_700_000, total24h: 510_000, change_1m: -9.1, chains: ["Solana"] },
   ],
 };
 
@@ -1345,6 +1368,16 @@ function buildTourSteps(serviceType: ServiceType, liveData?: ServiceResult): Pay
       service_type: "narratives",
       result: nd.narratives.slice(0, 3).map((n) => `${n.name} ${n.change_24h_pct >= 0 ? "+" : ""}${n.change_24h_pct.toFixed(1)}%`).join(" | "),
       narratives: nd,
+      timestamp: new Date().toISOString(),
+      delivered_to: "Demo1234...abcd",
+    };
+  } else if (serviceType === "defi-fees") {
+    const ff = liveData?.defi_fees ?? MOCK_DEFI_FEES;
+    const fmtFee = (v: number) => v >= 1_000_000 ? `$${(v / 1_000_000).toFixed(1)}M` : `$${(v / 1_000).toFixed(0)}K`;
+    mockService = liveData ?? {
+      service_type: "defi-fees",
+      result: ff.entries.slice(0, 3).map((e) => `${e.name} ${fmtFee(e.total30d)} 30d`).join(" | "),
+      defi_fees: ff,
       timestamp: new Date().toISOString(),
       delivered_to: "Demo1234...abcd",
     };
@@ -2367,6 +2400,61 @@ function ServiceResultTable({ service }: { service: ServiceResult }) {
         </table>
         <p style={{ marginTop: 8, fontSize: 12, color: "#888" }}>
           {nd.narratives.length} narratives · sorted by 24h market cap change · via CoinGecko
+        </p>
+      </div>
+    );
+  }
+
+  if (service.service_type === "defi-fees" && service.defi_fees) {
+    const ff = service.defi_fees;
+    const fmtFee = (v: number) =>
+      v >= 1_000_000_000 ? `$${(v / 1_000_000_000).toFixed(2)}B` :
+      v >= 1_000_000 ? `$${(v / 1_000_000).toFixed(1)}M` : `$${(v / 1_000).toFixed(0)}K`;
+    return (
+      <div>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+          <thead>
+            <tr style={{ borderBottom: "2px solid #e8e8e8" }}>
+              <th style={{ padding: "6px 8px", textAlign: "left", fontSize: 12, color: "#888", fontWeight: 600 }}>Protocol</th>
+              <th style={{ padding: "6px 8px", textAlign: "right", fontSize: 12, color: "#888", fontWeight: 600 }}>30d Fees</th>
+              <th style={{ padding: "6px 8px", textAlign: "right", fontSize: 12, color: "#888", fontWeight: 600 }}>1m Δ</th>
+            </tr>
+          </thead>
+          <tbody>
+            {ff.entries.map((e, i) => (
+              <tr key={i} style={{ borderBottom: "1px solid #f0f0f0" }}>
+                <td style={{ padding: "7px 8px" }}>
+                  <span style={{ fontWeight: 500, fontSize: 13 }}>{e.name}</span>
+                  <span style={{ display: "block", fontSize: 11, color: "#aaa", marginTop: 1 }}>
+                    {e.category}{e.chains.length > 0 ? ` · ${e.chains.join(", ")}` : ""}
+                  </span>
+                </td>
+                <td style={{ padding: "7px 8px", textAlign: "right", fontWeight: 600, fontSize: 13, color: "#444" }}>
+                  {fmtFee(e.total30d)}
+                </td>
+                <td style={{ padding: "7px 8px", textAlign: "right" }}>
+                  {e.change_1m !== null ? (
+                    <span style={{
+                      display: "inline-block",
+                      padding: "2px 7px",
+                      borderRadius: 10,
+                      fontSize: 12,
+                      fontWeight: 700,
+                      background: e.change_1m >= 0 ? "#e6f7ee" : "#fff0f0",
+                      color: e.change_1m >= 0 ? "#1a7a3a" : "#c0392b",
+                    }}>
+                      {e.change_1m >= 0 ? "+" : ""}{e.change_1m.toFixed(1)}%
+                    </span>
+                  ) : (
+                    <span style={{ color: "#ccc", fontSize: 12 }}>—</span>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <p style={{ marginTop: 8, fontSize: 12, color: "#888" }}>
+          {ff.entries.length} protocols · sorted by 30d fees · via DeFi Llama
         </p>
       </div>
     );

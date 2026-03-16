@@ -3,10 +3,10 @@
  * All functions are read-only calls to public APIs — no auth required.
  */
 
-export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives";
+export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees";
 
 /** All valid service type strings — use this for runtime validation instead of duplicating the list. */
-export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives"];
+export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees"];
 
 export interface MarketData {
   symbol: string;
@@ -271,6 +271,19 @@ export interface NarrativeData {
   narratives: NarrativeEntry[];
 }
 
+export interface DefiFeesEntry {
+  name: string;
+  category: string;
+  total30d: number;
+  total24h: number;
+  change_1m: number | null;
+  chains: string[];
+}
+
+export interface DefiFeesData {
+  entries: DefiFeesEntry[];
+}
+
 export interface ServiceResult {
   service_type: ServiceType;
   result: string;
@@ -297,6 +310,7 @@ export interface ServiceResult {
   sol_lst?: SolLstData;
   polymarket_data?: PolymarketData;
   narratives?: NarrativeData;
+  defi_fees?: DefiFeesData;
   timestamp: string;
   delivered_to: string;
 }
@@ -1725,6 +1739,64 @@ export async function deliverNarratives(delivered_to: string, timestamp: string)
   return { service_type: "narratives", result, narratives: narratives_data, timestamp, delivered_to };
 }
 
+export async function deliverDefiFees(delivered_to: string, timestamp: string): Promise<ServiceResult> {
+  let defi_fees: DefiFeesData | undefined;
+
+  try {
+    const res = await fetch(
+      "https://api.llama.fi/overview/fees?excludeTotalDataChartBreakdown=true&excludeTotalDataChart=true&dataType=dailyFees",
+      { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(12000) }
+    );
+    if (res.ok) {
+      const json = await res.json() as {
+        protocols: Array<{
+          name: string;
+          displayName?: string;
+          category: string;
+          chains: string[];
+          total24h: number | null;
+          total30d: number | null;
+          change_1m: number | null;
+        }>;
+      };
+
+      const entries: DefiFeesEntry[] = json.protocols
+        // Exclude purely off-chain protocols (stablecoin issuers w/ no on-chain activity listed)
+        .filter((p) => !(p.chains.length === 1 && p.chains[0] === "Off Chain"))
+        .filter((p) => (p.total30d ?? 0) > 0)
+        .sort((a, b) => (b.total30d ?? 0) - (a.total30d ?? 0))
+        .slice(0, 12)
+        .map((p) => ({
+          name: p.displayName ?? p.name,
+          category: p.category,
+          total30d: p.total30d ?? 0,
+          total24h: p.total24h ?? 0,
+          change_1m: p.change_1m ?? null,
+          chains: (p.chains ?? []).filter((c) => c !== "Off Chain").slice(0, 2),
+        }));
+
+      if (entries.length > 0) {
+        defi_fees = { entries };
+      }
+    }
+  } catch {
+    // Fall through with undefined defi_fees
+  }
+
+  const fmtFee = (v: number) =>
+    v >= 1_000_000 ? `$${(v / 1_000_000).toFixed(1)}M` : `$${(v / 1_000).toFixed(0)}K`;
+
+  const result =
+    defi_fees && defi_fees.entries.length > 0
+      ? defi_fees.entries
+          .slice(0, 3)
+          .map((e) => `${e.name} ${fmtFee(e.total30d)} 30d`)
+          .join(" | ")
+      : "DeFi fee data temporarily unavailable";
+
+  return { service_type: "defi-fees", result, defi_fees, timestamp, delivered_to };
+}
+
 export async function deliverService(delivered_to: string, serviceType: ServiceType): Promise<ServiceResult> {
   const timestamp = new Date().toISOString();
   if (serviceType === "solana-stats") return deliverSolanaStats(delivered_to, timestamp);
@@ -1749,5 +1821,6 @@ export async function deliverService(delivered_to: string, serviceType: ServiceT
   if (serviceType === "sol-lst") return deliverSolLst(delivered_to, timestamp);
   if (serviceType === "polymarket") return deliverPolymarket(delivered_to, timestamp);
   if (serviceType === "narratives") return deliverNarratives(delivered_to, timestamp);
+  if (serviceType === "defi-fees") return deliverDefiFees(delivered_to, timestamp);
   return deliverCryptoPrices(delivered_to, timestamp);
 }
