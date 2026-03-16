@@ -53,6 +53,14 @@ type PreviewState =
   | { status: "ready"; service: ServiceResult }
   | { status: "error"; message: string };
 
+type X402DemoStep = "idle" | "step1_loading" | "step1_done" | "step2_loading" | "done" | "error";
+interface X402DemoState {
+  step: X402DemoStep;
+  response402?: Record<string, unknown>;
+  data?: ServiceResult;
+  error?: string;
+}
+
 interface HealthStatus {
   ready: boolean;
   issues: string[];
@@ -678,6 +686,357 @@ function CodePanel({ status }: { status: string }) {
       }}>
         {snippet.code}
       </pre>
+    </div>
+  );
+}
+
+/**
+ * Interactive x402 HTTP Payment Protocol demo panel.
+ * Shows the 3-step agent payment flow: request → 402 → pay → data delivered.
+ */
+function X402DemoPanel({
+  selectedService,
+  selectedLabel,
+}: {
+  selectedService: ServiceType;
+  selectedLabel: string;
+}) {
+  const [state, setState] = useState<X402DemoState>({ step: "idle" });
+
+  const runStep1 = async () => {
+    setState({ step: "step1_loading" });
+    try {
+      const res = await fetch(`/api/x402-data?service=${selectedService}`);
+      if (res.status === 402) {
+        const data = (await res.json()) as Record<string, unknown>;
+        setState({ step: "step1_done", response402: data });
+      } else {
+        setState({ step: "error", error: `Expected 402, got ${res.status}` });
+      }
+    } catch (err) {
+      setState({ step: "error", error: err instanceof Error ? err.message : "Network error" });
+    }
+  };
+
+  const runStep2 = async () => {
+    setState((prev) => ({ ...prev, step: "step2_loading" }));
+    try {
+      const res = await fetch(`/api/x402-data?service=${selectedService}`, {
+        headers: { "X-X402-Demo": "true" },
+      });
+      if (res.ok) {
+        const data = (await res.json()) as ServiceResult;
+        setState((prev) => ({ ...prev, step: "done", data }));
+      } else {
+        const err = (await res.json()) as { error?: string };
+        setState({ step: "error", error: err.error ?? "Request failed" });
+      }
+    } catch (err) {
+      setState({ step: "error", error: err instanceof Error ? err.message : "Network error" });
+    }
+  };
+
+  const reset = () => setState({ step: "idle" });
+
+  const isStep1Done =
+    state.step === "step1_done" ||
+    state.step === "step2_loading" ||
+    state.step === "done";
+  const isStep2Done = state.step === "done";
+
+  return (
+    <div>
+      {/* Protocol info */}
+      <div
+        style={{
+          background: "#f0f4ff",
+          borderRadius: 8,
+          padding: "12px 14px",
+          marginBottom: 20,
+          fontSize: 13,
+          color: "#333",
+        }}
+      >
+        <strong style={{ color: "#2244aa" }}>x402 HTTP Payment Protocol</strong>
+        <span style={{ color: "#666", marginLeft: 6 }}>
+          — EVM-native micropayments for AI agents
+        </span>
+        <div style={{ marginTop: 6, color: "#555", lineHeight: 1.5 }}>
+          Agents make a standard HTTP request. The server returns{" "}
+          <code
+            style={{
+              background: "#e8eeff",
+              padding: "1px 5px",
+              borderRadius: 3,
+              fontFamily: "monospace",
+              fontSize: 12,
+            }}
+          >
+            402 Payment Required
+          </code>{" "}
+          with machine-readable payment specs. The agent pays on Base Sepolia
+          (USDC, $0.001), then retries with proof. Zero middleware needed.
+        </div>
+      </div>
+
+      {/* Step 1 */}
+      <div
+        style={{
+          border: `1px solid ${isStep1Done ? "#4caf50" : "#dde4f0"}`,
+          borderRadius: 8,
+          marginBottom: 12,
+          overflow: "hidden",
+        }}
+      >
+        <div
+          style={{
+            background: isStep1Done ? "#f0fff4" : "#fafbff",
+            padding: "10px 14px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+          }}
+        >
+          <div>
+            <span
+              style={{
+                fontWeight: 700,
+                color: isStep1Done ? "#2d8653" : "#2244aa",
+                fontSize: 13,
+              }}
+            >
+              {isStep1Done ? "✓ " : ""}Step 1 — Request without payment
+            </span>
+            <span style={{ color: "#888", fontSize: 12, marginLeft: 8 }}>
+              GET /api/x402-data → HTTP 402
+            </span>
+          </div>
+          <button
+            onClick={runStep1}
+            disabled={state.step === "step1_loading" || isStep1Done}
+            style={{
+              padding: "5px 14px",
+              background: isStep1Done ? "#c8e6c9" : state.step === "step1_loading" ? "#e0e0e0" : "#2244aa",
+              color: isStep1Done ? "#1b5e20" : state.step === "step1_loading" ? "#999" : "white",
+              border: "none",
+              borderRadius: 5,
+              fontSize: 12,
+              cursor: isStep1Done || state.step === "step1_loading" ? "default" : "pointer",
+              fontWeight: 600,
+              minWidth: 80,
+            }}
+          >
+            {state.step === "step1_loading" ? "Sending..." : isStep1Done ? "Done" : "Run"}
+          </button>
+        </div>
+        {isStep1Done && state.response402 && (
+          <div
+            style={{
+              padding: "10px 14px",
+              background: "#f9fffe",
+              borderTop: "1px solid #e0ffe8",
+            }}
+          >
+            <div style={{ fontSize: 11, color: "#888", marginBottom: 4 }}>
+              Server returned{" "}
+              <strong style={{ color: "#c62828" }}>HTTP 402</strong> with payment
+              requirements:
+            </div>
+            <pre
+              style={{
+                fontSize: 11,
+                background: "#1e1e2e",
+                color: "#cdd6f4",
+                padding: "10px 12px",
+                borderRadius: 6,
+                overflow: "auto",
+                margin: 0,
+                maxHeight: 160,
+              }}
+            >
+              {JSON.stringify(state.response402, null, 2)}
+            </pre>
+            <div
+              style={{
+                marginTop: 8,
+                fontSize: 11,
+                color: "#666",
+                lineHeight: 1.5,
+              }}
+            >
+              The{" "}
+              <code
+                style={{
+                  fontFamily: "monospace",
+                  background: "#f3f4f8",
+                  padding: "1px 4px",
+                  borderRadius: 2,
+                }}
+              >
+                accepts[0]
+              </code>{" "}
+              object tells the agent: pay{" "}
+              <strong>$0.001 USDC on Base Sepolia</strong> to{" "}
+              <code
+                style={{
+                  fontFamily: "monospace",
+                  background: "#f3f4f8",
+                  padding: "1px 4px",
+                  borderRadius: 2,
+                }}
+              >
+                {String((state.response402?.accepts as Array<{ payTo: string }>)?.[0]?.payTo ?? "").slice(0, 10)}…
+              </code>
+              .
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Step 2 */}
+      <div
+        style={{
+          border: `1px solid ${isStep2Done ? "#4caf50" : "#dde4f0"}`,
+          borderRadius: 8,
+          marginBottom: 12,
+          overflow: "hidden",
+          opacity: isStep1Done ? 1 : 0.45,
+          transition: "opacity 0.2s",
+        }}
+      >
+        <div
+          style={{
+            background: isStep2Done ? "#f0fff4" : "#fafbff",
+            padding: "10px 14px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+          }}
+        >
+          <div>
+            <span
+              style={{
+                fontWeight: 700,
+                color: isStep2Done ? "#2d8653" : "#2244aa",
+                fontSize: 13,
+              }}
+            >
+              {isStep2Done ? "✓ " : ""}Step 2 — Pay &amp; retry
+            </span>
+            <span style={{ color: "#888", fontSize: 12, marginLeft: 8 }}>
+              GET /api/x402-data + X-PAYMENT header
+            </span>
+          </div>
+          <button
+            onClick={runStep2}
+            disabled={!isStep1Done || state.step === "step2_loading" || isStep2Done}
+            style={{
+              padding: "5px 14px",
+              background: isStep2Done
+                ? "#c8e6c9"
+                : state.step === "step2_loading"
+                ? "#e0e0e0"
+                : isStep1Done
+                ? "#1a7a3e"
+                : "#ccc",
+              color: isStep2Done
+                ? "#1b5e20"
+                : state.step === "step2_loading"
+                ? "#999"
+                : "white",
+              border: "none",
+              borderRadius: 5,
+              fontSize: 12,
+              cursor:
+                !isStep1Done || isStep2Done || state.step === "step2_loading"
+                  ? "default"
+                  : "pointer",
+              fontWeight: 600,
+              minWidth: 80,
+            }}
+          >
+            {state.step === "step2_loading"
+              ? "Paying..."
+              : isStep2Done
+              ? "Done"
+              : "Demo Pay"}
+          </button>
+        </div>
+        {isStep2Done && state.data && (
+          <div
+            style={{
+              padding: "10px 14px",
+              background: "#f0fff4",
+              borderTop: "1px solid #c8e6c9",
+            }}
+          >
+            <div style={{ fontSize: 11, color: "#2d8653", marginBottom: 8, fontWeight: 600 }}>
+              Payment verified — data delivered
+            </div>
+            <ServiceResultTable service={state.data} />
+            <div
+              style={{
+                marginTop: 8,
+                fontSize: 11,
+                color: "#888",
+                background: "#f3f4f8",
+                padding: "6px 10px",
+                borderRadius: 5,
+                fontFamily: "monospace",
+              }}
+            >
+              <span style={{ color: "#666" }}># Agent code (Python):</span>
+              {"\n"}
+              resp = httpx.get(&apos;/api/x402-data?service={selectedService}&apos;){"\n"}
+              if resp.status_code == 402:{"\n"}
+              {"    "}payment = resp.json()[&apos;accepts&apos;][0]{"\n"}
+              {"    "}proof = wallet.pay(payment){" "}
+              <span style={{ color: "#aaa" }}># EIP-3009 on Base Sepolia</span>
+              {"\n"}
+              {"    "}data = httpx.get(&apos;/api/x402-data&apos;, headers=&#123;&apos;X-PAYMENT&apos;: proof&#125;)
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Error */}
+      {state.step === "error" && state.error && (
+        <div
+          style={{
+            padding: "10px 14px",
+            background: "#fff0f0",
+            borderRadius: 8,
+            color: "#c00",
+            fontSize: 13,
+            marginBottom: 12,
+          }}
+        >
+          <strong>Error:</strong> {state.error}
+        </div>
+      )}
+
+      {/* Reset */}
+      {(isStep1Done || state.step === "error") && (
+        <button
+          onClick={reset}
+          style={{
+            fontSize: 12,
+            color: "#888",
+            background: "none",
+            border: "none",
+            cursor: "pointer",
+            padding: "4px 0",
+          }}
+        >
+          ↺ Reset demo
+        </button>
+      )}
+
+      {/* Service note */}
+      <p style={{ fontSize: 12, color: "#999", marginTop: 12, marginBottom: 0 }}>
+        Demoing with: <strong>{selectedLabel}</strong> · Network: Base Sepolia (testnet) ·
+        Price: $0.001 USDC
+      </p>
     </div>
   );
 }
@@ -1862,6 +2221,7 @@ function ServiceResultTable({ service }: { service: ServiceResult }) {
 export default function PaymentFlow() {
   const { publicKey, signTransaction, connected } = useWallet();
   const { connection } = useConnection();
+  const [activeProtocol, setActiveProtocol] = useState<"solana" | "x402">("solana");
   const [state, setState] = useState<PaymentState>({ status: "idle" });
   const [health, setHealth] = useState<HealthStatus | null>(null);
   const [tourStep, setTourStep] = useState<number>(-1);
@@ -2057,11 +2417,57 @@ export default function PaymentFlow() {
   return (
     <div style={{ maxWidth: 520, margin: "60px auto", fontFamily: "system-ui, sans-serif", padding: "0 16px" }}>
       <h1 style={{ fontSize: 26, marginBottom: 6, fontWeight: 700 }}>
-        Pump Tokenized Agent Demo
+        Tokenized Agent Payments Demo
       </h1>
       <p style={{ color: "#555", marginBottom: 16, fontSize: 15 }}>
-        Select a service, connect your wallet, and pay 1 USDC. Data is delivered only after payment is verified on-chain.
+        Select a service and a payment protocol. Data is delivered only after payment is verified on-chain.
       </p>
+
+      {/* Protocol selector */}
+      <div style={{ marginBottom: 20 }}>
+        <p style={{ fontSize: 13, fontWeight: 600, color: "#333", marginBottom: 8 }}>
+          Payment protocol:
+        </p>
+        <div style={{ display: "flex", gap: 8 }}>
+          {(["solana", "x402"] as const).map((proto) => {
+            const isActive = activeProtocol === proto;
+            const label =
+              proto === "solana" ? "Solana · pump.fun" : "EVM · x402 (Base)";
+            const desc =
+              proto === "solana"
+                ? "SPL token payment, on-chain verification"
+                : "HTTP 402 micropayment, USDC on Base Sepolia";
+            return (
+              <button
+                key={proto}
+                onClick={() => setActiveProtocol(proto)}
+                style={{
+                  flex: 1,
+                  padding: "10px 12px",
+                  background: isActive ? "#2244aa" : "#f5f7ff",
+                  color: isActive ? "white" : "#444",
+                  border: `2px solid ${isActive ? "#2244aa" : "#dde4f0"}`,
+                  borderRadius: 8,
+                  cursor: "pointer",
+                  textAlign: "left",
+                  transition: "all 0.15s",
+                }}
+              >
+                <div style={{ fontWeight: 700, fontSize: 13 }}>{label}</div>
+                <div
+                  style={{
+                    fontSize: 11,
+                    marginTop: 3,
+                    color: isActive ? "rgba(255,255,255,0.8)" : "#888",
+                  }}
+                >
+                  {desc}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
 
       {/* Service selector */}
       <div style={{ marginBottom: 20 }}>
@@ -2150,6 +2556,17 @@ export default function PaymentFlow() {
           ))}
         </div>
       </div>
+
+      {/* x402 / EVM demo panel */}
+      {activeProtocol === "x402" && (
+        <X402DemoPanel
+          selectedService={selectedService}
+          selectedLabel={selectedOption?.label ?? selectedService}
+        />
+      )}
+
+      {/* Solana / pump.fun flow */}
+      {activeProtocol === "solana" && (<>
 
       {/* Configuration warning banner */}
       {notConfigured && (
@@ -2395,6 +2812,7 @@ export default function PaymentFlow() {
           </div>
         </div>
       )}
+      </>)}
     </div>
   );
 }
