@@ -4,242 +4,35 @@ import { useState, useEffect, useRef } from "react";
 import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { Transaction } from "@solana/web3.js";
+import type {
+  ServiceType,
+  ServiceResult,
+  MarketData,
+  SolanaStats,
+  DefiPool,
+  FearGreedEntry,
+  FearGreedData,
+  SolanaEcosystemData,
+  AiModelsData,
+  TrendingData,
+  TopGainersData,
+  DexVolumeData,
+  PumpTokenData,
+  PumpNewData,
+  FundingRateData,
+  BtcMempoolData,
+  StablecoinData,
+  SolTvlData,
+  AiAgentTokensData,
+  SolRevenueData,
+  EthGasData,
+} from "@/lib/services";
 
 interface InvoiceParams {
   amount: string;
   memo: string;
   startTime: string;
   endTime: string;
-}
-
-interface MarketData {
-  symbol: string;
-  price_usd: number;
-  change_24h_pct: number;
-}
-
-interface SolanaStats {
-  tps: number;
-  slot: number;
-  validator_count: number;
-  epoch: number;
-}
-
-interface DefiPool {
-  protocol: string;
-  symbol: string;
-  apy: number;
-  tvl_usd: number;
-}
-
-interface FearGreedEntry {
-  date: string;
-  value: number;
-  classification: string;
-}
-
-interface FearGreedData {
-  current_value: number;
-  classification: string;
-  history: FearGreedEntry[];
-}
-
-interface SolanaToken {
-  symbol: string;
-  name: string;
-  price_usd: number;
-  change_24h_pct: number;
-  market_cap_usd: number;
-}
-
-interface SolanaEcosystemData {
-  tokens: SolanaToken[];
-}
-
-interface AiModel {
-  id: string;
-  displayName: string;
-  downloads: number;
-  likes: number;
-}
-
-interface AiModelsData {
-  models: AiModel[];
-}
-
-interface TrendingCoin {
-  id: string;
-  name: string;
-  symbol: string;
-  market_cap_rank?: number;
-  price_usd: number;
-  change_24h_pct: number;
-  market_cap?: string;
-}
-
-interface TrendingData {
-  coins: TrendingCoin[];
-}
-
-interface TopGainer {
-  symbol: string;
-  name: string;
-  price_usd: number;
-  change_24h_pct: number;
-  volume_24h: number;
-  market_cap: number;
-}
-
-interface TopGainersData {
-  gainers: TopGainer[];
-}
-
-interface DexVolume {
-  name: string;
-  chains: string[];
-  volume_24h: number;
-  volume_7d: number;
-  change_1d: number;
-}
-
-interface DexVolumeData {
-  dexes: DexVolume[];
-}
-
-interface PumpToken {
-  symbol: string;
-  name: string;
-  price_usd: number;
-  change_24h_pct: number;
-  volume_24h: number;
-  market_cap: number;
-  address: string;
-}
-
-interface PumpTokenData {
-  tokens: PumpToken[];
-}
-
-interface PumpNewToken {
-  symbol: string;
-  name: string;
-  price_usd: number;
-  change_24h_pct: number;
-  volume_24h: number;
-  market_cap: number;
-  address: string;
-  pair_created_at: number;
-}
-
-interface PumpNewData {
-  tokens: PumpNewToken[];
-}
-
-interface FundingRate {
-  symbol: string;
-  rate_8h: number;
-  mark_price: number;
-  open_interest: number;
-}
-
-interface FundingRateData {
-  rates: FundingRate[];
-}
-
-interface BtcMempoolData {
-  count: number;
-  vsize_mb: number;
-  fee_fastest: number;
-  fee_30min: number;
-  fee_60min: number;
-}
-
-interface StablecoinEntry {
-  symbol: string;
-  name: string;
-  supply_usd: number;
-  change_24h_pct: number;
-  peg_mechanism: string;
-}
-
-interface StablecoinData {
-  coins: StablecoinEntry[];
-  total_supply_usd: number;
-}
-
-interface SolTvlProtocol {
-  name: string;
-  category: string;
-  tvl_usd: number;
-  change_1d_pct: number;
-}
-
-interface SolTvlData {
-  protocols: SolTvlProtocol[];
-  total_tvl_usd: number;
-}
-
-interface AiAgentToken {
-  symbol: string;
-  name: string;
-  price_usd: number;
-  change_24h_pct: number;
-  market_cap_usd: number;
-  market_cap_rank: number;
-}
-
-interface AiAgentTokensData {
-  tokens: AiAgentToken[];
-}
-
-interface SolRevenueProtocol {
-  name: string;
-  category: string;
-  revenue_24h: number;
-  revenue_7d: number;
-}
-
-interface SolRevenueData {
-  protocols: SolRevenueProtocol[];
-  total_revenue_24h: number;
-}
-
-interface EthGasLevel {
-  label: string;
-  gwei: number;
-  wait: string;
-  cost_usd: number;
-}
-
-interface EthGasData {
-  levels: EthGasLevel[];
-  eth_price_usd: number;
-  base_fee_gwei: number;
-}
-
-interface ServiceResult {
-  service_type: "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas";
-  result: string;
-  market_data?: MarketData[];
-  solana_stats?: SolanaStats;
-  defi_pools?: DefiPool[];
-  fear_greed?: FearGreedData;
-  solana_ecosystem?: SolanaEcosystemData;
-  ai_models?: AiModelsData;
-  trending?: TrendingData;
-  top_gainers?: TopGainersData;
-  dex_volume?: DexVolumeData;
-  pumpfun_tokens?: PumpTokenData;
-  pump_new?: PumpNewData;
-  funding_rates?: FundingRateData;
-  btc_mempool?: BtcMempoolData;
-  stablecoins?: StablecoinData;
-  sol_tvl?: SolTvlData;
-  ai_agent_tokens?: AiAgentTokensData;
-  sol_revenue?: SolRevenueData;
-  eth_gas?: EthGasData;
-  timestamp: string;
-  delivered_to: string;
 }
 
 type PaymentState =
@@ -261,8 +54,6 @@ interface HealthStatus {
   ready: boolean;
   issues: string[];
 }
-
-type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas";
 
 type ServiceCategory = "All" | "Solana" | "Pump.fun" | "Market Data" | "DeFi" | "AI & Tech";
 
