@@ -29,6 +29,7 @@ import type {
   GlobalMarketData,
   L2TvlData,
   SolLstData,
+  PolymarketData,
 } from "@/lib/services";
 
 interface InvoiceParams {
@@ -217,6 +218,13 @@ const SERVICE_OPTIONS: { id: ServiceType; label: string; description: string; pr
     description: "Top Solana liquid staking tokens (jitoSOL, mSOL, jupSOL, bSOL and more) with current APY and TVL — via DeFi Llama",
     price: "1 USDC",
     category: "Solana",
+  },
+  {
+    id: "polymarket",
+    label: "Polymarket Top Markets",
+    description: "Top prediction markets by 24h trading volume — live event probabilities and market activity on Polymarket",
+    price: "1 USDC",
+    category: "Market Data",
   },
 ];
 
@@ -469,6 +477,17 @@ const MOCK_SOL_LST: SolLstData = {
     { symbol: "VSOL", project: "The Vault Liquid Staking", apy: 5.64, tvl_usd: 117_000_000 },
   ],
   avg_apy: 6.16,
+};
+
+const MOCK_POLYMARKET: PolymarketData = {
+  markets: [
+    { question: "Will the Fed cut rates in March 2026?", outcomes: ["Yes", "No"], prices: [0.042, 0.958], volume_24h: 4_200_000 },
+    { question: "Will Trump sign an executive order on crypto?", outcomes: ["Yes", "No"], prices: [0.71, 0.29], volume_24h: 2_800_000 },
+    { question: "Will BTC reach $120K before May 2026?", outcomes: ["Yes", "No"], prices: [0.38, 0.62], volume_24h: 1_950_000 },
+    { question: "Will US CPI stay below 3% in April?", outcomes: ["Yes", "No"], prices: [0.55, 0.45], volume_24h: 1_600_000 },
+    { question: "Will Ethereum ETF flows turn positive in Q2?", outcomes: ["Yes", "No"], prices: [0.62, 0.38], volume_24h: 1_100_000 },
+  ],
+  total_volume_24h: 11_650_000,
 };
 
 const MOCK_SIGNATURE =
@@ -1284,6 +1303,16 @@ function buildTourSteps(serviceType: ServiceType, liveData?: ServiceResult): Pay
       service_type: "sol-lst",
       result: lst.tokens.slice(0, 4).map((t) => `${t.symbol} ${t.apy.toFixed(1)}% APY`).join(" | "),
       sol_lst: lst,
+      timestamp: new Date().toISOString(),
+      delivered_to: "Demo1234...abcd",
+    };
+  } else if (serviceType === "polymarket") {
+    const pm = liveData?.polymarket_data ?? MOCK_POLYMARKET;
+    const fmtV = (v: number) => v >= 1_000_000 ? `$${(v / 1_000_000).toFixed(1)}M` : `$${(v / 1_000).toFixed(0)}K`;
+    mockService = liveData ?? {
+      service_type: "polymarket",
+      result: pm.markets.slice(0, 3).map((m) => `${m.question.slice(0, 35)}… ${fmtV(m.volume_24h)}`).join(" | "),
+      polymarket_data: pm,
       timestamp: new Date().toISOString(),
       delivered_to: "Demo1234...abcd",
     };
@@ -2210,6 +2239,50 @@ function ServiceResultTable({ service }: { service: ServiceResult }) {
         </table>
         <p style={{ marginTop: 8, fontSize: 12, color: "#888" }}>
           {lst.tokens.length} LSTs · Avg APY: {lst.avg_apy.toFixed(2)}% · via DeFi Llama
+        </p>
+      </div>
+    );
+  }
+
+  if (service.service_type === "polymarket" && service.polymarket_data) {
+    const pm = service.polymarket_data;
+    const fmtVol = (v: number) => v >= 1_000_000 ? `$${(v / 1_000_000).toFixed(1)}M` : `$${(v / 1_000).toFixed(0)}K`;
+    return (
+      <div>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+          <thead>
+            <tr style={{ borderBottom: "2px solid #e8e8e8" }}>
+              <th style={{ padding: "6px 8px", textAlign: "left", fontSize: 12, color: "#888", fontWeight: 600 }}>Market</th>
+              <th style={{ padding: "6px 8px", textAlign: "center", fontSize: 12, color: "#888", fontWeight: 600 }}>Yes</th>
+              <th style={{ padding: "6px 8px", textAlign: "right", fontSize: 12, color: "#888", fontWeight: 600 }}>24h Vol</th>
+            </tr>
+          </thead>
+          <tbody>
+            {pm.markets.map((m, i) => (
+              <tr key={i} style={{ borderBottom: "1px solid #f0f0f0" }}>
+                <td style={{ padding: "7px 8px", maxWidth: 280 }}>
+                  <span style={{ fontWeight: 500, fontSize: 13 }}>{m.question}</span>
+                </td>
+                <td style={{ padding: "7px 8px", textAlign: "center" }}>
+                  <span style={{
+                    display: "inline-block",
+                    padding: "2px 8px",
+                    borderRadius: 10,
+                    fontSize: 13,
+                    fontWeight: 700,
+                    background: m.prices[0] >= 0.5 ? "#e6f7ee" : "#fff0f0",
+                    color: m.prices[0] >= 0.5 ? "#1a7a3a" : "#c0392b",
+                  }}>
+                    {(m.prices[0] * 100).toFixed(1)}%
+                  </span>
+                </td>
+                <td style={{ padding: "7px 8px", textAlign: "right", fontWeight: 600, fontSize: 13 }}>{fmtVol(m.volume_24h)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <p style={{ marginTop: 8, fontSize: 12, color: "#888" }}>
+          {pm.markets.length} markets · Total 24h vol: {fmtVol(pm.total_volume_24h)} · via Polymarket
         </p>
       </div>
     );

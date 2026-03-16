@@ -3,10 +3,10 @@
  * All functions are read-only calls to public APIs — no auth required.
  */
 
-export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst";
+export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket";
 
 /** All valid service type strings — use this for runtime validation instead of duplicating the list. */
-export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst"];
+export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket"];
 
 export interface MarketData {
   symbol: string;
@@ -247,6 +247,18 @@ export interface SolLstData {
   avg_apy: number;
 }
 
+export interface PolymarketEntry {
+  question: string;
+  outcomes: string[];
+  prices: number[];
+  volume_24h: number;
+}
+
+export interface PolymarketData {
+  markets: PolymarketEntry[];
+  total_volume_24h: number;
+}
+
 export interface ServiceResult {
   service_type: ServiceType;
   result: string;
@@ -271,6 +283,7 @@ export interface ServiceResult {
   global_market?: GlobalMarketData;
   l2_tvl?: L2TvlData;
   sol_lst?: SolLstData;
+  polymarket_data?: PolymarketData;
   timestamp: string;
   delivered_to: string;
 }
@@ -1592,6 +1605,62 @@ export async function deliverSolLst(delivered_to: string, timestamp: string): Pr
   return { service_type: "sol-lst", result, sol_lst, timestamp, delivered_to };
 }
 
+export async function deliverPolymarket(delivered_to: string, timestamp: string): Promise<ServiceResult> {
+  let polymarket_data: PolymarketData | undefined;
+
+  try {
+    const res = await fetch(
+      "https://gamma-api.polymarket.com/markets?limit=20&active=true&closed=false&order=volume24hr&ascending=false",
+      { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(10000) }
+    );
+    if (res.ok) {
+      const json = await res.json() as Array<{
+        question: string;
+        outcomes: string;
+        outcomePrices: string;
+        volume24hr: number | string;
+      }>;
+
+      const markets: PolymarketEntry[] = json
+        .filter((m) => m.question && m.outcomePrices)
+        .map((m) => {
+          const outcomes: string[] = typeof m.outcomes === "string" ? JSON.parse(m.outcomes) : m.outcomes;
+          const rawPrices: string[] = typeof m.outcomePrices === "string" ? JSON.parse(m.outcomePrices) : m.outcomePrices;
+          const prices = rawPrices.map((p) => parseFloat(parseFloat(p).toFixed(3)));
+          return {
+            question: m.question.length > 70 ? m.question.slice(0, 67) + "…" : m.question,
+            outcomes,
+            prices,
+            volume_24h: parseFloat(String(m.volume24hr ?? 0)),
+          };
+        })
+        // Filter out effectively-resolved markets (any outcome > 97% certain)
+        .filter((m) => m.prices.every((p) => p < 0.97))
+        .slice(0, 8);
+
+      if (markets.length > 0) {
+        const total_volume_24h = markets.reduce((s, m) => s + m.volume_24h, 0);
+        polymarket_data = { markets, total_volume_24h };
+      }
+    }
+  } catch {
+    // Fall through with undefined polymarket_data
+  }
+
+  const fmtVol = (v: number) =>
+    v >= 1_000_000 ? `$${(v / 1_000_000).toFixed(1)}M` : `$${(v / 1_000).toFixed(0)}K`;
+
+  const result =
+    polymarket_data && polymarket_data.markets.length > 0
+      ? polymarket_data.markets
+          .slice(0, 3)
+          .map((m) => `${m.question.slice(0, 35)}… ${fmtVol(m.volume_24h)} 24h`)
+          .join(" | ")
+      : "Prediction market data temporarily unavailable";
+
+  return { service_type: "polymarket", result, polymarket_data, timestamp, delivered_to };
+}
+
 export async function deliverService(delivered_to: string, serviceType: ServiceType): Promise<ServiceResult> {
   const timestamp = new Date().toISOString();
   if (serviceType === "solana-stats") return deliverSolanaStats(delivered_to, timestamp);
@@ -1614,5 +1683,6 @@ export async function deliverService(delivered_to: string, serviceType: ServiceT
   if (serviceType === "global-market") return deliverGlobalMarket(delivered_to, timestamp);
   if (serviceType === "l2-tvl") return deliverL2Tvl(delivered_to, timestamp);
   if (serviceType === "sol-lst") return deliverSolLst(delivered_to, timestamp);
+  if (serviceType === "polymarket") return deliverPolymarket(delivered_to, timestamp);
   return deliverCryptoPrices(delivered_to, timestamp);
 }
