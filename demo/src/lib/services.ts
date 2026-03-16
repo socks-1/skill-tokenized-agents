@@ -3,10 +3,10 @@
  * All functions are read-only calls to public APIs — no auth required.
  */
 
-export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket";
+export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives";
 
 /** All valid service type strings — use this for runtime validation instead of duplicating the list. */
-export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket"];
+export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives"];
 
 export interface MarketData {
   symbol: string;
@@ -259,6 +259,18 @@ export interface PolymarketData {
   total_volume_24h: number;
 }
 
+export interface NarrativeEntry {
+  name: string;
+  market_cap: number;
+  change_24h_pct: number;
+  volume_24h: number;
+  top_coins: string[];
+}
+
+export interface NarrativeData {
+  narratives: NarrativeEntry[];
+}
+
 export interface ServiceResult {
   service_type: ServiceType;
   result: string;
@@ -284,6 +296,7 @@ export interface ServiceResult {
   l2_tvl?: L2TvlData;
   sol_lst?: SolLstData;
   polymarket_data?: PolymarketData;
+  narratives?: NarrativeData;
   timestamp: string;
   delivered_to: string;
 }
@@ -1661,6 +1674,57 @@ export async function deliverPolymarket(delivered_to: string, timestamp: string)
   return { service_type: "polymarket", result, polymarket_data, timestamp, delivered_to };
 }
 
+export async function deliverNarratives(delivered_to: string, timestamp: string): Promise<ServiceResult> {
+  let narratives_data: NarrativeData | undefined;
+
+  try {
+    const res = await fetch(
+      "https://api.coingecko.com/api/v3/coins/categories?order=market_cap_desc",
+      { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(10000) }
+    );
+    if (res.ok) {
+      const json = await res.json() as Array<{
+        name: string;
+        market_cap: number | null;
+        market_cap_change_24h: number | null;
+        volume_24h: number | null;
+        top_3_coins_id: string[];
+      }>;
+
+      // Filter to categories with meaningful market cap, then sort by 24h change
+      const entries: NarrativeEntry[] = json
+        .filter((d) => (d.market_cap ?? 0) >= 1_000_000_000)
+        .sort((a, b) => (b.market_cap_change_24h ?? 0) - (a.market_cap_change_24h ?? 0))
+        .slice(0, 12)
+        .map((d) => ({
+          name: d.name,
+          market_cap: d.market_cap ?? 0,
+          change_24h_pct: d.market_cap_change_24h ?? 0,
+          volume_24h: d.volume_24h ?? 0,
+          top_coins: (d.top_3_coins_id ?? []).slice(0, 3).map((id) =>
+            id.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
+          ),
+        }));
+
+      if (entries.length > 0) {
+        narratives_data = { narratives: entries };
+      }
+    }
+  } catch {
+    // Fall through with undefined narratives_data
+  }
+
+  const result =
+    narratives_data && narratives_data.narratives.length > 0
+      ? narratives_data.narratives
+          .slice(0, 3)
+          .map((n) => `${n.name} ${n.change_24h_pct >= 0 ? "+" : ""}${n.change_24h_pct.toFixed(1)}%`)
+          .join(" | ")
+      : "Narrative performance data temporarily unavailable";
+
+  return { service_type: "narratives", result, narratives: narratives_data, timestamp, delivered_to };
+}
+
 export async function deliverService(delivered_to: string, serviceType: ServiceType): Promise<ServiceResult> {
   const timestamp = new Date().toISOString();
   if (serviceType === "solana-stats") return deliverSolanaStats(delivered_to, timestamp);
@@ -1684,5 +1748,6 @@ export async function deliverService(delivered_to: string, serviceType: ServiceT
   if (serviceType === "l2-tvl") return deliverL2Tvl(delivered_to, timestamp);
   if (serviceType === "sol-lst") return deliverSolLst(delivered_to, timestamp);
   if (serviceType === "polymarket") return deliverPolymarket(delivered_to, timestamp);
+  if (serviceType === "narratives") return deliverNarratives(delivered_to, timestamp);
   return deliverCryptoPrices(delivered_to, timestamp);
 }

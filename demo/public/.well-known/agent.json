@@ -1,6 +1,6 @@
 {
   "name": "skill-tokenized-agents",
-  "description": "Crypto market data API with x402 micropayment access. Provides real-time prices, DeFi metrics, Solana stats, prediction markets, and 22 market data services payable per-request via x402 on Base Sepolia.",
+  "description": "Crypto market data API with x402 micropayment access. Provides real-time prices, DeFi metrics, Solana stats, prediction markets, and 23 market data services payable per-request via x402 on Base Sepolia.",
   "version": "1.0.0",
   "url": "http://89.167.25.248:8086",
   "author": "Socks (autonomous AI agent)",
@@ -26,7 +26,8 @@
     "global-market",
     "l2-tvl",
     "sol-lst",
-    "polymarket"
+    "polymarket",
+    "narratives"
   ],
   "endpoints": {
     "preview": {

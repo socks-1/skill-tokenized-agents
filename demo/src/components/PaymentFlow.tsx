@@ -30,6 +30,7 @@ import type {
   L2TvlData,
   SolLstData,
   PolymarketData,
+  NarrativeData,
 } from "@/lib/services";
 
 interface InvoiceParams {
@@ -223,6 +224,13 @@ const SERVICE_OPTIONS: { id: ServiceType; label: string; description: string; pr
     id: "polymarket",
     label: "Polymarket Top Markets",
     description: "Top prediction markets by 24h trading volume — live event probabilities and market activity on Polymarket",
+    price: "1 USDC",
+    category: "Market Data",
+  },
+  {
+    id: "narratives",
+    label: "Crypto Narrative Performance",
+    description: "Top crypto categories/narratives ranked by 24h market cap change — see which sectors are leading or lagging",
     price: "1 USDC",
     category: "Market Data",
   },
@@ -488,6 +496,21 @@ const MOCK_POLYMARKET: PolymarketData = {
     { question: "Will Ethereum ETF flows turn positive in Q2?", outcomes: ["Yes", "No"], prices: [0.62, 0.38], volume_24h: 1_100_000 },
   ],
   total_volume_24h: 11_650_000,
+};
+
+const MOCK_NARRATIVES: NarrativeData = {
+  narratives: [
+    { name: "AI Agents", market_cap: 8_200_000_000, change_24h_pct: 9.4, volume_24h: 1_840_000_000, top_coins: ["Virtuals Protocol", "Fetch.Ai", "Bittensor"] },
+    { name: "Meme Coins", market_cap: 51_000_000_000, change_24h_pct: 7.2, volume_24h: 12_400_000_000, top_coins: ["Dogecoin", "Shiba Inu", "Pepe"] },
+    { name: "DeFi", market_cap: 74_000_000_000, change_24h_pct: 5.1, volume_24h: 18_300_000_000, top_coins: ["Uniswap", "Aave", "Chainlink"] },
+    { name: "Layer 2 (Ethereum)", market_cap: 22_000_000_000, change_24h_pct: 4.3, volume_24h: 5_200_000_000, top_coins: ["Arbitrum", "Optimism", "Polygon"] },
+    { name: "Restaking", market_cap: 1_050_000_000, change_24h_pct: 7.0, volume_24h: 310_000_000, top_coins: ["Wrapped Eeth", "Kelp Dao", "Lombard"] },
+    { name: "NFT", market_cap: 14_500_000_000, change_24h_pct: 2.8, volume_24h: 2_100_000_000, top_coins: ["Apecoin", "Pudgy Penguins", "Blur"] },
+    { name: "GameFi", market_cap: 9_300_000_000, change_24h_pct: 1.5, volume_24h: 1_700_000_000, top_coins: ["Axie Infinity", "Gala", "Illuvium"] },
+    { name: "Real World Assets", market_cap: 6_800_000_000, change_24h_pct: -0.9, volume_24h: 890_000_000, top_coins: ["Ondo Finance", "Centrifuge", "Goldfinch"] },
+    { name: "Privacy Coins", market_cap: 8_100_000_000, change_24h_pct: -1.4, volume_24h: 980_000_000, top_coins: ["Monero", "Zcash", "Dash"] },
+    { name: "Prediction Markets", market_cap: 4_500_000_000, change_24h_pct: -1.2, volume_24h: 720_000_000, top_coins: ["Polymarket", "Augur", "Gnosis"] },
+  ],
 };
 
 const MOCK_SIGNATURE =
@@ -1313,6 +1336,15 @@ function buildTourSteps(serviceType: ServiceType, liveData?: ServiceResult): Pay
       service_type: "polymarket",
       result: pm.markets.slice(0, 3).map((m) => `${m.question.slice(0, 35)}… ${fmtV(m.volume_24h)}`).join(" | "),
       polymarket_data: pm,
+      timestamp: new Date().toISOString(),
+      delivered_to: "Demo1234...abcd",
+    };
+  } else if (serviceType === "narratives") {
+    const nd = liveData?.narratives ?? MOCK_NARRATIVES;
+    mockService = liveData ?? {
+      service_type: "narratives",
+      result: nd.narratives.slice(0, 3).map((n) => `${n.name} ${n.change_24h_pct >= 0 ? "+" : ""}${n.change_24h_pct.toFixed(1)}%`).join(" | "),
+      narratives: nd,
       timestamp: new Date().toISOString(),
       delivered_to: "Demo1234...abcd",
     };
@@ -2283,6 +2315,58 @@ function ServiceResultTable({ service }: { service: ServiceResult }) {
         </table>
         <p style={{ marginTop: 8, fontSize: 12, color: "#888" }}>
           {pm.markets.length} markets · Total 24h vol: {fmtVol(pm.total_volume_24h)} · via Polymarket
+        </p>
+      </div>
+    );
+  }
+
+  if (service.service_type === "narratives" && service.narratives) {
+    const nd = service.narratives;
+    const fmtMcap = (v: number) =>
+      v >= 1_000_000_000 ? `$${(v / 1_000_000_000).toFixed(1)}B` : `$${(v / 1_000_000).toFixed(0)}M`;
+    return (
+      <div>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+          <thead>
+            <tr style={{ borderBottom: "2px solid #e8e8e8" }}>
+              <th style={{ padding: "6px 8px", textAlign: "left", fontSize: 12, color: "#888", fontWeight: 600 }}>Narrative</th>
+              <th style={{ padding: "6px 8px", textAlign: "right", fontSize: 12, color: "#888", fontWeight: 600 }}>24h</th>
+              <th style={{ padding: "6px 8px", textAlign: "right", fontSize: 12, color: "#888", fontWeight: 600 }}>Mkt Cap</th>
+            </tr>
+          </thead>
+          <tbody>
+            {nd.narratives.map((n, i) => (
+              <tr key={i} style={{ borderBottom: "1px solid #f0f0f0" }}>
+                <td style={{ padding: "7px 8px" }}>
+                  <span style={{ fontWeight: 500, fontSize: 13 }}>{n.name}</span>
+                  {n.top_coins.length > 0 && (
+                    <span style={{ display: "block", fontSize: 11, color: "#aaa", marginTop: 1 }}>
+                      {n.top_coins.join(" · ")}
+                    </span>
+                  )}
+                </td>
+                <td style={{ padding: "7px 8px", textAlign: "right" }}>
+                  <span style={{
+                    display: "inline-block",
+                    padding: "2px 7px",
+                    borderRadius: 10,
+                    fontSize: 13,
+                    fontWeight: 700,
+                    background: n.change_24h_pct >= 0 ? "#e6f7ee" : "#fff0f0",
+                    color: n.change_24h_pct >= 0 ? "#1a7a3a" : "#c0392b",
+                  }}>
+                    {n.change_24h_pct >= 0 ? "+" : ""}{n.change_24h_pct.toFixed(1)}%
+                  </span>
+                </td>
+                <td style={{ padding: "7px 8px", textAlign: "right", fontWeight: 600, fontSize: 13, color: "#444" }}>
+                  {fmtMcap(n.market_cap)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <p style={{ marginTop: 8, fontSize: 12, color: "#888" }}>
+          {nd.narratives.length} narratives · sorted by 24h market cap change · via CoinGecko
         </p>
       </div>
     );
