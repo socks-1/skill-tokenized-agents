@@ -35,6 +35,7 @@ import type {
   CexVolumeData,
   OptionsOIData,
   OptionsMaxPainData,
+  BtcRainbowData,
 } from "@/lib/services";
 
 interface InvoiceParams {
@@ -263,6 +264,13 @@ const SERVICE_OPTIONS: { id: ServiceType; label: string; description: string; pr
     id: "options-max-pain",
     label: "Options Max Pain",
     description: "BTC and ETH options max pain strike prices — the level where option buyers lose the most, live from Deribit for the dominant upcoming expiry",
+    price: "1 USDC",
+    category: "Market Data",
+  },
+  {
+    id: "btc-rainbow",
+    label: "BTC Rainbow Chart",
+    description: "Bitcoin's current price vs its long-run power-law model — shows which rainbow band BTC is in from 'Fire Sale' to 'Maximum Bubble Territory'",
     price: "1 USDC",
     category: "Market Data",
   },
@@ -622,6 +630,15 @@ const MOCK_OPTIONS_MAX_PAIN: OptionsMaxPainData = {
       expiry_oi_contracts: 950000,
     },
   ],
+};
+
+const MOCK_BTC_RAINBOW: BtcRainbowData = {
+  current_price_usd: 83000,
+  model_price_usd: 149000,
+  ratio: 0.557,
+  days_since_genesis: 6283,
+  band: { index: 3, label: "Accumulate", color: "#00838f" },
+  interpretation: "BTC is trading below trend — historically a good accumulation window.",
 };
 
 const MOCK_SIGNATURE =
@@ -1495,6 +1512,15 @@ function buildTourSteps(serviceType: ServiceType, liveData?: ServiceResult): Pay
       service_type: "options-max-pain",
       result: mp.assets.map((a) => `${a.asset} max pain $${a.max_pain_strike.toLocaleString()} (${a.distance_pct > 0 ? "+" : ""}${a.distance_pct}% vs spot)`).join(" | "),
       options_max_pain: mp,
+      timestamp: new Date().toISOString(),
+      delivered_to: "Demo1234...abcd",
+    };
+  } else if (serviceType === "btc-rainbow") {
+    const rb = liveData?.btc_rainbow ?? MOCK_BTC_RAINBOW;
+    mockService = liveData ?? {
+      service_type: "btc-rainbow",
+      result: `BTC $${rb.current_price_usd.toLocaleString()} · Model $${rb.model_price_usd.toLocaleString()} · ${rb.band.label} (${(rb.ratio * 100).toFixed(0)}% of model)`,
+      btc_rainbow: rb,
       timestamp: new Date().toISOString(),
       delivered_to: "Demo1234...abcd",
     };
@@ -2727,6 +2753,62 @@ function ServiceResultTable({ service }: { service: ServiceResult }) {
         })}
         <p style={{ marginTop: 4, fontSize: 12, color: "#888" }}>
           Live max pain · dominant expiry by OI · via Deribit
+        </p>
+      </div>
+    );
+  }
+
+  if (service.service_type === "btc-rainbow" && service.btc_rainbow) {
+    const rb = service.btc_rainbow;
+    const pct = (rb.ratio * 100).toFixed(1);
+    const barWidth = Math.min(100, Math.max(2, (rb.ratio / 9) * 100));
+    const overModel = rb.ratio >= 1;
+    return (
+      <div>
+        <div style={{ marginBottom: 14, padding: 14, background: "#fafafa", borderRadius: 8, border: "1px solid #f0f0f0" }}>
+          {/* Band badge */}
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+            <div style={{ background: rb.band.color, color: "#fff", padding: "4px 12px", borderRadius: 20, fontWeight: 700, fontSize: 13 }}>
+              {rb.band.label}
+            </div>
+            <span style={{ fontSize: 12, color: "#888" }}>band {rb.band.index} of 9</span>
+          </div>
+          {/* Price grid */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "8px 16px", marginBottom: 12 }}>
+            <div>
+              <div style={{ fontSize: 11, color: "#aaa", marginBottom: 2 }}>Current Price</div>
+              <div style={{ fontWeight: 700, fontSize: 18, color: "#222" }}>${rb.current_price_usd.toLocaleString()}</div>
+            </div>
+            <div>
+              <div style={{ fontSize: 11, color: "#aaa", marginBottom: 2 }}>Model Price</div>
+              <div style={{ fontWeight: 700, fontSize: 18, color: "#555" }}>${rb.model_price_usd.toLocaleString()}</div>
+            </div>
+            <div>
+              <div style={{ fontSize: 11, color: "#aaa", marginBottom: 2 }}>vs Model</div>
+              <div style={{ fontWeight: 700, fontSize: 18, color: overModel ? "#c0392b" : "#1a7a3a" }}>
+                {pct}%
+              </div>
+            </div>
+          </div>
+          {/* Progress bar across rainbow gradient */}
+          <div style={{ marginBottom: 10 }}>
+            <div style={{ fontSize: 11, color: "#aaa", marginBottom: 4 }}>Position on Rainbow</div>
+            <div style={{ height: 10, borderRadius: 5, background: "linear-gradient(to right, #1a237e, #1565c0, #00838f, #2e7d32, #f9a825, #e65100, #bf360c, #b71c1c, #4a0000)", position: "relative" }}>
+              <div style={{ position: "absolute", top: -3, left: `${barWidth}%`, transform: "translateX(-50%)", width: 16, height: 16, borderRadius: "50%", background: rb.band.color, border: "2px solid #fff", boxShadow: "0 0 4px rgba(0,0,0,0.3)" }} />
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#bbb", marginTop: 2 }}>
+              <span>Fire Sale</span>
+              <span>Fair Value</span>
+              <span>Max Bubble</span>
+            </div>
+          </div>
+          {/* Interpretation */}
+          <div style={{ padding: "8px 12px", background: "#f8f4ff", borderRadius: 6, fontSize: 12, color: "#5a4a8a" }}>
+            {rb.interpretation}
+          </div>
+        </div>
+        <p style={{ marginTop: 4, fontSize: 12, color: "#888" }}>
+          Power-law model · {rb.days_since_genesis.toLocaleString()} days since genesis · via CoinGecko
         </p>
       </div>
     );

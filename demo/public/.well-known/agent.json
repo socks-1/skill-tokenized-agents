@@ -1,7 +1,7 @@
 {
   "name": "skill-tokenized-agents",
   "description": "Crypto market data API with x402 micropayment access. Provides real-time prices, DeFi metrics, Solana stats, prediction markets, options max pain, and 27 market data services payable per-request via x402 on Base Sepolia.",
-  "version": "1.0.0",
+  "version": "1.28.0",
   "url": "http://89.167.25.248:8086",
   "author": "Socks (autonomous AI agent)",
   "capabilities": [
@@ -31,7 +31,8 @@
     "defi-fees",
     "cex-volume",
     "options-oi",
-    "options-max-pain"
+    "options-max-pain",
+    "btc-rainbow"
   ],
   "endpoints": {
     "preview": {

@@ -3,10 +3,10 @@
  * All functions are read-only calls to public APIs — no auth required.
  */
 
-export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain";
+export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow";
 
 /** All valid service type strings — use this for runtime validation instead of duplicating the list. */
-export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain"];
+export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow"];
 
 export interface MarketData {
   symbol: string;
@@ -328,6 +328,21 @@ export interface OptionsMaxPainData {
   assets: MaxPainAsset[];
 }
 
+export interface BtcRainbowBand {
+  index: number;          // 1 (fire sale) to 9 (max bubble)
+  label: string;          // human-readable band name
+  color: string;          // hex color for display
+}
+
+export interface BtcRainbowData {
+  current_price_usd: number;     // live BTC spot price
+  model_price_usd: number;       // power-law model "fair value"
+  ratio: number;                 // current_price / model_price
+  days_since_genesis: number;    // days since BTC genesis block (Jan 3, 2009)
+  band: BtcRainbowBand;          // which rainbow band the current price is in
+  interpretation: string;        // short human-readable market context
+}
+
 export interface ServiceResult {
   service_type: ServiceType;
   result: string;
@@ -358,6 +373,7 @@ export interface ServiceResult {
   cex_volume?: CexVolumeData;
   options_oi?: OptionsOIData;
   options_max_pain?: OptionsMaxPainData;
+  btc_rainbow?: BtcRainbowData;
   timestamp: string;
   delivered_to: string;
 }
@@ -2122,6 +2138,77 @@ export async function deliverOptionsMaxPain(delivered_to: string, timestamp: str
   return { service_type: "options-max-pain", result, options_max_pain, timestamp, delivered_to };
 }
 
+/**
+ * BTC Rainbow Chart — power-law model showing where BTC price sits relative to its
+ * long-run log-linear trend (Giovani Santostasi formula).
+ * Model: log10(price) = 5.84 × log10(days_since_genesis) − 17.01
+ * Rainbow bands are defined as ratios of current price to model price.
+ */
+export async function deliverBtcRainbow(delivered_to: string, timestamp: string): Promise<ServiceResult> {
+  // Bitcoin genesis block: January 3, 2009
+  const GENESIS = new Date("2009-01-03T00:00:00Z").getTime();
+  const POWER_LAW_A = 5.84;
+  const POWER_LAW_B = -17.01;
+
+  // Rainbow bands: [minRatio, maxRatio, index, label, color]
+  // ratio = current_price / model_price
+  const BANDS: Array<[number, number, number, string, string]> = [
+    [0,    0.20, 1, "Basically a Fire Sale",     "#1a237e"],
+    [0.20, 0.40, 2, "BUY!",                       "#1565c0"],
+    [0.40, 0.70, 3, "Accumulate",                 "#00838f"],
+    [0.70, 1.10, 4, "Still Cheap",                "#2e7d32"],
+    [1.10, 1.70, 5, "HODL!",                      "#f9a825"],
+    [1.70, 3.00, 6, "Is This a Bubble?",          "#e65100"],
+    [3.00, 5.50, 7, "FOMO Intensifies",           "#bf360c"],
+    [5.50, 9.00, 8, "Sell. Seriously, SELL!",     "#b71c1c"],
+    [9.00, Infinity, 9, "Maximum Bubble Territory", "#4a0000"],
+  ];
+
+  const INTERPRETATIONS: Record<number, string> = {
+    1: "BTC is deeply below its long-run trend — historically rare buying opportunity.",
+    2: "BTC is well below its power-law trajectory — strong accumulation zone.",
+    3: "BTC is trading below trend — historically a good accumulation window.",
+    4: "BTC is slightly below its power-law model — still relatively undervalued.",
+    5: "BTC is near its long-run model price — fair value zone.",
+    6: "BTC is above its power-law model — some froth is showing.",
+    7: "BTC is well above trend — late cycle dynamics, exercise caution.",
+    8: "BTC is significantly extended above the power-law model — historically a sell zone.",
+    9: "BTC is in extreme bubble territory relative to the power-law model.",
+  };
+
+  let btc_rainbow: BtcRainbowData | undefined;
+
+  try {
+    // Fetch current BTC price from CoinGecko
+    const url = "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd";
+    const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+    if (!res.ok) throw new Error(`CoinGecko HTTP ${res.status}`);
+    const data = await res.json() as { bitcoin?: { usd?: number } };
+    const current_price_usd = data?.bitcoin?.usd;
+    if (typeof current_price_usd !== "number" || current_price_usd <= 0) throw new Error("Invalid price");
+
+    const now = Date.now();
+    const days_since_genesis = Math.floor((now - GENESIS) / 86_400_000);
+    const model_price_usd = Math.pow(10, POWER_LAW_A * Math.log10(days_since_genesis) + POWER_LAW_B);
+    const ratio = parseFloat((current_price_usd / model_price_usd).toFixed(4));
+
+    const entry = BANDS.find(([min, max]) => ratio >= min && ratio < max) ?? BANDS[BANDS.length - 1];
+    const [, , index, label, color] = entry;
+    const band: BtcRainbowBand = { index, label, color };
+    const interpretation = INTERPRETATIONS[index] ?? "";
+
+    btc_rainbow = { current_price_usd, model_price_usd: Math.round(model_price_usd), ratio, days_since_genesis, band, interpretation };
+  } catch {
+    // Fall through with undefined btc_rainbow
+  }
+
+  const result = btc_rainbow
+    ? `BTC $${btc_rainbow.current_price_usd.toLocaleString()} · Model $${btc_rainbow.model_price_usd.toLocaleString()} · ${btc_rainbow.band.label} (${(btc_rainbow.ratio * 100).toFixed(0)}% of model)`
+    : "BTC rainbow chart data temporarily unavailable";
+
+  return { service_type: "btc-rainbow", result, btc_rainbow, timestamp, delivered_to };
+}
+
 export async function deliverService(delivered_to: string, serviceType: ServiceType): Promise<ServiceResult> {
   const timestamp = new Date().toISOString();
   if (serviceType === "solana-stats") return deliverSolanaStats(delivered_to, timestamp);
@@ -2150,5 +2237,6 @@ export async function deliverService(delivered_to: string, serviceType: ServiceT
   if (serviceType === "cex-volume") return deliverCexVolume(delivered_to, timestamp);
   if (serviceType === "options-oi") return deliverOptionsOI(delivered_to, timestamp);
   if (serviceType === "options-max-pain") return deliverOptionsMaxPain(delivered_to, timestamp);
+  if (serviceType === "btc-rainbow") return deliverBtcRainbow(delivered_to, timestamp);
   return deliverCryptoPrices(delivered_to, timestamp);
 }
