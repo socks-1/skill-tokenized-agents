@@ -33,6 +33,7 @@ import type {
   NarrativeData,
   DefiFeesData,
   CexVolumeData,
+  OptionsOIData,
 } from "@/lib/services";
 
 interface InvoiceParams {
@@ -247,6 +248,13 @@ const SERVICE_OPTIONS: { id: ServiceType; label: string; description: string; pr
     id: "cex-volume",
     label: "CEX Volume Rankings",
     description: "Top 10 centralized exchanges ranked by 24h spot trading volume — Binance, Coinbase, Kraken and more with trust scores",
+    price: "1 USDC",
+    category: "Market Data",
+  },
+  {
+    id: "options-oi",
+    label: "Crypto Options Open Interest",
+    description: "BTC and ETH options open interest, put/call ratios, and top expiry concentration — live from Deribit, the #1 crypto options exchange",
     price: "1 USDC",
     category: "Market Data",
   },
@@ -557,6 +565,31 @@ const MOCK_CEX_VOLUME: CexVolumeData = {
     { rank: 8, name: "HTX", volume_btc_24h: 62_000, volume_usd_24h: 5_084_000_000, trust_score: 8, year_established: 2013, country: "Seychelles" },
     { rank: 9, name: "KuCoin", volume_btc_24h: 55_000, volume_usd_24h: 4_510_000_000, trust_score: 8, year_established: 2017, country: "Seychelles" },
     { rank: 10, name: "MEXC", volume_btc_24h: 48_000, volume_usd_24h: 3_936_000_000, trust_score: 7, year_established: 2018, country: "Seychelles" },
+  ],
+};
+
+const MOCK_OPTIONS_OI: OptionsOIData = {
+  assets: [
+    {
+      asset: "BTC",
+      price_usd: 82000,
+      total_oi_usd: 28_700_000_000,
+      call_oi_usd: 17_200_000_000,
+      put_oi_usd: 11_500_000_000,
+      put_call_ratio: 0.67,
+      top_expiry: "28MAR25",
+      top_expiry_oi_usd: 9_800_000_000,
+    },
+    {
+      asset: "ETH",
+      price_usd: 1980,
+      total_oi_usd: 7_600_000_000,
+      call_oi_usd: 4_400_000_000,
+      put_oi_usd: 3_200_000_000,
+      put_call_ratio: 0.73,
+      top_expiry: "28MAR25",
+      top_expiry_oi_usd: 2_100_000_000,
+    },
   ],
 };
 
@@ -1412,6 +1445,16 @@ function buildTourSteps(serviceType: ServiceType, liveData?: ServiceResult): Pay
       service_type: "cex-volume",
       result: cv.exchanges.slice(0, 3).map((e) => `${e.name} ${fmtVol(e.volume_usd_24h)}`).join(" | "),
       cex_volume: cv,
+      timestamp: new Date().toISOString(),
+      delivered_to: "Demo1234...abcd",
+    };
+  } else if (serviceType === "options-oi") {
+    const oo = liveData?.options_oi ?? MOCK_OPTIONS_OI;
+    const fmtOI = (v: number) => v >= 1_000_000_000 ? `$${(v / 1_000_000_000).toFixed(1)}B` : `$${(v / 1_000_000).toFixed(0)}M`;
+    mockService = liveData ?? {
+      service_type: "options-oi",
+      result: oo.assets.map((a) => `${a.asset} OI ${fmtOI(a.total_oi_usd)} P/C ${a.put_call_ratio}`).join(" | "),
+      options_oi: oo,
       timestamp: new Date().toISOString(),
       delivered_to: "Demo1234...abcd",
     };
@@ -2545,6 +2588,52 @@ function ServiceResultTable({ service }: { service: ServiceResult }) {
         </table>
         <p style={{ marginTop: 8, fontSize: 12, color: "#888" }}>
           {cv.exchanges.length} exchanges · sorted by 24h spot volume · via CoinGecko
+        </p>
+      </div>
+    );
+  }
+
+  if (service.service_type === "options-oi" && service.options_oi) {
+    const oo = service.options_oi;
+    const fmtOI = (v: number) =>
+      v >= 1_000_000_000 ? `$${(v / 1_000_000_000).toFixed(1)}B` : `$${(v / 1_000_000).toFixed(0)}M`;
+    return (
+      <div>
+        {oo.assets.map((a) => (
+          <div key={a.asset} style={{ marginBottom: 16, padding: 12, background: "#fafafa", borderRadius: 8, border: "1px solid #f0f0f0" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+              <span style={{ fontWeight: 700, fontSize: 15 }}>{a.asset} Options</span>
+              <span style={{ fontSize: 12, color: "#888" }}>spot ${a.price_usd.toLocaleString()}</span>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 16px" }}>
+              <div>
+                <div style={{ fontSize: 11, color: "#aaa", marginBottom: 2 }}>Total OI</div>
+                <div style={{ fontWeight: 700, fontSize: 16, color: "#222" }}>{fmtOI(a.total_oi_usd)}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 11, color: "#aaa", marginBottom: 2 }}>Put/Call Ratio</div>
+                <div style={{ fontWeight: 700, fontSize: 16, color: a.put_call_ratio >= 1.0 ? "#c0392b" : a.put_call_ratio <= 0.6 ? "#1a7a3a" : "#b8750a" }}>
+                  {a.put_call_ratio}
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: 11, color: "#aaa", marginBottom: 2 }}>Calls OI</div>
+                <div style={{ fontWeight: 600, fontSize: 13, color: "#1a7a3a" }}>{fmtOI(a.call_oi_usd)}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 11, color: "#aaa", marginBottom: 2 }}>Puts OI</div>
+                <div style={{ fontWeight: 600, fontSize: 13, color: "#c0392b" }}>{fmtOI(a.put_oi_usd)}</div>
+              </div>
+            </div>
+            {a.top_expiry && (
+              <div style={{ marginTop: 8, padding: "4px 8px", background: "#f0f4ff", borderRadius: 6, fontSize: 12, color: "#4a5568" }}>
+                Largest expiry: <strong>{a.top_expiry}</strong> — {fmtOI(a.top_expiry_oi_usd)} OI
+              </div>
+            )}
+          </div>
+        ))}
+        <p style={{ marginTop: 4, fontSize: 12, color: "#888" }}>
+          Live options OI · put/call ratio · via Deribit
         </p>
       </div>
     );

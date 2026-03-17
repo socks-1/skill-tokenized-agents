@@ -3,10 +3,10 @@
  * All functions are read-only calls to public APIs — no auth required.
  */
 
-export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume";
+export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi";
 
 /** All valid service type strings — use this for runtime validation instead of duplicating the list. */
-export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume"];
+export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi"];
 
 export interface MarketData {
   symbol: string;
@@ -299,6 +299,21 @@ export interface CexVolumeData {
   btc_price_usd: number;
 }
 
+export interface OptionsOIAsset {
+  asset: string;          // "BTC" or "ETH"
+  price_usd: number;
+  total_oi_usd: number;
+  call_oi_usd: number;
+  put_oi_usd: number;
+  put_call_ratio: number;
+  top_expiry: string;     // e.g. "28MAR25"
+  top_expiry_oi_usd: number;
+}
+
+export interface OptionsOIData {
+  assets: OptionsOIAsset[];
+}
+
 export interface ServiceResult {
   service_type: ServiceType;
   result: string;
@@ -327,6 +342,7 @@ export interface ServiceResult {
   narratives?: NarrativeData;
   defi_fees?: DefiFeesData;
   cex_volume?: CexVolumeData;
+  options_oi?: OptionsOIData;
   timestamp: string;
   delivered_to: string;
 }
@@ -1880,6 +1896,104 @@ export async function deliverCexVolume(delivered_to: string, timestamp: string):
   return { service_type: "cex-volume", result, cex_volume, timestamp, delivered_to };
 }
 
+export async function deliverOptionsOI(delivered_to: string, timestamp: string): Promise<ServiceResult> {
+  let options_oi: OptionsOIData | undefined;
+
+  try {
+    // Fetch BTC and ETH options summaries from Deribit's free public API in parallel
+    const [btcRes, ethRes] = await Promise.all([
+      fetch(
+        "https://www.deribit.com/api/v2/public/get_book_summary_by_currency?currency=BTC&kind=option",
+        { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(15000) }
+      ),
+      fetch(
+        "https://www.deribit.com/api/v2/public/get_book_summary_by_currency?currency=ETH&kind=option",
+        { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(15000) }
+      ),
+    ]);
+
+    interface DeribitBookEntry {
+      instrument_name: string;   // e.g. "BTC-28MAR25-100000-C"
+      open_interest: number;     // in base currency (BTC or ETH)
+      underlying_price: number;  // current spot price
+    }
+    interface DeribitResponse {
+      result: DeribitBookEntry[];
+    }
+
+    const assets: OptionsOIAsset[] = [];
+
+    for (const [res, assetName] of [[btcRes, "BTC"], [ethRes, "ETH"]] as [Response, string][]) {
+      if (!res.ok) continue;
+      const json = (await res.json()) as DeribitResponse;
+      const instruments = json.result ?? [];
+
+      // Use the first instrument's underlying_price as the spot price
+      const spotPrice = instruments.find((i) => i.underlying_price > 0)?.underlying_price ?? 0;
+      if (spotPrice === 0) continue;
+
+      let callOI = 0;
+      let putOI = 0;
+
+      // Map: expiry -> total OI in base currency
+      const expiryOI = new Map<string, number>();
+
+      for (const inst of instruments) {
+        if (inst.open_interest <= 0) continue;
+        // Instrument name format: BTC-28MAR25-100000-C
+        const parts = inst.instrument_name.split("-");
+        if (parts.length < 4) continue;
+        const expiry = parts[1];            // e.g. "28MAR25"
+        const optType = parts[parts.length - 1]; // "C" or "P"
+
+        if (optType === "C") callOI += inst.open_interest;
+        else if (optType === "P") putOI += inst.open_interest;
+
+        expiryOI.set(expiry, (expiryOI.get(expiry) ?? 0) + inst.open_interest);
+      }
+
+      const totalOI = callOI + putOI;
+      if (totalOI === 0) continue;
+
+      // Find the expiry with the most OI
+      let topExpiry = "";
+      let topExpiryOI = 0;
+      for (const [expiry, oi] of expiryOI.entries()) {
+        if (oi > topExpiryOI) { topExpiryOI = oi; topExpiry = expiry; }
+      }
+
+      assets.push({
+        asset: assetName,
+        price_usd: Math.round(spotPrice),
+        total_oi_usd: Math.round(totalOI * spotPrice),
+        call_oi_usd: Math.round(callOI * spotPrice),
+        put_oi_usd: Math.round(putOI * spotPrice),
+        put_call_ratio: parseFloat((putOI / callOI).toFixed(2)),
+        top_expiry: topExpiry,
+        top_expiry_oi_usd: Math.round(topExpiryOI * spotPrice),
+      });
+    }
+
+    if (assets.length > 0) {
+      options_oi = { assets };
+    }
+  } catch {
+    // Fall through with undefined options_oi
+  }
+
+  const fmtOI = (v: number) =>
+    v >= 1_000_000_000 ? `$${(v / 1_000_000_000).toFixed(1)}B` : `$${(v / 1_000_000).toFixed(0)}M`;
+
+  const result =
+    options_oi && options_oi.assets.length > 0
+      ? options_oi.assets
+          .map((a) => `${a.asset} OI ${fmtOI(a.total_oi_usd)} P/C ${a.put_call_ratio}`)
+          .join(" | ")
+      : "Options OI data temporarily unavailable";
+
+  return { service_type: "options-oi", result, options_oi, timestamp, delivered_to };
+}
+
 export async function deliverService(delivered_to: string, serviceType: ServiceType): Promise<ServiceResult> {
   const timestamp = new Date().toISOString();
   if (serviceType === "solana-stats") return deliverSolanaStats(delivered_to, timestamp);
@@ -1906,5 +2020,6 @@ export async function deliverService(delivered_to: string, serviceType: ServiceT
   if (serviceType === "narratives") return deliverNarratives(delivered_to, timestamp);
   if (serviceType === "defi-fees") return deliverDefiFees(delivered_to, timestamp);
   if (serviceType === "cex-volume") return deliverCexVolume(delivered_to, timestamp);
+  if (serviceType === "options-oi") return deliverOptionsOI(delivered_to, timestamp);
   return deliverCryptoPrices(delivered_to, timestamp);
 }
