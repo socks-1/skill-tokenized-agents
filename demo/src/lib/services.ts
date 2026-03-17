@@ -3,10 +3,10 @@
  * All functions are read-only calls to public APIs — no auth required.
  */
 
-export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season" | "btc-mining" | "bridge-volume" | "tvl-movers" | "lightning-network" | "eth-lst";
+export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season" | "btc-mining" | "bridge-volume" | "tvl-movers" | "lightning-network" | "eth-lst" | "realized-vol";
 
 /** All valid service type strings — use this for runtime validation instead of duplicating the list. */
-export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season", "btc-mining", "bridge-volume", "tvl-movers", "lightning-network", "eth-lst"];
+export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season", "btc-mining", "bridge-volume", "tvl-movers", "lightning-network", "eth-lst", "realized-vol"];
 
 export interface MarketData {
   symbol: string;
@@ -449,12 +449,25 @@ export interface ServiceResult {
   tvl_movers?: TvlMoversData;
   lightning_network?: LightningNetworkData;
   eth_lst?: SolLstData;
+  realized_vol?: RealizedVolData;
   timestamp: string;
   delivered_to: string;
 }
 
 // Re-export SolLstData shape under the ETH LST name for use in PaymentFlow
 export type EthLstData = SolLstData;
+
+export interface VolatilityEntry {
+  symbol: string;
+  vol_30d_pct: number;
+  vol_7d_pct: number;
+  regime: "escalating" | "stable" | "cooling";
+}
+
+export interface RealizedVolData {
+  assets: VolatilityEntry[];
+  market_regime: "escalating" | "stable" | "cooling";
+}
 
 /**
  * Fetches live crypto prices for BTC, ETH, and SOL from CoinGecko.
@@ -2648,6 +2661,79 @@ export async function deliverLightningNetwork(delivered_to: string, timestamp: s
   return { service_type: "lightning-network", result, lightning_network, timestamp, delivered_to };
 }
 
+/**
+ * Computes realized volatility for BTC, ETH, and SOL using 30-day daily price data from CoinGecko.
+ * Reports annualized 30d and 7d realized vol, and a regime signal (escalating/stable/cooling).
+ */
+export async function deliverRealizedVol(delivered_to: string, timestamp: string): Promise<ServiceResult> {
+  let realized_vol: RealizedVolData | undefined;
+
+  try {
+    const COINS = [
+      { id: "bitcoin", symbol: "BTC" },
+      { id: "ethereum", symbol: "ETH" },
+      { id: "solana", symbol: "SOL" },
+    ];
+
+    const results = await Promise.all(
+      COINS.map(async (coin) => {
+        const res = await fetch(
+          `https://api.coingecko.com/api/v3/coins/${coin.id}/market_chart?vs_currency=usd&days=30&interval=daily`,
+          {
+            headers: { Accept: "application/json", "User-Agent": "skill-tokenized-agents/1.0" },
+            signal: AbortSignal.timeout(12000),
+          }
+        );
+        if (!res.ok) return null;
+        const data = (await res.json()) as { prices: [number, number][] };
+        return { symbol: coin.symbol, prices: data.prices };
+      })
+    );
+
+    const assets: VolatilityEntry[] = [];
+
+    for (const asset of results) {
+      if (!asset || asset.prices.length < 8) continue;
+      const prices = asset.prices;
+      // Daily log returns
+      const logReturns = prices.slice(1).map((p, i) => Math.log(p[1] / prices[i][1]));
+      const last30 = logReturns;
+      const last7 = logReturns.slice(-7);
+      // Annualized realized vol = sqrt(mean squared return * 365) * 100
+      const vol30d = Math.sqrt((last30.reduce((s, r) => s + r * r, 0) / last30.length) * 365) * 100;
+      const vol7d = Math.sqrt((last7.reduce((s, r) => s + r * r, 0) / last7.length) * 365) * 100;
+      const regime: VolatilityEntry["regime"] =
+        vol7d > vol30d * 1.1 ? "escalating" : vol7d < vol30d * 0.9 ? "cooling" : "stable";
+      assets.push({
+        symbol: asset.symbol,
+        vol_30d_pct: parseFloat(vol30d.toFixed(1)),
+        vol_7d_pct: parseFloat(vol7d.toFixed(1)),
+        regime,
+      });
+    }
+
+    if (assets.length > 0) {
+      // Overall regime: escalating if majority escalating, cooling if majority cooling
+      const escalatingCount = assets.filter((a) => a.regime === "escalating").length;
+      const coolingCount = assets.filter((a) => a.regime === "cooling").length;
+      const market_regime: RealizedVolData["market_regime"] =
+        escalatingCount > coolingCount ? "escalating" : coolingCount > escalatingCount ? "cooling" : "stable";
+      realized_vol = { assets, market_regime };
+    }
+  } catch {
+    // Fall through with undefined realized_vol
+  }
+
+  const result = realized_vol
+    ? `Regime: ${realized_vol.market_regime} · ` +
+      realized_vol.assets
+        .map((a) => `${a.symbol} 30d=${a.vol_30d_pct}% 7d=${a.vol_7d_pct}%`)
+        .join(" · ")
+    : "Realized volatility data temporarily unavailable";
+
+  return { service_type: "realized-vol", result, realized_vol, timestamp, delivered_to };
+}
+
 export async function deliverService(delivered_to: string, serviceType: ServiceType): Promise<ServiceResult> {
   const timestamp = new Date().toISOString();
   if (serviceType === "solana-stats") return deliverSolanaStats(delivered_to, timestamp);
@@ -2683,5 +2769,6 @@ export async function deliverService(delivered_to: string, serviceType: ServiceT
   if (serviceType === "tvl-movers") return deliverTvlMovers(delivered_to, timestamp);
   if (serviceType === "lightning-network") return deliverLightningNetwork(delivered_to, timestamp);
   if (serviceType === "eth-lst") return deliverEthLst(delivered_to, timestamp);
+  if (serviceType === "realized-vol") return deliverRealizedVol(delivered_to, timestamp);
   return deliverCryptoPrices(delivered_to, timestamp);
 }

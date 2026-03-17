@@ -42,6 +42,7 @@ import type {
   TvlMoversData,
   LightningNetworkData,
   EthLstData,
+  RealizedVolData,
 } from "@/lib/services";
 
 interface InvoiceParams {
@@ -321,6 +322,13 @@ const SERVICE_OPTIONS: { id: ServiceType; label: string; description: string; pr
     description: "Top Ethereum liquid staking tokens (stETH, rETH, cbETH, mETH and more) with current APY and TVL — via DeFi Llama",
     price: "1 USDC",
     category: "DeFi",
+  },
+  {
+    id: "realized-vol",
+    label: "Crypto Realized Volatility",
+    description: "Annualized 30d and 7d realized volatility for BTC, ETH, and SOL — spot regime shifts between high and low volatility markets",
+    price: "1 USDC",
+    category: "Market Data",
   },
 ];
 
@@ -782,6 +790,15 @@ const MOCK_LIGHTNING_NETWORK: LightningNetworkData = {
   channel_count_change: 230,
   node_count_change: 23,
   capacity_change_btc: 0.88,
+};
+
+const MOCK_REALIZED_VOL: RealizedVolData = {
+  assets: [
+    { symbol: "BTC", vol_30d_pct: 49.2, vol_7d_pct: 27.8, regime: "cooling" },
+    { symbol: "ETH", vol_30d_pct: 68.4, vol_7d_pct: 45.1, regime: "cooling" },
+    { symbol: "SOL", vol_30d_pct: 82.6, vol_7d_pct: 58.3, regime: "cooling" },
+  ],
+  market_regime: "cooling",
 };
 
 const MOCK_SIGNATURE =
@@ -1719,6 +1736,15 @@ function buildTourSteps(serviceType: ServiceType, liveData?: ServiceResult): Pay
       service_type: "eth-lst",
       result: lst.tokens.slice(0, 4).map((t) => `${t.symbol} ${t.apy.toFixed(1)}% APY (${fmtTvl(t.tvl_usd)})`).join(" | "),
       eth_lst: lst,
+      timestamp: new Date().toISOString(),
+      delivered_to: "Demo1234...abcd",
+    };
+  } else if (serviceType === "realized-vol") {
+    const rv = liveData?.realized_vol ?? MOCK_REALIZED_VOL;
+    mockService = liveData ?? {
+      service_type: "realized-vol",
+      result: `Regime: ${rv.market_regime} · ` + rv.assets.map((a) => `${a.symbol} 30d=${a.vol_30d_pct}% 7d=${a.vol_7d_pct}%`).join(" · "),
+      realized_vol: rv,
       timestamp: new Date().toISOString(),
       delivered_to: "Demo1234...abcd",
     };
@@ -3327,6 +3353,43 @@ function ServiceResultTable({ service }: { service: ServiceResult }) {
         </table>
         <p style={{ marginTop: 8, fontSize: 12, color: "#888" }}>
           {lst.tokens.length} ETH LSTs · Avg APY: {lst.avg_apy.toFixed(2)}% · via DeFi Llama
+        </p>
+      </div>
+    );
+  }
+
+  if (service.service_type === "realized-vol" && service.realized_vol) {
+    const rv = service.realized_vol;
+    const regimeColor = (r: string) => r === "escalating" ? "#d44" : r === "cooling" ? "#1a7a3a" : "#888";
+    const regimeLabel = (r: string) => r === "escalating" ? "↑ Escalating" : r === "cooling" ? "↓ Cooling" : "→ Stable";
+    return (
+      <div>
+        <div style={{ marginBottom: 10, padding: "8px 12px", background: "#f8f8f8", borderRadius: 8, border: "1px solid #e8e8e8", display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ fontSize: 12, color: "#888", fontWeight: 600 }}>Market Regime</span>
+          <span style={{ fontSize: 14, fontWeight: 700, color: regimeColor(rv.market_regime) }}>{regimeLabel(rv.market_regime)}</span>
+        </div>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+          <thead>
+            <tr style={{ borderBottom: "2px solid #e8e8e8" }}>
+              <th style={{ padding: "6px 8px", textAlign: "left", fontSize: 12, color: "#888", fontWeight: 600 }}>Asset</th>
+              <th style={{ padding: "6px 8px", textAlign: "right", fontSize: 12, color: "#888", fontWeight: 600 }}>30d Vol</th>
+              <th style={{ padding: "6px 8px", textAlign: "right", fontSize: 12, color: "#888", fontWeight: 600 }}>7d Vol</th>
+              <th style={{ padding: "6px 8px", textAlign: "right", fontSize: 12, color: "#888", fontWeight: 600 }}>Regime</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rv.assets.map((a) => (
+              <tr key={a.symbol} style={{ borderBottom: "1px solid #f0f0f0" }}>
+                <td style={{ padding: "7px 8px", fontWeight: 700 }}>{a.symbol}</td>
+                <td style={{ padding: "7px 8px", textAlign: "right", fontWeight: 600 }}>{a.vol_30d_pct.toFixed(1)}%</td>
+                <td style={{ padding: "7px 8px", textAlign: "right", fontWeight: 600 }}>{a.vol_7d_pct.toFixed(1)}%</td>
+                <td style={{ padding: "7px 8px", textAlign: "right", fontWeight: 700, color: regimeColor(a.regime) }}>{regimeLabel(a.regime)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <p style={{ marginTop: 8, fontSize: 12, color: "#888" }}>
+          Annualized realized vol from daily log returns · 7d vs 30d comparison · via CoinGecko
         </p>
       </div>
     );
