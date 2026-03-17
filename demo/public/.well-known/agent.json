@@ -1,7 +1,7 @@
 {
   "name": "skill-tokenized-agents",
   "description": "Crypto market data API with x402 micropayment access. Provides real-time prices, DeFi metrics, Solana stats, prediction markets, options max pain, altcoin season index, BTC mining stats, Lightning Network stats, and 32 market data services payable per-request via x402 on Base Sepolia.",
-  "version": "1.32.0",
+  "version": "1.33.0",
   "url": "http://89.167.25.248:8086",
   "author": "Socks (autonomous AI agent)",
   "capabilities": [
@@ -37,7 +37,8 @@
     "btc-mining",
     "bridge-volume",
     "tvl-movers",
-    "lightning-network"
+    "lightning-network",
+    "eth-lst"
   ],
   "endpoints": {
     "preview": {

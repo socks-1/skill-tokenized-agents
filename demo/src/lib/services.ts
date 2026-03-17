@@ -3,10 +3,10 @@
  * All functions are read-only calls to public APIs — no auth required.
  */
 
-export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season" | "btc-mining" | "bridge-volume" | "tvl-movers" | "lightning-network";
+export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season" | "btc-mining" | "bridge-volume" | "tvl-movers" | "lightning-network" | "eth-lst";
 
 /** All valid service type strings — use this for runtime validation instead of duplicating the list. */
-export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season", "btc-mining", "bridge-volume", "tvl-movers", "lightning-network"];
+export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season", "btc-mining", "bridge-volume", "tvl-movers", "lightning-network", "eth-lst"];
 
 export interface MarketData {
   symbol: string;
@@ -448,9 +448,13 @@ export interface ServiceResult {
   bridge_volume?: BridgeVolumeData;
   tvl_movers?: TvlMoversData;
   lightning_network?: LightningNetworkData;
+  eth_lst?: SolLstData;
   timestamp: string;
   delivered_to: string;
 }
+
+// Re-export SolLstData shape under the ETH LST name for use in PaymentFlow
+export type EthLstData = SolLstData;
 
 /**
  * Fetches live crypto prices for BTC, ETH, and SOL from CoinGecko.
@@ -1769,6 +1773,68 @@ export async function deliverSolLst(delivered_to: string, timestamp: string): Pr
   return { service_type: "sol-lst", result, sol_lst, timestamp, delivered_to };
 }
 
+const ETH_LST_PROJECTS = new Set([
+  "lido", "rocket-pool", "frax-ether", "coinbase-wrapped-staked-eth",
+  "mantle-staked-eth", "stakewise", "swell-liquid-staking", "origin-ether",
+  "stader", "ankr",
+]);
+
+/**
+ * Fetches Ethereum liquid staking token (LST) yields from DeFi Llama.
+ * Shows APY and TVL for stETH, rETH, cbETH, mETH and other major ETH LSTs.
+ */
+export async function deliverEthLst(delivered_to: string, timestamp: string): Promise<ServiceResult> {
+  let eth_lst: SolLstData | undefined;
+
+  try {
+    const res = await fetch("https://yields.llama.fi/pools", {
+      headers: { Accept: "application/json" },
+      signal: AbortSignal.timeout(10000),
+    });
+    if (res.ok) {
+      const json = await res.json() as { data: Array<{
+        project: string;
+        symbol: string;
+        chain: string;
+        apy: number | null;
+        tvlUsd: number | null;
+      }> };
+      const data = json.data ?? [];
+
+      const tokens: SolLstToken[] = data
+        .filter((p) => p.chain === "Ethereum" && ETH_LST_PROJECTS.has(p.project) && (p.apy ?? 0) > 0 && (p.tvlUsd ?? 0) > 10_000_000)
+        .map((p) => ({
+          symbol: p.symbol,
+          project: p.project.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
+          apy: parseFloat((p.apy ?? 0).toFixed(2)),
+          tvl_usd: p.tvlUsd ?? 0,
+        }))
+        .sort((a, b) => b.tvl_usd - a.tvl_usd)
+        .slice(0, 8);
+
+      if (tokens.length > 0) {
+        const avg_apy = parseFloat((tokens.reduce((s, t) => s + t.apy, 0) / tokens.length).toFixed(2));
+        eth_lst = { tokens, avg_apy };
+      }
+    }
+  } catch {
+    // Fall through with undefined eth_lst
+  }
+
+  const fmtTvl = (v: number) =>
+    v >= 1_000_000_000 ? `$${(v / 1_000_000_000).toFixed(1)}B` : `$${(v / 1_000_000).toFixed(0)}M`;
+
+  const result =
+    eth_lst && eth_lst.tokens.length > 0
+      ? eth_lst.tokens
+          .slice(0, 4)
+          .map((t) => `${t.symbol} ${t.apy.toFixed(1)}% APY (${fmtTvl(t.tvl_usd)})`)
+          .join(" | ")
+      : "Ethereum LST yield data temporarily unavailable";
+
+  return { service_type: "eth-lst", result, eth_lst, timestamp, delivered_to };
+}
+
 export async function deliverPolymarket(delivered_to: string, timestamp: string): Promise<ServiceResult> {
   let polymarket_data: PolymarketData | undefined;
 
@@ -2616,5 +2682,6 @@ export async function deliverService(delivered_to: string, serviceType: ServiceT
   if (serviceType === "bridge-volume") return deliverBridgeVolume(delivered_to, timestamp);
   if (serviceType === "tvl-movers") return deliverTvlMovers(delivered_to, timestamp);
   if (serviceType === "lightning-network") return deliverLightningNetwork(delivered_to, timestamp);
+  if (serviceType === "eth-lst") return deliverEthLst(delivered_to, timestamp);
   return deliverCryptoPrices(delivered_to, timestamp);
 }

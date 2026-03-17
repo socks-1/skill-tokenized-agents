@@ -41,6 +41,7 @@ import type {
   BridgeVolumeData,
   TvlMoversData,
   LightningNetworkData,
+  EthLstData,
 } from "@/lib/services";
 
 interface InvoiceParams {
@@ -314,6 +315,13 @@ const SERVICE_OPTIONS: { id: ServiceType; label: string; description: string; pr
     price: "1 USDC",
     category: "DeFi",
   },
+  {
+    id: "eth-lst",
+    label: "Ethereum Liquid Staking Yields",
+    description: "Top Ethereum liquid staking tokens (stETH, rETH, cbETH, mETH and more) with current APY and TVL — via DeFi Llama",
+    price: "1 USDC",
+    category: "DeFi",
+  },
 ];
 
 /**
@@ -565,6 +573,19 @@ const MOCK_SOL_LST: SolLstData = {
     { symbol: "VSOL", project: "The Vault Liquid Staking", apy: 5.64, tvl_usd: 117_000_000 },
   ],
   avg_apy: 6.16,
+};
+
+const MOCK_ETH_LST: EthLstData = {
+  tokens: [
+    { symbol: "STETH", project: "Lido", apy: 2.41, tvl_usd: 21_419_000_000 },
+    { symbol: "RETH", project: "Rocket Pool", apy: 1.97, tvl_usd: 3_140_000_000 },
+    { symbol: "CBETH", project: "Coinbase Wrapped Staked Eth", apy: 2.84, tvl_usd: 279_000_000 },
+    { symbol: "ETHX", project: "Stader", apy: 8.06, tvl_usd: 304_000_000 },
+    { symbol: "SFRXETH", project: "Frax Ether", apy: 3.15, tvl_usd: 100_000_000 },
+    { symbol: "OETH", project: "Origin Ether", apy: 2.46, tvl_usd: 100_000_000 },
+    { symbol: "SWETH", project: "Swell Liquid Staking", apy: 2.70, tvl_usd: 47_000_000 },
+  ],
+  avg_apy: 3.37,
 };
 
 const MOCK_POLYMARKET: PolymarketData = {
@@ -1688,6 +1709,16 @@ function buildTourSteps(serviceType: ServiceType, liveData?: ServiceResult): Pay
       service_type: "lightning-network",
       result: `${ln.channel_count.toLocaleString()} channels · ${ln.node_count.toLocaleString()} nodes · ${ln.total_capacity_btc.toFixed(0)} BTC locked · ${ln.channel_count_change >= 0 ? "+" : ""}${ln.channel_count_change} channels WoW`,
       lightning_network: ln,
+      timestamp: new Date().toISOString(),
+      delivered_to: "Demo1234...abcd",
+    };
+  } else if (serviceType === "eth-lst") {
+    const fmtTvl = (v: number) => v >= 1e9 ? `$${(v / 1e9).toFixed(1)}B` : `$${(v / 1e6).toFixed(0)}M`;
+    const lst = liveData?.eth_lst ?? MOCK_ETH_LST;
+    mockService = liveData ?? {
+      service_type: "eth-lst",
+      result: lst.tokens.slice(0, 4).map((t) => `${t.symbol} ${t.apy.toFixed(1)}% APY (${fmtTvl(t.tvl_usd)})`).join(" | "),
+      eth_lst: lst,
       timestamp: new Date().toISOString(),
       delivered_to: "Demo1234...abcd",
     };
@@ -3263,6 +3294,39 @@ function ServiceResultTable({ service }: { service: ServiceResult }) {
         </div>
         <p style={{ marginTop: 8, fontSize: 12, color: "#888" }}>
           {ln.tor_nodes.toLocaleString()} Tor nodes · WoW = week-over-week change · via mempool.space
+        </p>
+      </div>
+    );
+  }
+
+  if (service.service_type === "eth-lst" && service.eth_lst) {
+    const lst = service.eth_lst;
+    const fmtTvl = (v: number) => v >= 1e9 ? `$${(v / 1e9).toFixed(1)}B` : `$${(v / 1e6).toFixed(0)}M`;
+    return (
+      <div>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 15 }}>
+          <thead>
+            <tr style={{ borderBottom: "2px solid #e8e8e8" }}>
+              <th style={{ padding: "6px 8px", textAlign: "left", fontSize: 12, color: "#888", fontWeight: 600 }}>Token</th>
+              <th style={{ padding: "6px 8px", textAlign: "right", fontSize: 12, color: "#888", fontWeight: 600 }}>APY</th>
+              <th style={{ padding: "6px 8px", textAlign: "right", fontSize: 12, color: "#888", fontWeight: 600 }}>TVL</th>
+            </tr>
+          </thead>
+          <tbody>
+            {lst.tokens.map((t) => (
+              <tr key={t.symbol} style={{ borderBottom: "1px solid #f0f0f0" }}>
+                <td style={{ padding: "7px 8px" }}>
+                  <span style={{ fontWeight: 700 }}>{t.symbol}</span>
+                  <span style={{ fontSize: 12, color: "#888", marginLeft: 6 }}>{t.project}</span>
+                </td>
+                <td style={{ padding: "7px 8px", textAlign: "right", fontWeight: 700, color: "#1a7a3a" }}>{t.apy.toFixed(2)}%</td>
+                <td style={{ padding: "7px 8px", textAlign: "right", fontWeight: 600 }}>{fmtTvl(t.tvl_usd)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <p style={{ marginTop: 8, fontSize: 12, color: "#888" }}>
+          {lst.tokens.length} ETH LSTs · Avg APY: {lst.avg_apy.toFixed(2)}% · via DeFi Llama
         </p>
       </div>
     );
