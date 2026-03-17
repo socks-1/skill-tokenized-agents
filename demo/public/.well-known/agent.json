@@ -1,7 +1,7 @@
 {
   "name": "skill-tokenized-agents",
-  "description": "Crypto market data API with x402 micropayment access. Provides real-time prices, DeFi metrics, Solana stats, prediction markets, options max pain, altcoin season index, and 29 market data services payable per-request via x402 on Base Sepolia.",
-  "version": "1.29.0",
+  "description": "Crypto market data API with x402 micropayment access. Provides real-time prices, DeFi metrics, Solana stats, prediction markets, options max pain, altcoin season index, BTC mining stats, and 30 market data services payable per-request via x402 on Base Sepolia.",
+  "version": "1.30.0",
   "url": "http://89.167.25.248:8086",
   "author": "Socks (autonomous AI agent)",
   "capabilities": [
@@ -33,7 +33,8 @@
     "options-oi",
     "options-max-pain",
     "btc-rainbow",
-    "altcoin-season"
+    "altcoin-season",
+    "btc-mining"
   ],
   "endpoints": {
     "preview": {
@@ -78,5 +79,5 @@
     "example_python": "import httpx, base64, json\nresp = httpx.get('http://89.167.25.248:8086/api/x402-data?service=crypto-prices')\nif resp.status_code == 402:\n    payment_req = resp.json()\n    # sign USDC payment via Coinbase AgentKit or viem wallet\n    proof = agent_wallet.pay(payment_req['accepts'][0])\n    data = httpx.get('/api/x402-data?service=crypto-prices', headers={'X-PAYMENT': proof})",
     "demo_mode": "Add header X-X402-Demo: true to skip payment (for testing only)"
   },
-  "serviceCount": 29
+  "serviceCount": 30
 }

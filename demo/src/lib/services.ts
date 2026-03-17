@@ -3,10 +3,10 @@
  * All functions are read-only calls to public APIs — no auth required.
  */
 
-export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season";
+export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season" | "btc-mining";
 
 /** All valid service type strings — use this for runtime validation instead of duplicating the list. */
-export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season"];
+export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season", "btc-mining"];
 
 export interface MarketData {
   symbol: string;
@@ -361,6 +361,18 @@ export interface AltcoinSeasonData {
   bottom_performers: AltcoinSeasonCoin[]; // bottom 5 by 30d gain
 }
 
+export interface BtcMiningData {
+  hashrate_eh: number;           // current estimated hashrate in EH/s
+  difficulty_change_pct: number; // expected % change at next retarget (negative = easier)
+  progress_pct: number;          // % through current 2016-block epoch
+  remaining_blocks: number;      // blocks until next retarget
+  estimated_retarget_date: string; // ISO date string of next retarget
+  days_until_retarget: number;   // calendar days until next retarget
+  prev_retarget_pct: number;     // % change at the previous retarget
+  next_retarget_height: number;  // block height of next retarget
+  avg_block_time_sec: number;    // current average block time in seconds
+}
+
 export interface ServiceResult {
   service_type: ServiceType;
   result: string;
@@ -393,6 +405,7 @@ export interface ServiceResult {
   options_max_pain?: OptionsMaxPainData;
   btc_rainbow?: BtcRainbowData;
   altcoin_season?: AltcoinSeasonData;
+  btc_mining?: BtcMiningData;
   timestamp: string;
   delivered_to: string;
 }
@@ -2309,6 +2322,57 @@ export async function deliverAltcoinSeason(delivered_to: string, timestamp: stri
   return { service_type: "altcoin-season", result, altcoin_season, timestamp, delivered_to };
 }
 
+export async function deliverBtcMining(delivered_to: string, timestamp: string): Promise<ServiceResult> {
+  let btc_mining: BtcMiningData | undefined;
+
+  try {
+    // Fetch difficulty adjustment data and current hashrate in parallel
+    const [adjRes, hrRes] = await Promise.all([
+      fetch("https://mempool.space/api/v1/difficulty-adjustment", { signal: AbortSignal.timeout(10000) }),
+      fetch("https://mempool.space/api/v1/mining/hashrate/3d", { signal: AbortSignal.timeout(10000) }),
+    ]);
+    if (!adjRes.ok) throw new Error(`mempool.space difficulty HTTP ${adjRes.status}`);
+    if (!hrRes.ok) throw new Error(`mempool.space hashrate HTTP ${hrRes.status}`);
+
+    const adj = await adjRes.json() as {
+      progressPercent: number;
+      difficultyChange: number;
+      estimatedRetargetDate: number; // milliseconds
+      remainingBlocks: number;
+      remainingTime: number;         // milliseconds
+      previousRetarget: number;
+      nextRetargetHeight: number;
+      timeAvg: number;               // milliseconds
+    };
+    const hr = await hrRes.json() as { currentHashrate: number };
+
+    const hashrate_eh = parseFloat((hr.currentHashrate / 1e18).toFixed(1));
+    const days_until_retarget = Math.max(0, Math.round(adj.remainingTime / (1000 * 86400)));
+    const retargetDate = new Date(adj.estimatedRetargetDate);
+    const avg_block_time_sec = Math.round(adj.timeAvg / 1000);
+
+    btc_mining = {
+      hashrate_eh,
+      difficulty_change_pct: parseFloat(adj.difficultyChange.toFixed(2)),
+      progress_pct: parseFloat(adj.progressPercent.toFixed(1)),
+      remaining_blocks: adj.remainingBlocks,
+      estimated_retarget_date: retargetDate.toISOString(),
+      days_until_retarget,
+      prev_retarget_pct: parseFloat(adj.previousRetarget.toFixed(2)),
+      next_retarget_height: adj.nextRetargetHeight,
+      avg_block_time_sec,
+    };
+  } catch {
+    // Fall through with undefined btc_mining
+  }
+
+  const result = btc_mining
+    ? `${btc_mining.hashrate_eh} EH/s · Next adjustment ${btc_mining.difficulty_change_pct >= 0 ? "+" : ""}${btc_mining.difficulty_change_pct}% in ${btc_mining.remaining_blocks} blocks (${btc_mining.days_until_retarget}d) · Avg block ${btc_mining.avg_block_time_sec}s`
+    : "BTC mining data temporarily unavailable";
+
+  return { service_type: "btc-mining", result, btc_mining, timestamp, delivered_to };
+}
+
 export async function deliverService(delivered_to: string, serviceType: ServiceType): Promise<ServiceResult> {
   const timestamp = new Date().toISOString();
   if (serviceType === "solana-stats") return deliverSolanaStats(delivered_to, timestamp);
@@ -2339,5 +2403,6 @@ export async function deliverService(delivered_to: string, serviceType: ServiceT
   if (serviceType === "options-max-pain") return deliverOptionsMaxPain(delivered_to, timestamp);
   if (serviceType === "btc-rainbow") return deliverBtcRainbow(delivered_to, timestamp);
   if (serviceType === "altcoin-season") return deliverAltcoinSeason(delivered_to, timestamp);
+  if (serviceType === "btc-mining") return deliverBtcMining(delivered_to, timestamp);
   return deliverCryptoPrices(delivered_to, timestamp);
 }

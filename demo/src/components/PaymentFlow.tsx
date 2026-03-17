@@ -37,6 +37,7 @@ import type {
   OptionsMaxPainData,
   BtcRainbowData,
   AltcoinSeasonData,
+  BtcMiningData,
 } from "@/lib/services";
 
 interface InvoiceParams {
@@ -279,6 +280,13 @@ const SERVICE_OPTIONS: { id: ServiceType; label: string; description: string; pr
     id: "altcoin-season",
     label: "Altcoin Season Index",
     description: "Are we in altcoin season or bitcoin season? Scores 0–100 based on how many of the top 50 coins outperformed BTC over the last 30 days",
+    price: "1 USDC",
+    category: "Market Data",
+  },
+  {
+    id: "btc-mining",
+    label: "BTC Mining Stats",
+    description: "Bitcoin network health at a glance — current hashrate, average block time, and the expected difficulty adjustment at the next retarget",
     price: "1 USDC",
     category: "Market Data",
   },
@@ -670,6 +678,18 @@ const MOCK_ALTCOIN_SEASON: AltcoinSeasonData = {
     { symbol: "APT", name: "Aptos", change_30d_pct: -14.5, outperformed_btc: false },
     { symbol: "ATOM", name: "Cosmos", change_30d_pct: -11.2, outperformed_btc: false },
   ],
+};
+
+const MOCK_BTC_MINING: BtcMiningData = {
+  hashrate_eh: 842.3,
+  difficulty_change_pct: -3.2,
+  progress_pct: 68.5,
+  remaining_blocks: 634,
+  estimated_retarget_date: new Date(Date.now() + 4.4 * 86400 * 1000).toISOString(),
+  days_until_retarget: 4,
+  prev_retarget_pct: 1.8,
+  next_retarget_height: 941472,
+  avg_block_time_sec: 624,
 };
 
 const MOCK_SIGNATURE =
@@ -1561,6 +1581,15 @@ function buildTourSteps(serviceType: ServiceType, liveData?: ServiceResult): Pay
       service_type: "altcoin-season",
       result: `${as.signal_label} · Score ${as.score}/100 · ${as.outperforming}/${as.total_coins} alts beat BTC (BTC 30d: ${as.btc_change_30d_pct >= 0 ? "+" : ""}${as.btc_change_30d_pct}%)`,
       altcoin_season: as,
+      timestamp: new Date().toISOString(),
+      delivered_to: "Demo1234...abcd",
+    };
+  } else if (serviceType === "btc-mining") {
+    const bm = liveData?.btc_mining ?? MOCK_BTC_MINING;
+    mockService = liveData ?? {
+      service_type: "btc-mining",
+      result: `${bm.hashrate_eh} EH/s · Next adjustment ${bm.difficulty_change_pct >= 0 ? "+" : ""}${bm.difficulty_change_pct}% in ${bm.remaining_blocks} blocks (${bm.days_until_retarget}d) · Avg block ${bm.avg_block_time_sec}s`,
+      btc_mining: bm,
       timestamp: new Date().toISOString(),
       delivered_to: "Demo1234...abcd",
     };
@@ -2929,6 +2958,69 @@ function ServiceResultTable({ service }: { service: ServiceResult }) {
         </div>
         <p style={{ marginTop: 4, fontSize: 12, color: "#888" }}>
           Top 50 non-stable coins · 30-day window · via CoinGecko
+        </p>
+      </div>
+    );
+  }
+
+  if (service.service_type === "btc-mining" && service.btc_mining) {
+    const bm = service.btc_mining;
+    const adjColor = bm.difficulty_change_pct >= 0 ? "#c0392b" : "#1a7a3a";
+    const adjLabel = bm.difficulty_change_pct >= 0 ? "harder" : "easier";
+    const retargetDate = new Date(bm.estimated_retarget_date);
+    const retargetStr = retargetDate.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+    return (
+      <div>
+        <div style={{ marginBottom: 14, padding: 14, background: "#fafafa", borderRadius: 8, border: "1px solid #f0f0f0" }}>
+          {/* Stats grid */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "10px 16px", marginBottom: 14 }}>
+            <div>
+              <div style={{ fontSize: 11, color: "#aaa", marginBottom: 2 }}>Hashrate</div>
+              <div style={{ fontWeight: 700, fontSize: 18, color: "#222" }}>{bm.hashrate_eh.toLocaleString()} EH/s</div>
+            </div>
+            <div>
+              <div style={{ fontSize: 11, color: "#aaa", marginBottom: 2 }}>Next Adjustment</div>
+              <div style={{ fontWeight: 700, fontSize: 18, color: adjColor }}>
+                {bm.difficulty_change_pct >= 0 ? "+" : ""}{bm.difficulty_change_pct}%
+              </div>
+              <div style={{ fontSize: 10, color: "#aaa" }}>{adjLabel}</div>
+            </div>
+            <div>
+              <div style={{ fontSize: 11, color: "#aaa", marginBottom: 2 }}>Avg Block Time</div>
+              <div style={{ fontWeight: 700, fontSize: 18, color: "#222" }}>{bm.avg_block_time_sec}s</div>
+              <div style={{ fontSize: 10, color: "#aaa" }}>target 600s</div>
+            </div>
+          </div>
+          {/* Epoch progress bar */}
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#aaa", marginBottom: 4 }}>
+              <span>Epoch progress</span>
+              <span style={{ fontWeight: 600, color: "#555" }}>{bm.progress_pct}% · {bm.remaining_blocks.toLocaleString()} blocks remaining</span>
+            </div>
+            <div style={{ height: 8, borderRadius: 4, background: "#e8e8e8" }}>
+              <div style={{ height: "100%", width: `${Math.min(100, bm.progress_pct)}%`, borderRadius: 4, background: "#1a7a3a" }} />
+            </div>
+          </div>
+          {/* Retarget info row */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "8px 16px" }}>
+            <div>
+              <div style={{ fontSize: 11, color: "#aaa", marginBottom: 2 }}>Next Retarget</div>
+              <div style={{ fontWeight: 600, fontSize: 13, color: "#222" }}>~{retargetStr} ({bm.days_until_retarget}d)</div>
+            </div>
+            <div>
+              <div style={{ fontSize: 11, color: "#aaa", marginBottom: 2 }}>Block Height</div>
+              <div style={{ fontWeight: 600, fontSize: 13, color: "#222" }}>#{bm.next_retarget_height.toLocaleString()}</div>
+            </div>
+            <div>
+              <div style={{ fontSize: 11, color: "#aaa", marginBottom: 2 }}>Prev Adjustment</div>
+              <div style={{ fontWeight: 600, fontSize: 13, color: bm.prev_retarget_pct >= 0 ? "#c0392b" : "#1a7a3a" }}>
+                {bm.prev_retarget_pct >= 0 ? "+" : ""}{bm.prev_retarget_pct}%
+              </div>
+            </div>
+          </div>
+        </div>
+        <p style={{ marginTop: 4, fontSize: 12, color: "#888" }}>
+          Hashrate + difficulty data · via mempool.space
         </p>
       </div>
     );
