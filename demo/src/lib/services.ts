@@ -3,10 +3,10 @@
  * All functions are read-only calls to public APIs — no auth required.
  */
 
-export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season" | "btc-mining";
+export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season" | "btc-mining" | "bridge-volume";
 
 /** All valid service type strings — use this for runtime validation instead of duplicating the list. */
-export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season", "btc-mining"];
+export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season", "btc-mining", "bridge-volume"];
 
 export interface MarketData {
   symbol: string;
@@ -373,6 +373,19 @@ export interface BtcMiningData {
   avg_block_time_sec: number;    // current average block time in seconds
 }
 
+export interface BridgeEntry {
+  name: string;            // display name, e.g. "LayerZero"
+  volume_24h_usd: number;  // 24h volume in USD
+  volume_7d_usd: number;   // 7d volume in USD
+  chains: number;          // number of supported chains
+}
+
+export interface BridgeVolumeData {
+  bridges: BridgeEntry[];         // top bridges by 24h volume
+  total_24h_usd: number;          // sum of all bridge 24h volume
+  total_7d_usd: number;           // sum of all bridge 7d volume
+}
+
 export interface ServiceResult {
   service_type: ServiceType;
   result: string;
@@ -406,6 +419,7 @@ export interface ServiceResult {
   btc_rainbow?: BtcRainbowData;
   altcoin_season?: AltcoinSeasonData;
   btc_mining?: BtcMiningData;
+  bridge_volume?: BridgeVolumeData;
   timestamp: string;
   delivered_to: string;
 }
@@ -2373,6 +2387,51 @@ export async function deliverBtcMining(delivered_to: string, timestamp: string):
   return { service_type: "btc-mining", result, btc_mining, timestamp, delivered_to };
 }
 
+export async function deliverBridgeVolume(delivered_to: string, timestamp: string): Promise<ServiceResult> {
+  let bridge_volume: BridgeVolumeData | undefined;
+
+  try {
+    const res = await fetch("https://bridges.llama.fi/bridges?includeChains=true", {
+      headers: { "User-Agent": "skill-tokenized-agents/1.0" },
+    });
+    if (res.ok) {
+      const data = await res.json();
+      const rawBridges = (data.bridges ?? []) as Array<{
+        displayName: string;
+        last24hVolume: number;
+        weeklyVolume: number;
+        chains: string[];
+      }>;
+
+      // Sort by 24h volume descending, take top 10
+      const sorted = rawBridges
+        .filter((b) => b.last24hVolume > 0)
+        .sort((a, b) => b.last24hVolume - a.last24hVolume)
+        .slice(0, 10);
+
+      const bridges: BridgeEntry[] = sorted.map((b) => ({
+        name: b.displayName,
+        volume_24h_usd: b.last24hVolume,
+        volume_7d_usd: b.weeklyVolume,
+        chains: b.chains.length,
+      }));
+
+      const total_24h_usd = rawBridges.reduce((s, b) => s + (b.last24hVolume ?? 0), 0);
+      const total_7d_usd = rawBridges.reduce((s, b) => s + (b.weeklyVolume ?? 0), 0);
+
+      bridge_volume = { bridges, total_24h_usd, total_7d_usd };
+    }
+  } catch {
+    // Fall through with undefined bridge_volume
+  }
+
+  const result = bridge_volume
+    ? `Top bridge: ${bridge_volume.bridges[0]?.name} $${(bridge_volume.bridges[0]?.volume_24h_usd / 1e6).toFixed(0)}M · Total 24h $${(bridge_volume.total_24h_usd / 1e9).toFixed(2)}B across ${bridge_volume.bridges.length} bridges`
+    : "Bridge volume data temporarily unavailable";
+
+  return { service_type: "bridge-volume", result, bridge_volume, timestamp, delivered_to };
+}
+
 export async function deliverService(delivered_to: string, serviceType: ServiceType): Promise<ServiceResult> {
   const timestamp = new Date().toISOString();
   if (serviceType === "solana-stats") return deliverSolanaStats(delivered_to, timestamp);
@@ -2404,5 +2463,6 @@ export async function deliverService(delivered_to: string, serviceType: ServiceT
   if (serviceType === "btc-rainbow") return deliverBtcRainbow(delivered_to, timestamp);
   if (serviceType === "altcoin-season") return deliverAltcoinSeason(delivered_to, timestamp);
   if (serviceType === "btc-mining") return deliverBtcMining(delivered_to, timestamp);
+  if (serviceType === "bridge-volume") return deliverBridgeVolume(delivered_to, timestamp);
   return deliverCryptoPrices(delivered_to, timestamp);
 }

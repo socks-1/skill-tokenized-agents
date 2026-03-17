@@ -38,6 +38,7 @@ import type {
   BtcRainbowData,
   AltcoinSeasonData,
   BtcMiningData,
+  BridgeVolumeData,
 } from "@/lib/services";
 
 interface InvoiceParams {
@@ -289,6 +290,13 @@ const SERVICE_OPTIONS: { id: ServiceType; label: string; description: string; pr
     description: "Bitcoin network health at a glance — current hashrate, average block time, and the expected difficulty adjustment at the next retarget",
     price: "1 USDC",
     category: "Market Data",
+  },
+  {
+    id: "bridge-volume",
+    label: "Cross-Chain Bridge Volume",
+    description: "Top 10 cross-chain bridges ranked by 24h transfer volume — LayerZero, Circle CCTP, Wormhole, and more. Shows 7d volume and chain coverage",
+    price: "1 USDC",
+    category: "DeFi",
   },
 ];
 
@@ -690,6 +698,23 @@ const MOCK_BTC_MINING: BtcMiningData = {
   prev_retarget_pct: 1.8,
   next_retarget_height: 941472,
   avg_block_time_sec: 624,
+};
+
+const MOCK_BRIDGE_VOLUME: BridgeVolumeData = {
+  bridges: [
+    { name: "LayerZero", volume_24h_usd: 323_135_309, volume_7d_usd: 2_110_634_587, chains: 114 },
+    { name: "Circle CCTP", volume_24h_usd: 282_878_455, volume_7d_usd: 1_975_969_588, chains: 16 },
+    { name: "USDT0", volume_24h_usd: 195_700_000, volume_7d_usd: 1_568_000_000, chains: 20 },
+    { name: "Hyperliquid", volume_24h_usd: 90_000_000, volume_7d_usd: 439_000_000, chains: 2 },
+    { name: "Wormhole", volume_24h_usd: 50_200_000, volume_7d_usd: 655_000_000, chains: 27 },
+    { name: "Relay", volume_24h_usd: 41_400_000, volume_7d_usd: 329_000_000, chains: 44 },
+    { name: "Chainlink CCIP", volume_24h_usd: 23_100_000, volume_7d_usd: 582_000_000, chains: 75 },
+    { name: "Polygon PoS Bridge", volume_24h_usd: 16_400_000, volume_7d_usd: 70_000_000, chains: 2 },
+    { name: "Hyperlane", volume_24h_usd: 16_000_000, volume_7d_usd: 0, chains: 66 },
+    { name: "Stargate", volume_24h_usd: 14_300_000, volume_7d_usd: 95_000_000, chains: 18 },
+  ],
+  total_24h_usd: 1_380_000_000,
+  total_7d_usd: 9_200_000_000,
 };
 
 const MOCK_SIGNATURE =
@@ -1590,6 +1615,15 @@ function buildTourSteps(serviceType: ServiceType, liveData?: ServiceResult): Pay
       service_type: "btc-mining",
       result: `${bm.hashrate_eh} EH/s · Next adjustment ${bm.difficulty_change_pct >= 0 ? "+" : ""}${bm.difficulty_change_pct}% in ${bm.remaining_blocks} blocks (${bm.days_until_retarget}d) · Avg block ${bm.avg_block_time_sec}s`,
       btc_mining: bm,
+      timestamp: new Date().toISOString(),
+      delivered_to: "Demo1234...abcd",
+    };
+  } else if (serviceType === "bridge-volume") {
+    const bv = liveData?.bridge_volume ?? MOCK_BRIDGE_VOLUME;
+    mockService = liveData ?? {
+      service_type: "bridge-volume",
+      result: `Top bridge: ${bv.bridges[0]?.name} $${(bv.bridges[0]?.volume_24h_usd / 1e6).toFixed(0)}M · Total 24h $${(bv.total_24h_usd / 1e9).toFixed(2)}B across ${bv.bridges.length} bridges`,
+      bridge_volume: bv,
       timestamp: new Date().toISOString(),
       delivered_to: "Demo1234...abcd",
     };
@@ -3021,6 +3055,52 @@ function ServiceResultTable({ service }: { service: ServiceResult }) {
         </div>
         <p style={{ marginTop: 4, fontSize: 12, color: "#888" }}>
           Hashrate + difficulty data · via mempool.space
+        </p>
+      </div>
+    );
+  }
+
+  if (service.service_type === "bridge-volume" && service.bridge_volume) {
+    const bv = service.bridge_volume;
+    const fmtM = (v: number) => `$${(v / 1e6).toFixed(0)}M`;
+    const fmtB = (v: number) => `$${(v / 1e9).toFixed(2)}B`;
+    return (
+      <div>
+        <div style={{ marginBottom: 14, padding: 14, background: "#fafafa", borderRadius: 8, border: "1px solid #f0f0f0" }}>
+          {/* Summary row */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px 16px", marginBottom: 14 }}>
+            <div>
+              <div style={{ fontSize: 11, color: "#aaa", marginBottom: 2 }}>Total 24h Volume</div>
+              <div style={{ fontWeight: 700, fontSize: 18, color: "#222" }}>{fmtB(bv.total_24h_usd)}</div>
+            </div>
+            <div>
+              <div style={{ fontSize: 11, color: "#aaa", marginBottom: 2 }}>Total 7d Volume</div>
+              <div style={{ fontWeight: 700, fontSize: 18, color: "#555" }}>{fmtB(bv.total_7d_usd)}</div>
+            </div>
+          </div>
+          {/* Bridge rows */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {bv.bridges.map((b, i) => {
+              const barPct = Math.round((b.volume_24h_usd / bv.bridges[0].volume_24h_usd) * 100);
+              return (
+                <div key={b.name} style={{ display: "grid", gridTemplateColumns: "18px 1fr 70px 60px 44px", gap: "0 8px", alignItems: "center" }}>
+                  <div style={{ fontSize: 11, color: "#bbb", textAlign: "right" }}>{i + 1}</div>
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: "#222", marginBottom: 2 }}>{b.name}</div>
+                    <div style={{ height: 4, borderRadius: 2, background: "#e8e8e8" }}>
+                      <div style={{ height: "100%", width: `${barPct}%`, borderRadius: 2, background: "#2563eb" }} />
+                    </div>
+                  </div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: "#222", textAlign: "right" }}>{fmtM(b.volume_24h_usd)}</div>
+                  <div style={{ fontSize: 11, color: "#888", textAlign: "right" }}>{fmtM(b.volume_7d_usd)} 7d</div>
+                  <div style={{ fontSize: 10, color: "#aaa", textAlign: "right" }}>{b.chains}c</div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+        <p style={{ marginTop: 4, fontSize: 12, color: "#888" }}>
+          Top 10 bridges by 24h volume · via DeFi Llama
         </p>
       </div>
     );
