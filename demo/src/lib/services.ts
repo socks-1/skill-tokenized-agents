@@ -3,10 +3,10 @@
  * All functions are read-only calls to public APIs — no auth required.
  */
 
-export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season" | "btc-mining" | "bridge-volume";
+export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season" | "btc-mining" | "bridge-volume" | "tvl-movers";
 
 /** All valid service type strings — use this for runtime validation instead of duplicating the list. */
-export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season", "btc-mining", "bridge-volume"];
+export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season", "btc-mining", "bridge-volume", "tvl-movers"];
 
 export interface MarketData {
   symbol: string;
@@ -386,6 +386,20 @@ export interface BridgeVolumeData {
   total_7d_usd: number;           // sum of all bridge 7d volume
 }
 
+export interface TvlMoverEntry {
+  name: string;          // protocol display name
+  chain: string;         // primary chain or "Multi-chain"
+  category: string;      // DeFi category (e.g. "Dexes", "Lending")
+  tvl_usd: number;       // current TVL in USD
+  change_7d_pct: number; // 7-day % TVL change
+}
+
+export interface TvlMoversData {
+  gainers: TvlMoverEntry[];  // top 5 biggest 7-day TVL gainers
+  losers: TvlMoverEntry[];   // top 5 biggest 7-day TVL losers
+  total_defi_tvl: number;    // total DeFi TVL across all protocols
+}
+
 export interface ServiceResult {
   service_type: ServiceType;
   result: string;
@@ -420,6 +434,7 @@ export interface ServiceResult {
   altcoin_season?: AltcoinSeasonData;
   btc_mining?: BtcMiningData;
   bridge_volume?: BridgeVolumeData;
+  tvl_movers?: TvlMoversData;
   timestamp: string;
   delivered_to: string;
 }
@@ -2432,6 +2447,71 @@ export async function deliverBridgeVolume(delivered_to: string, timestamp: strin
   return { service_type: "bridge-volume", result, bridge_volume, timestamp, delivered_to };
 }
 
+/**
+ * Fetches DeFi protocol TVL data from DeFi Llama and returns the biggest 7-day movers.
+ * Shows top 5 gainers and top 5 losers by 7-day % TVL change, filtered to protocols
+ * with TVL > $100M to exclude noise from small/inactive protocols.
+ */
+export async function deliverTvlMovers(delivered_to: string, timestamp: string): Promise<ServiceResult> {
+  let tvl_movers: TvlMoversData | undefined;
+
+  try {
+    const res = await fetch("https://api.llama.fi/protocols", {
+      headers: { Accept: "application/json", "User-Agent": "skill-tokenized-agents/1.0" },
+      signal: AbortSignal.timeout(12000),
+    });
+
+    if (res.ok) {
+      const data = (await res.json()) as Array<{
+        name: string;
+        symbol: string;
+        tvl: number;
+        change_7d: number;
+        change_1d: number;
+        chains: string[];
+        category: string;
+      }>;
+
+      // Filter: meaningful TVL, valid 7d change data
+      const eligible = data.filter(
+        (p) => p.tvl > 100_000_000 && typeof p.change_7d === "number" && isFinite(p.change_7d),
+      );
+
+      const toEntry = (p: (typeof eligible)[number]): TvlMoverEntry => ({
+        name: p.name,
+        chain: (p.chains?.length === 1 ? p.chains[0] : null) ?? "Multi-chain",
+        category: p.category ?? "DeFi",
+        tvl_usd: p.tvl,
+        change_7d_pct: parseFloat(p.change_7d.toFixed(2)),
+      });
+
+      const gainers = eligible
+        .filter((p) => p.change_7d > 0)
+        .sort((a, b) => b.change_7d - a.change_7d)
+        .slice(0, 5)
+        .map(toEntry);
+
+      const losers = eligible
+        .filter((p) => p.change_7d < 0)
+        .sort((a, b) => a.change_7d - b.change_7d)
+        .slice(0, 5)
+        .map(toEntry);
+
+      const total_defi_tvl = data.reduce((s, p) => s + (p.tvl ?? 0), 0);
+
+      tvl_movers = { gainers, losers, total_defi_tvl };
+    }
+  } catch {
+    // Fall through with undefined tvl_movers
+  }
+
+  const result = tvl_movers
+    ? `Top gainer: ${tvl_movers.gainers[0]?.name} +${tvl_movers.gainers[0]?.change_7d_pct.toFixed(1)}% 7d · Biggest drop: ${tvl_movers.losers[0]?.name} ${tvl_movers.losers[0]?.change_7d_pct.toFixed(1)}% 7d · Total DeFi TVL $${(tvl_movers.total_defi_tvl / 1e9).toFixed(1)}B`
+    : "TVL movers data temporarily unavailable";
+
+  return { service_type: "tvl-movers", result, tvl_movers, timestamp, delivered_to };
+}
+
 export async function deliverService(delivered_to: string, serviceType: ServiceType): Promise<ServiceResult> {
   const timestamp = new Date().toISOString();
   if (serviceType === "solana-stats") return deliverSolanaStats(delivered_to, timestamp);
@@ -2464,5 +2544,6 @@ export async function deliverService(delivered_to: string, serviceType: ServiceT
   if (serviceType === "altcoin-season") return deliverAltcoinSeason(delivered_to, timestamp);
   if (serviceType === "btc-mining") return deliverBtcMining(delivered_to, timestamp);
   if (serviceType === "bridge-volume") return deliverBridgeVolume(delivered_to, timestamp);
+  if (serviceType === "tvl-movers") return deliverTvlMovers(delivered_to, timestamp);
   return deliverCryptoPrices(delivered_to, timestamp);
 }

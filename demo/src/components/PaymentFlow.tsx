@@ -39,6 +39,7 @@ import type {
   AltcoinSeasonData,
   BtcMiningData,
   BridgeVolumeData,
+  TvlMoversData,
 } from "@/lib/services";
 
 interface InvoiceParams {
@@ -295,6 +296,13 @@ const SERVICE_OPTIONS: { id: ServiceType; label: string; description: string; pr
     id: "bridge-volume",
     label: "Cross-Chain Bridge Volume",
     description: "Top 10 cross-chain bridges ranked by 24h transfer volume — LayerZero, Circle CCTP, Wormhole, and more. Shows 7d volume and chain coverage",
+    price: "1 USDC",
+    category: "DeFi",
+  },
+  {
+    id: "tvl-movers",
+    label: "DeFi TVL Movers",
+    description: "Top 5 DeFi protocols gaining and losing TVL over the past 7 days — spot emerging trends and capital rotation across protocols",
     price: "1 USDC",
     category: "DeFi",
   },
@@ -715,6 +723,24 @@ const MOCK_BRIDGE_VOLUME: BridgeVolumeData = {
   ],
   total_24h_usd: 1_380_000_000,
   total_7d_usd: 9_200_000_000,
+};
+
+const MOCK_TVL_MOVERS: TvlMoversData = {
+  gainers: [
+    { name: "Fluid", chain: "Ethereum", category: "Lending", tvl_usd: 1_820_000_000, change_7d_pct: 34.2 },
+    { name: "Berachain", chain: "Berachain", category: "Dexes", tvl_usd: 3_100_000_000, change_7d_pct: 22.7 },
+    { name: "Ethena", chain: "Multi-chain", category: "Yield", tvl_usd: 5_400_000_000, change_7d_pct: 18.3 },
+    { name: "Resolv", chain: "Ethereum", category: "Yield", tvl_usd: 780_000_000, change_7d_pct: 15.1 },
+    { name: "PancakeSwap", chain: "Multi-chain", category: "Dexes", tvl_usd: 2_300_000_000, change_7d_pct: 11.6 },
+  ],
+  losers: [
+    { name: "Maker", chain: "Ethereum", category: "CDP", tvl_usd: 4_200_000_000, change_7d_pct: -18.4 },
+    { name: "Convex Finance", chain: "Ethereum", category: "Yield", tvl_usd: 1_100_000_000, change_7d_pct: -14.2 },
+    { name: "Stargate", chain: "Multi-chain", category: "Bridge", tvl_usd: 450_000_000, change_7d_pct: -11.8 },
+    { name: "Frax Finance", chain: "Multi-chain", category: "CDP", tvl_usd: 680_000_000, change_7d_pct: -9.5 },
+    { name: "SushiSwap", chain: "Multi-chain", category: "Dexes", tvl_usd: 230_000_000, change_7d_pct: -7.3 },
+  ],
+  total_defi_tvl: 88_700_000_000,
 };
 
 const MOCK_SIGNATURE =
@@ -1624,6 +1650,15 @@ function buildTourSteps(serviceType: ServiceType, liveData?: ServiceResult): Pay
       service_type: "bridge-volume",
       result: `Top bridge: ${bv.bridges[0]?.name} $${(bv.bridges[0]?.volume_24h_usd / 1e6).toFixed(0)}M · Total 24h $${(bv.total_24h_usd / 1e9).toFixed(2)}B across ${bv.bridges.length} bridges`,
       bridge_volume: bv,
+      timestamp: new Date().toISOString(),
+      delivered_to: "Demo1234...abcd",
+    };
+  } else if (serviceType === "tvl-movers") {
+    const tm = liveData?.tvl_movers ?? MOCK_TVL_MOVERS;
+    mockService = liveData ?? {
+      service_type: "tvl-movers",
+      result: `Top gainer: ${tm.gainers[0]?.name} +${tm.gainers[0]?.change_7d_pct.toFixed(1)}% 7d · Biggest drop: ${tm.losers[0]?.name} ${tm.losers[0]?.change_7d_pct.toFixed(1)}% 7d · Total DeFi TVL $${(tm.total_defi_tvl / 1e9).toFixed(1)}B`,
+      tvl_movers: tm,
       timestamp: new Date().toISOString(),
       delivered_to: "Demo1234...abcd",
     };
@@ -3101,6 +3136,56 @@ function ServiceResultTable({ service }: { service: ServiceResult }) {
         </div>
         <p style={{ marginTop: 4, fontSize: 12, color: "#888" }}>
           Top 10 bridges by 24h volume · via DeFi Llama
+        </p>
+      </div>
+    );
+  }
+
+  if (service.service_type === "tvl-movers" && service.tvl_movers) {
+    const tm = service.tvl_movers;
+    const fmtTvl = (v: number) =>
+      v >= 1e9 ? `$${(v / 1e9).toFixed(2)}B` : `$${(v / 1e6).toFixed(0)}M`;
+    const GainerRow = ({ e }: { e: TvlMoversData["gainers"][number] }) => (
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 80px 72px 60px", gap: "0 8px", alignItems: "center", padding: "5px 0", borderBottom: "1px solid #f5f5f5" }}>
+        <div>
+          <div style={{ fontSize: 12, fontWeight: 600, color: "#222" }}>{e.name}</div>
+          <div style={{ fontSize: 10, color: "#aaa" }}>{e.category} · {e.chain}</div>
+        </div>
+        <div style={{ fontSize: 11, color: "#888", textAlign: "right" }}>{fmtTvl(e.tvl_usd)}</div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: "#16a34a", textAlign: "right" }}>+{e.change_7d_pct.toFixed(1)}%</div>
+        <div style={{ fontSize: 10, color: "#bbb", textAlign: "right" }}>7d</div>
+      </div>
+    );
+    const LoserRow = ({ e }: { e: TvlMoversData["losers"][number] }) => (
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 80px 72px 60px", gap: "0 8px", alignItems: "center", padding: "5px 0", borderBottom: "1px solid #f5f5f5" }}>
+        <div>
+          <div style={{ fontSize: 12, fontWeight: 600, color: "#222" }}>{e.name}</div>
+          <div style={{ fontSize: 10, color: "#aaa" }}>{e.category} · {e.chain}</div>
+        </div>
+        <div style={{ fontSize: 11, color: "#888", textAlign: "right" }}>{fmtTvl(e.tvl_usd)}</div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: "#dc2626", textAlign: "right" }}>{e.change_7d_pct.toFixed(1)}%</div>
+        <div style={{ fontSize: 10, color: "#bbb", textAlign: "right" }}>7d</div>
+      </div>
+    );
+    return (
+      <div>
+        <div style={{ marginBottom: 14, padding: "10px 14px", background: "#fafafa", borderRadius: 8, border: "1px solid #f0f0f0" }}>
+          <div style={{ fontSize: 11, color: "#aaa", marginBottom: 8 }}>
+            Total DeFi TVL: <strong style={{ color: "#555" }}>${(tm.total_defi_tvl / 1e9).toFixed(1)}B</strong>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: "#16a34a", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.05em" }}>▲ Top Gainers</div>
+              {tm.gainers.map((e) => <GainerRow key={e.name} e={e} />)}
+            </div>
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: "#dc2626", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.05em" }}>▼ Top Losers</div>
+              {tm.losers.map((e) => <LoserRow key={e.name} e={e} />)}
+            </div>
+          </div>
+        </div>
+        <p style={{ marginTop: 4, fontSize: 12, color: "#888" }}>
+          7-day TVL change · protocols with TVL &gt; $100M · via DeFi Llama
         </p>
       </div>
     );
