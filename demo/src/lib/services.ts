@@ -3,10 +3,10 @@
  * All functions are read-only calls to public APIs — no auth required.
  */
 
-export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi";
+export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain";
 
 /** All valid service type strings — use this for runtime validation instead of duplicating the list. */
-export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi"];
+export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain"];
 
 export interface MarketData {
   symbol: string;
@@ -314,6 +314,20 @@ export interface OptionsOIData {
   assets: OptionsOIAsset[];
 }
 
+export interface MaxPainAsset {
+  asset: string;           // "BTC" or "ETH"
+  spot_usd: number;
+  max_pain_strike: number;
+  distance_pct: number;    // (max_pain - spot) / spot * 100
+  direction: "above" | "below" | "at";
+  expiry: string;          // e.g. "27MAR26"
+  expiry_oi_contracts: number;  // total OI at this expiry in native units
+}
+
+export interface OptionsMaxPainData {
+  assets: MaxPainAsset[];
+}
+
 export interface ServiceResult {
   service_type: ServiceType;
   result: string;
@@ -343,6 +357,7 @@ export interface ServiceResult {
   defi_fees?: DefiFeesData;
   cex_volume?: CexVolumeData;
   options_oi?: OptionsOIData;
+  options_max_pain?: OptionsMaxPainData;
   timestamp: string;
   delivered_to: string;
 }
@@ -1994,6 +2009,119 @@ export async function deliverOptionsOI(delivered_to: string, timestamp: string):
   return { service_type: "options-oi", result, options_oi, timestamp, delivered_to };
 }
 
+export async function deliverOptionsMaxPain(delivered_to: string, timestamp: string): Promise<ServiceResult> {
+  let options_max_pain: OptionsMaxPainData | undefined;
+
+  interface DeribitSummaryItem {
+    instrument_name: string;
+    open_interest: number;
+    underlying_price: number;
+  }
+  interface DeribitResponse {
+    result: DeribitSummaryItem[];
+  }
+
+  const MONTHS: Record<string, number> = {
+    JAN: 1, FEB: 2, MAR: 3, APR: 4, MAY: 5, JUN: 6,
+    JUL: 7, AUG: 8, SEP: 9, OCT: 10, NOV: 11, DEC: 12,
+  };
+
+  function parseExpiry(s: string): Date | null {
+    const m = s.match(/^(\d{1,2})([A-Z]{3})(\d{2})$/);
+    if (!m) return null;
+    const month = MONTHS[m[2]];
+    if (!month) return null;
+    return new Date(Date.UTC(2000 + parseInt(m[3]), month - 1, parseInt(m[1])));
+  }
+
+  function computeMaxPain(
+    strikeData: Map<number, { call: number; put: number; spot: number }>
+  ): { max_pain_strike: number; spot: number; total_oi: number } {
+    const entries = Array.from(strikeData.entries());
+    const spot = entries.find(([, v]) => v.spot > 0)?.[1].spot ?? 0;
+    const total_oi = entries.reduce((sum, [, v]) => sum + v.call + v.put, 0);
+    let minPayout = Infinity;
+    let max_pain_strike = 0;
+    for (const [K] of entries) {
+      let payout = 0;
+      for (const [S, v] of entries) {
+        if (S > K) payout += (S - K) * v.call;  // in-the-money calls
+        if (S < K) payout += (K - S) * v.put;   // in-the-money puts
+      }
+      if (payout < minPayout) { minPayout = payout; max_pain_strike = K; }
+    }
+    return { max_pain_strike, spot, total_oi };
+  }
+
+  try {
+    const now = Date.now();
+    const assets: MaxPainAsset[] = [];
+
+    for (const currency of ["BTC", "ETH"] as const) {
+      const res = await fetch(
+        `https://www.deribit.com/api/v2/public/get_book_summary_by_currency?currency=${currency}&kind=option`
+      );
+      if (!res.ok) continue;
+      const json = (await res.json()) as DeribitResponse;
+      const instruments = json.result ?? [];
+
+      // Group by expiry -> strike -> {call OI, put OI, spot}
+      const expiryMap = new Map<string, Map<number, { call: number; put: number; spot: number }>>();
+      for (const inst of instruments) {
+        const parts = inst.instrument_name.split("-");
+        if (parts.length < 4) continue;
+        const expiry = parts[1];
+        const strike = parseInt(parts[2]);
+        const optType = parts[3];
+        if (isNaN(strike)) continue;
+        if (!expiryMap.has(expiry)) expiryMap.set(expiry, new Map());
+        const sm = expiryMap.get(expiry)!;
+        if (!sm.has(strike)) sm.set(strike, { call: 0, put: 0, spot: 0 });
+        const entry = sm.get(strike)!;
+        if (optType === "C") entry.call += inst.open_interest;
+        else if (optType === "P") entry.put += inst.open_interest;
+        if (inst.underlying_price > 0) entry.spot = inst.underlying_price;
+      }
+
+      // Find the future expiry with the highest total OI
+      let bestExpiry = "";
+      let bestOI = 0;
+      for (const [expiry, strikeData] of expiryMap.entries()) {
+        const dt = parseExpiry(expiry);
+        if (!dt || dt.getTime() <= now) continue;
+        const totalOI = Array.from(strikeData.values()).reduce((s, v) => s + v.call + v.put, 0);
+        if (totalOI > bestOI) { bestOI = totalOI; bestExpiry = expiry; }
+      }
+      if (!bestExpiry) continue;
+
+      const strikeData = expiryMap.get(bestExpiry)!;
+      const { max_pain_strike, spot, total_oi } = computeMaxPain(strikeData);
+      if (spot === 0) continue;
+
+      const distance_pct = parseFloat(((max_pain_strike - spot) / spot * 100).toFixed(1));
+      const direction: MaxPainAsset["direction"] =
+        distance_pct > 0.5 ? "above" : distance_pct < -0.5 ? "below" : "at";
+
+      assets.push({ asset: currency, spot_usd: Math.round(spot), max_pain_strike, distance_pct, direction, expiry: bestExpiry, expiry_oi_contracts: Math.round(total_oi) });
+    }
+
+    if (assets.length > 0) {
+      options_max_pain = { assets };
+    }
+  } catch {
+    // Fall through with undefined options_max_pain
+  }
+
+  const result =
+    options_max_pain && options_max_pain.assets.length > 0
+      ? options_max_pain.assets
+          .map((a) => `${a.asset} max pain $${a.max_pain_strike.toLocaleString()} (${a.distance_pct > 0 ? "+" : ""}${a.distance_pct}% vs spot)`)
+          .join(" | ")
+      : "Options max pain data temporarily unavailable";
+
+  return { service_type: "options-max-pain", result, options_max_pain, timestamp, delivered_to };
+}
+
 export async function deliverService(delivered_to: string, serviceType: ServiceType): Promise<ServiceResult> {
   const timestamp = new Date().toISOString();
   if (serviceType === "solana-stats") return deliverSolanaStats(delivered_to, timestamp);
@@ -2021,5 +2149,6 @@ export async function deliverService(delivered_to: string, serviceType: ServiceT
   if (serviceType === "defi-fees") return deliverDefiFees(delivered_to, timestamp);
   if (serviceType === "cex-volume") return deliverCexVolume(delivered_to, timestamp);
   if (serviceType === "options-oi") return deliverOptionsOI(delivered_to, timestamp);
+  if (serviceType === "options-max-pain") return deliverOptionsMaxPain(delivered_to, timestamp);
   return deliverCryptoPrices(delivered_to, timestamp);
 }

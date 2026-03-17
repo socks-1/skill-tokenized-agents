@@ -34,6 +34,7 @@ import type {
   DefiFeesData,
   CexVolumeData,
   OptionsOIData,
+  OptionsMaxPainData,
 } from "@/lib/services";
 
 interface InvoiceParams {
@@ -255,6 +256,13 @@ const SERVICE_OPTIONS: { id: ServiceType; label: string; description: string; pr
     id: "options-oi",
     label: "Crypto Options Open Interest",
     description: "BTC and ETH options open interest, put/call ratios, and top expiry concentration — live from Deribit, the #1 crypto options exchange",
+    price: "1 USDC",
+    category: "Market Data",
+  },
+  {
+    id: "options-max-pain",
+    label: "Options Max Pain",
+    description: "BTC and ETH options max pain strike prices — the level where option buyers lose the most, live from Deribit for the dominant upcoming expiry",
     price: "1 USDC",
     category: "Market Data",
   },
@@ -589,6 +597,29 @@ const MOCK_OPTIONS_OI: OptionsOIData = {
       put_call_ratio: 0.73,
       top_expiry: "28MAR25",
       top_expiry_oi_usd: 2_100_000_000,
+    },
+  ],
+};
+
+const MOCK_OPTIONS_MAX_PAIN: OptionsMaxPainData = {
+  assets: [
+    {
+      asset: "BTC",
+      spot_usd: 82000,
+      max_pain_strike: 80000,
+      distance_pct: -2.4,
+      direction: "below",
+      expiry: "27MAR26",
+      expiry_oi_contracts: 185000,
+    },
+    {
+      asset: "ETH",
+      spot_usd: 2000,
+      max_pain_strike: 2200,
+      distance_pct: 10.0,
+      direction: "above",
+      expiry: "27MAR26",
+      expiry_oi_contracts: 950000,
     },
   ],
 };
@@ -1455,6 +1486,15 @@ function buildTourSteps(serviceType: ServiceType, liveData?: ServiceResult): Pay
       service_type: "options-oi",
       result: oo.assets.map((a) => `${a.asset} OI ${fmtOI(a.total_oi_usd)} P/C ${a.put_call_ratio}`).join(" | "),
       options_oi: oo,
+      timestamp: new Date().toISOString(),
+      delivered_to: "Demo1234...abcd",
+    };
+  } else if (serviceType === "options-max-pain") {
+    const mp = liveData?.options_max_pain ?? MOCK_OPTIONS_MAX_PAIN;
+    mockService = liveData ?? {
+      service_type: "options-max-pain",
+      result: mp.assets.map((a) => `${a.asset} max pain $${a.max_pain_strike.toLocaleString()} (${a.distance_pct > 0 ? "+" : ""}${a.distance_pct}% vs spot)`).join(" | "),
+      options_max_pain: mp,
       timestamp: new Date().toISOString(),
       delivered_to: "Demo1234...abcd",
     };
@@ -2634,6 +2674,59 @@ function ServiceResultTable({ service }: { service: ServiceResult }) {
         ))}
         <p style={{ marginTop: 4, fontSize: 12, color: "#888" }}>
           Live options OI · put/call ratio · via Deribit
+        </p>
+      </div>
+    );
+  }
+
+  if (service.service_type === "options-max-pain" && service.options_max_pain) {
+    const mp = service.options_max_pain;
+    return (
+      <div>
+        {mp.assets.map((a) => {
+          const dirColor = a.direction === "above" ? "#1a7a3a" : a.direction === "below" ? "#c0392b" : "#888";
+          const dirLabel = a.direction === "above" ? "▲ above spot" : a.direction === "below" ? "▼ below spot" : "≈ at spot";
+          return (
+            <div key={a.asset} style={{ marginBottom: 16, padding: 12, background: "#fafafa", borderRadius: 8, border: "1px solid #f0f0f0" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                <span style={{ fontWeight: 700, fontSize: 15 }}>{a.asset} Max Pain</span>
+                <span style={{ fontSize: 12, color: "#888" }}>expiry {a.expiry}</span>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 16px" }}>
+                <div>
+                  <div style={{ fontSize: 11, color: "#aaa", marginBottom: 2 }}>Max Pain Strike</div>
+                  <div style={{ fontWeight: 700, fontSize: 18, color: "#222" }}>${a.max_pain_strike.toLocaleString()}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, color: "#aaa", marginBottom: 2 }}>Current Spot</div>
+                  <div style={{ fontWeight: 700, fontSize: 18, color: "#222" }}>${a.spot_usd.toLocaleString()}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, color: "#aaa", marginBottom: 2 }}>Distance</div>
+                  <div style={{ fontWeight: 600, fontSize: 14, color: dirColor }}>
+                    {a.distance_pct > 0 ? "+" : ""}{a.distance_pct}% &nbsp;
+                    <span style={{ fontSize: 11 }}>{dirLabel}</span>
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, color: "#aaa", marginBottom: 2 }}>Expiry OI</div>
+                  <div style={{ fontWeight: 600, fontSize: 13, color: "#555" }}>
+                    {a.expiry_oi_contracts >= 1_000_000
+                      ? `${(a.expiry_oi_contracts / 1_000_000).toFixed(1)}M`
+                      : a.expiry_oi_contracts >= 1_000
+                      ? `${(a.expiry_oi_contracts / 1_000).toFixed(0)}K`
+                      : a.expiry_oi_contracts.toLocaleString()} {a.asset}
+                  </div>
+                </div>
+              </div>
+              <div style={{ marginTop: 10, padding: "6px 10px", background: "#f8f4ff", borderRadius: 6, fontSize: 12, color: "#5a4a8a" }}>
+                Market makers are most profitable if {a.asset} expires near <strong>${a.max_pain_strike.toLocaleString()}</strong>
+              </div>
+            </div>
+          );
+        })}
+        <p style={{ marginTop: 4, fontSize: 12, color: "#888" }}>
+          Live max pain · dominant expiry by OI · via Deribit
         </p>
       </div>
     );
