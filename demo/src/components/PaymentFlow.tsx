@@ -40,6 +40,7 @@ import type {
   BtcMiningData,
   BridgeVolumeData,
   TvlMoversData,
+  DefiHacksData,
 } from "@/lib/services";
 
 interface InvoiceParams {
@@ -303,6 +304,13 @@ const SERVICE_OPTIONS: { id: ServiceType; label: string; description: string; pr
     id: "tvl-movers",
     label: "DeFi TVL Movers",
     description: "Top 5 DeFi protocols gaining and losing TVL over the past 7 days — spot emerging trends and capital rotation across protocols",
+    price: "1 USDC",
+    category: "DeFi",
+  },
+  {
+    id: "defi-hacks",
+    label: "DeFi Hack Tracker",
+    description: "10 most recent DeFi protocol exploits ranked by date — hack type, chains affected, and USD amount stolen. Powered by DeFi Llama",
     price: "1 USDC",
     category: "DeFi",
   },
@@ -741,6 +749,23 @@ const MOCK_TVL_MOVERS: TvlMoversData = {
     { name: "SushiSwap", chain: "Multi-chain", category: "Dexes", tvl_usd: 230_000_000, change_7d_pct: -7.3 },
   ],
   total_defi_tvl: 88_700_000_000,
+};
+
+const MOCK_DEFI_HACKS: DefiHacksData = {
+  hacks: [
+    { name: "Bybit Exchange", date: "2025-02-21", amount_usd: 1_500_000_000, chains: ["Ethereum"], classification: "Hack" },
+    { name: "Radiant Capital", date: "2024-10-16", amount_usd: 58_000_000, chains: ["Arbitrum", "BNB Chain"], classification: "Hack" },
+    { name: "UwU Lend", date: "2024-06-10", amount_usd: 19_300_000, chains: ["Ethereum"], classification: "Flash Loan" },
+    { name: "Penpie", date: "2024-09-03", amount_usd: 27_000_000, chains: ["Ethereum", "Arbitrum"], classification: "Reentrancy" },
+    { name: "Hedgey Finance", date: "2024-04-19", amount_usd: 44_700_000, chains: ["Ethereum", "Arbitrum"], classification: "Hack" },
+    { name: "Prisma Finance", date: "2024-03-28", amount_usd: 11_600_000, chains: ["Ethereum"], classification: "Flash Loan" },
+    { name: "Gamma Strategies", date: "2024-01-04", amount_usd: 6_100_000, chains: ["Ethereum", "Arbitrum"], classification: "Price Oracle" },
+    { name: "Orbit Chain", date: "2023-12-31", amount_usd: 81_500_000, chains: ["Ethereum"], classification: "Hack" },
+    { name: "Platypus Finance", date: "2023-10-12", amount_usd: 2_200_000, chains: ["Avalanche"], classification: "Flash Loan" },
+    { name: "Euler Finance", date: "2023-03-13", amount_usd: 197_000_000, chains: ["Ethereum"], classification: "Flash Loan" },
+  ],
+  total_30d_usd: 63_000_000,
+  count_30d: 4,
 };
 
 const MOCK_SIGNATURE =
@@ -1659,6 +1684,15 @@ function buildTourSteps(serviceType: ServiceType, liveData?: ServiceResult): Pay
       service_type: "tvl-movers",
       result: `Top gainer: ${tm.gainers[0]?.name} +${tm.gainers[0]?.change_7d_pct.toFixed(1)}% 7d · Biggest drop: ${tm.losers[0]?.name} ${tm.losers[0]?.change_7d_pct.toFixed(1)}% 7d · Total DeFi TVL $${(tm.total_defi_tvl / 1e9).toFixed(1)}B`,
       tvl_movers: tm,
+      timestamp: new Date().toISOString(),
+      delivered_to: "Demo1234...abcd",
+    };
+  } else if (serviceType === "defi-hacks") {
+    const dh = liveData?.defi_hacks ?? MOCK_DEFI_HACKS;
+    mockService = liveData ?? {
+      service_type: "defi-hacks",
+      result: `${dh.count_30d} incidents in 30d · $${(dh.total_30d_usd / 1e6).toFixed(0)}M lost · Latest: ${dh.hacks[0]?.name} $${(dh.hacks[0]?.amount_usd / 1e6).toFixed(1)}M (${dh.hacks[0]?.date})`,
+      defi_hacks: dh,
       timestamp: new Date().toISOString(),
       delivered_to: "Demo1234...abcd",
     };
@@ -3186,6 +3220,63 @@ function ServiceResultTable({ service }: { service: ServiceResult }) {
         </div>
         <p style={{ marginTop: 4, fontSize: 12, color: "#888" }}>
           7-day TVL change · protocols with TVL &gt; $100M · via DeFi Llama
+        </p>
+      </div>
+    );
+  }
+
+  if (service.service_type === "defi-hacks" && service.defi_hacks) {
+    const dh = service.defi_hacks;
+    const fmtAmt = (v: number) =>
+      v >= 1e9 ? `$${(v / 1e9).toFixed(2)}B` : v >= 1e6 ? `$${(v / 1e6).toFixed(1)}M` : `$${(v / 1e3).toFixed(0)}K`;
+    const classColor = (c: string) => {
+      const lc = c.toLowerCase();
+      if (lc.includes("rug")) return "#7b1fa2";
+      if (lc.includes("flash")) return "#e65100";
+      if (lc.includes("oracle") || lc.includes("price")) return "#0277bd";
+      return "#c62828";
+    };
+    return (
+      <div>
+        <div style={{ marginBottom: 10, display: "flex", gap: 16, fontSize: 12 }}>
+          <span style={{ color: "#888" }}>
+            Past 30d: <strong style={{ color: "#c62828" }}>{dh.count_30d} incidents</strong>
+          </span>
+          <span style={{ color: "#888" }}>
+            Total lost: <strong style={{ color: "#c62828" }}>{fmtAmt(dh.total_30d_usd)}</strong>
+          </span>
+        </div>
+        <div style={{ border: "1px solid #f0f0f0", borderRadius: 8, overflow: "hidden" }}>
+          {dh.hacks.map((h, i) => (
+            <div
+              key={i}
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 80px 72px 90px",
+                gap: "0 8px",
+                alignItems: "center",
+                padding: "6px 10px",
+                background: i % 2 === 0 ? "#fff" : "#fafafa",
+                borderBottom: i < dh.hacks.length - 1 ? "1px solid #f5f5f5" : "none",
+              }}
+            >
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: "#222" }}>{h.name}</div>
+                <div style={{ fontSize: 10, color: "#aaa" }}>{h.chains.join(", ")}</div>
+              </div>
+              <div style={{ fontSize: 11, color: "#888", textAlign: "right" }}>{h.date}</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "#c62828", textAlign: "right" }}>{fmtAmt(h.amount_usd)}</div>
+              <div style={{
+                fontSize: 10,
+                color: classColor(h.classification),
+                textAlign: "right",
+                fontWeight: 500,
+              }}>{h.classification}</div>
+            </div>
+          ))}
+        </div>
+        <p style={{ marginTop: 6, fontSize: 12, color: "#888" }}>
+          Most recent DeFi exploits · via DeFi Llama
         </p>
       </div>
     );

@@ -3,10 +3,10 @@
  * All functions are read-only calls to public APIs — no auth required.
  */
 
-export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season" | "btc-mining" | "bridge-volume" | "tvl-movers";
+export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season" | "btc-mining" | "bridge-volume" | "tvl-movers" | "defi-hacks";
 
 /** All valid service type strings — use this for runtime validation instead of duplicating the list. */
-export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season", "btc-mining", "bridge-volume", "tvl-movers"];
+export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season", "btc-mining", "bridge-volume", "tvl-movers", "defi-hacks"];
 
 export interface MarketData {
   symbol: string;
@@ -400,6 +400,20 @@ export interface TvlMoversData {
   total_defi_tvl: number;    // total DeFi TVL across all protocols
 }
 
+export interface DefiHackEntry {
+  name: string;           // protocol name
+  date: string;           // formatted date (YYYY-MM-DD)
+  amount_usd: number;     // amount stolen in USD
+  chains: string[];       // affected chains
+  classification: string; // hack type (e.g. "Hack", "Rug Pull", "Flash Loan")
+}
+
+export interface DefiHacksData {
+  hacks: DefiHackEntry[];    // 10 most recent hacks
+  total_30d_usd: number;     // total amount stolen in past 30 days
+  count_30d: number;         // number of incidents in past 30 days
+}
+
 export interface ServiceResult {
   service_type: ServiceType;
   result: string;
@@ -435,6 +449,7 @@ export interface ServiceResult {
   btc_mining?: BtcMiningData;
   bridge_volume?: BridgeVolumeData;
   tvl_movers?: TvlMoversData;
+  defi_hacks?: DefiHacksData;
   timestamp: string;
   delivered_to: string;
 }
@@ -2512,6 +2527,58 @@ export async function deliverTvlMovers(delivered_to: string, timestamp: string):
   return { service_type: "tvl-movers", result, tvl_movers, timestamp, delivered_to };
 }
 
+/**
+ * Fetches recent DeFi protocol hacks from DeFi Llama and returns the 10 most recent.
+ * Includes 30-day incident count and total amount stolen.
+ */
+export async function deliverDefiHacks(delivered_to: string, timestamp: string): Promise<ServiceResult> {
+  let defi_hacks: DefiHacksData | undefined;
+
+  try {
+    const res = await fetch("https://api.llama.fi/hacks", {
+      headers: { Accept: "application/json", "User-Agent": "skill-tokenized-agents/1.0" },
+      signal: AbortSignal.timeout(12000),
+    });
+
+    if (res.ok) {
+      const data = (await res.json()) as Array<{
+        date: number;
+        name: string;
+        amount: number;
+        chain: string[];
+        classification?: string;
+        technique?: string;
+      }>;
+
+      const now = Date.now() / 1000;
+      const cutoff30d = now - 30 * 86400;
+
+      const sorted = [...data].sort((a, b) => b.date - a.date);
+
+      const hacks: DefiHackEntry[] = sorted.slice(0, 10).map((h) => ({
+        name: h.name ?? "Unknown Protocol",
+        date: new Date(h.date * 1000).toISOString().slice(0, 10),
+        amount_usd: h.amount ?? 0,
+        chains: Array.isArray(h.chain) && h.chain.length > 0 ? h.chain : ["Unknown"],
+        classification: h.technique ?? h.classification ?? "Hack",
+      }));
+
+      const recent = data.filter((h) => h.date >= cutoff30d);
+      const total_30d_usd = recent.reduce((s, h) => s + (h.amount ?? 0), 0);
+
+      defi_hacks = { hacks, total_30d_usd, count_30d: recent.length };
+    }
+  } catch {
+    // Fall through with undefined defi_hacks
+  }
+
+  const result = defi_hacks
+    ? `${defi_hacks.count_30d} incidents in 30d · $${(defi_hacks.total_30d_usd / 1e6).toFixed(0)}M lost · Latest: ${defi_hacks.hacks[0]?.name} $${(defi_hacks.hacks[0]?.amount_usd / 1e6).toFixed(1)}M (${defi_hacks.hacks[0]?.date})`
+    : "DeFi hack data temporarily unavailable";
+
+  return { service_type: "defi-hacks", result, defi_hacks, timestamp, delivered_to };
+}
+
 export async function deliverService(delivered_to: string, serviceType: ServiceType): Promise<ServiceResult> {
   const timestamp = new Date().toISOString();
   if (serviceType === "solana-stats") return deliverSolanaStats(delivered_to, timestamp);
@@ -2545,5 +2612,6 @@ export async function deliverService(delivered_to: string, serviceType: ServiceT
   if (serviceType === "btc-mining") return deliverBtcMining(delivered_to, timestamp);
   if (serviceType === "bridge-volume") return deliverBridgeVolume(delivered_to, timestamp);
   if (serviceType === "tvl-movers") return deliverTvlMovers(delivered_to, timestamp);
+  if (serviceType === "defi-hacks") return deliverDefiHacks(delivered_to, timestamp);
   return deliverCryptoPrices(delivered_to, timestamp);
 }
