@@ -3,10 +3,10 @@
  * All functions are read-only calls to public APIs — no auth required.
  */
 
-export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season" | "btc-mining" | "bridge-volume" | "tvl-movers" | "defi-hacks";
+export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season" | "btc-mining" | "bridge-volume" | "tvl-movers" | "lightning-network";
 
 /** All valid service type strings — use this for runtime validation instead of duplicating the list. */
-export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season", "btc-mining", "bridge-volume", "tvl-movers", "defi-hacks"];
+export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season", "btc-mining", "bridge-volume", "tvl-movers", "lightning-network"];
 
 export interface MarketData {
   symbol: string;
@@ -400,18 +400,16 @@ export interface TvlMoversData {
   total_defi_tvl: number;    // total DeFi TVL across all protocols
 }
 
-export interface DefiHackEntry {
-  name: string;           // protocol name
-  date: string;           // formatted date (YYYY-MM-DD)
-  amount_usd: number;     // amount stolen in USD
-  chains: string[];       // affected chains
-  classification: string; // hack type (e.g. "Hack", "Rug Pull", "Flash Loan")
-}
-
-export interface DefiHacksData {
-  hacks: DefiHackEntry[];    // 10 most recent hacks
-  total_30d_usd: number;     // total amount stolen in past 30 days
-  count_30d: number;         // number of incidents in past 30 days
+export interface LightningNetworkData {
+  channel_count: number;        // total payment channels
+  node_count: number;           // total routing nodes
+  total_capacity_btc: number;   // total locked liquidity in BTC
+  avg_channel_btc: number;      // average channel capacity in BTC
+  tor_nodes: number;            // nodes running over Tor
+  avg_fee_rate: number;         // average fee rate in ppm
+  channel_count_change: number; // change from previous week
+  node_count_change: number;    // change from previous week
+  capacity_change_btc: number;  // capacity change from previous week in BTC
 }
 
 export interface ServiceResult {
@@ -449,7 +447,7 @@ export interface ServiceResult {
   btc_mining?: BtcMiningData;
   bridge_volume?: BridgeVolumeData;
   tvl_movers?: TvlMoversData;
-  defi_hacks?: DefiHacksData;
+  lightning_network?: LightningNetworkData;
   timestamp: string;
   delivered_to: string;
 }
@@ -2528,55 +2526,60 @@ export async function deliverTvlMovers(delivered_to: string, timestamp: string):
 }
 
 /**
- * Fetches recent DeFi protocol hacks from DeFi Llama and returns the 10 most recent.
- * Includes 30-day incident count and total amount stolen.
+ * Fetches Bitcoin Lightning Network statistics from mempool.space.
+ * Shows channel count, node count, total locked capacity, and week-over-week changes.
  */
-export async function deliverDefiHacks(delivered_to: string, timestamp: string): Promise<ServiceResult> {
-  let defi_hacks: DefiHacksData | undefined;
+export async function deliverLightningNetwork(delivered_to: string, timestamp: string): Promise<ServiceResult> {
+  let lightning_network: LightningNetworkData | undefined;
 
   try {
-    const res = await fetch("https://api.llama.fi/hacks", {
+    const res = await fetch("https://mempool.space/api/v1/lightning/statistics/latest", {
       headers: { Accept: "application/json", "User-Agent": "skill-tokenized-agents/1.0" },
       signal: AbortSignal.timeout(12000),
     });
 
     if (res.ok) {
-      const data = (await res.json()) as Array<{
-        date: number;
-        name: string;
-        amount: number;
-        chain: string[];
-        classification?: string;
-        technique?: string;
-      }>;
+      const data = (await res.json()) as {
+        latest: {
+          channel_count: number;
+          node_count: number;
+          total_capacity: number;
+          avg_capacity: number;
+          tor_nodes: number;
+          avg_fee_rate: number;
+        };
+        previous: {
+          channel_count: number;
+          node_count: number;
+          total_capacity: number;
+        };
+      };
 
-      const now = Date.now() / 1000;
-      const cutoff30d = now - 30 * 86400;
+      const l = data.latest;
+      const p = data.previous;
+      const SATS_PER_BTC = 100_000_000;
 
-      const sorted = [...data].sort((a, b) => b.date - a.date);
-
-      const hacks: DefiHackEntry[] = sorted.slice(0, 10).map((h) => ({
-        name: h.name ?? "Unknown Protocol",
-        date: new Date(h.date * 1000).toISOString().slice(0, 10),
-        amount_usd: h.amount ?? 0,
-        chains: Array.isArray(h.chain) && h.chain.length > 0 ? h.chain : ["Unknown"],
-        classification: h.technique ?? h.classification ?? "Hack",
-      }));
-
-      const recent = data.filter((h) => h.date >= cutoff30d);
-      const total_30d_usd = recent.reduce((s, h) => s + (h.amount ?? 0), 0);
-
-      defi_hacks = { hacks, total_30d_usd, count_30d: recent.length };
+      lightning_network = {
+        channel_count: l.channel_count,
+        node_count: l.node_count,
+        total_capacity_btc: parseFloat((l.total_capacity / SATS_PER_BTC).toFixed(2)),
+        avg_channel_btc: parseFloat((l.avg_capacity / SATS_PER_BTC).toFixed(4)),
+        tor_nodes: l.tor_nodes,
+        avg_fee_rate: l.avg_fee_rate,
+        channel_count_change: l.channel_count - p.channel_count,
+        node_count_change: l.node_count - p.node_count,
+        capacity_change_btc: parseFloat(((l.total_capacity - p.total_capacity) / SATS_PER_BTC).toFixed(2)),
+      };
     }
   } catch {
-    // Fall through with undefined defi_hacks
+    // Fall through with undefined lightning_network
   }
 
-  const result = defi_hacks
-    ? `${defi_hacks.count_30d} incidents in 30d · $${(defi_hacks.total_30d_usd / 1e6).toFixed(0)}M lost · Latest: ${defi_hacks.hacks[0]?.name} $${(defi_hacks.hacks[0]?.amount_usd / 1e6).toFixed(1)}M (${defi_hacks.hacks[0]?.date})`
-    : "DeFi hack data temporarily unavailable";
+  const result = lightning_network
+    ? `${lightning_network.channel_count.toLocaleString()} channels · ${lightning_network.node_count.toLocaleString()} nodes · ${lightning_network.total_capacity_btc.toFixed(0)} BTC locked · ${lightning_network.channel_count_change >= 0 ? "+" : ""}${lightning_network.channel_count_change} channels WoW`
+    : "Lightning Network data temporarily unavailable";
 
-  return { service_type: "defi-hacks", result, defi_hacks, timestamp, delivered_to };
+  return { service_type: "lightning-network", result, lightning_network, timestamp, delivered_to };
 }
 
 export async function deliverService(delivered_to: string, serviceType: ServiceType): Promise<ServiceResult> {
@@ -2612,6 +2615,6 @@ export async function deliverService(delivered_to: string, serviceType: ServiceT
   if (serviceType === "btc-mining") return deliverBtcMining(delivered_to, timestamp);
   if (serviceType === "bridge-volume") return deliverBridgeVolume(delivered_to, timestamp);
   if (serviceType === "tvl-movers") return deliverTvlMovers(delivered_to, timestamp);
-  if (serviceType === "defi-hacks") return deliverDefiHacks(delivered_to, timestamp);
+  if (serviceType === "lightning-network") return deliverLightningNetwork(delivered_to, timestamp);
   return deliverCryptoPrices(delivered_to, timestamp);
 }
