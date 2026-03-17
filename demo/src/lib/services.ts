@@ -3,10 +3,10 @@
  * All functions are read-only calls to public APIs — no auth required.
  */
 
-export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow";
+export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season";
 
 /** All valid service type strings — use this for runtime validation instead of duplicating the list. */
-export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow"];
+export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season"];
 
 export interface MarketData {
   symbol: string;
@@ -343,6 +343,24 @@ export interface BtcRainbowData {
   interpretation: string;        // short human-readable market context
 }
 
+export interface AltcoinSeasonCoin {
+  symbol: string;
+  name: string;
+  change_30d_pct: number;
+  outperformed_btc: boolean;
+}
+
+export interface AltcoinSeasonData {
+  score: number;                 // 0–100: % of top coins that outperformed BTC over 30d
+  btc_change_30d_pct: number;    // BTC's own 30d performance
+  total_coins: number;           // non-stablecoin coins evaluated
+  outperforming: number;         // how many outperformed BTC
+  signal: "bitcoin" | "altcoin" | "neutral";
+  signal_label: string;          // human-readable
+  top_performers: AltcoinSeasonCoin[];    // top 5 by 30d gain
+  bottom_performers: AltcoinSeasonCoin[]; // bottom 5 by 30d gain
+}
+
 export interface ServiceResult {
   service_type: ServiceType;
   result: string;
@@ -374,6 +392,7 @@ export interface ServiceResult {
   options_oi?: OptionsOIData;
   options_max_pain?: OptionsMaxPainData;
   btc_rainbow?: BtcRainbowData;
+  altcoin_season?: AltcoinSeasonData;
   timestamp: string;
   delivered_to: string;
 }
@@ -2209,6 +2228,87 @@ export async function deliverBtcRainbow(delivered_to: string, timestamp: string)
   return { service_type: "btc-rainbow", result, btc_rainbow, timestamp, delivered_to };
 }
 
+// Known stablecoin IDs to exclude from altcoin season calculation
+const STABLECOIN_IDS = new Set([
+  "tether", "usd-coin", "dai", "frax", "true-usd", "pax-dollar", "usdd",
+  "first-digital-usd", "usd-e", "ethena-usde", "paypal-usd", "fdusd",
+  "tether-eurt", "stasis-eurs", "usd+", "mountain-protocol-usdm",
+  "bridged-usdc-polygon-pos-bridge", "binance-peg-busd",
+]);
+
+export async function deliverAltcoinSeason(delivered_to: string, timestamp: string): Promise<ServiceResult> {
+  let altcoin_season: AltcoinSeasonData | undefined;
+
+  try {
+    // Fetch top 100 coins by market cap with 30d price change (gives enough after filtering stables)
+    const url = "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=100&page=1&price_change_percentage=30d";
+    const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
+    if (!res.ok) throw new Error(`CoinGecko HTTP ${res.status}`);
+    interface CgCoin {
+      id: string; symbol: string; name: string;
+      price_change_percentage_30d_in_currency: number | null;
+    }
+    const coins = await res.json() as CgCoin[];
+
+    // Find BTC 30d change
+    const btcEntry = coins.find((c) => c.id === "bitcoin");
+    const btcChange = btcEntry?.price_change_percentage_30d_in_currency ?? 0;
+
+    // Filter: exclude BTC, stablecoins (by ID or near-zero 30d change), and nulls
+    const alts: AltcoinSeasonCoin[] = [];
+    for (const c of coins) {
+      if (c.id === "bitcoin") continue;
+      if (STABLECOIN_IDS.has(c.id)) continue;
+      const ch = c.price_change_percentage_30d_in_currency;
+      if (ch === null || ch === undefined) continue;
+      // Heuristic: stablecoins have <±2% 30d change — skip anything suspiciously flat
+      if (Math.abs(ch) < 2 && c.symbol.toLowerCase().includes("usd")) continue;
+      alts.push({
+        symbol: c.symbol.toUpperCase(),
+        name: c.name,
+        change_30d_pct: parseFloat(ch.toFixed(2)),
+        outperformed_btc: ch > btcChange,
+      });
+      if (alts.length >= 50) break; // cap at top 50 non-stable alts
+    }
+
+    const outperforming = alts.filter((a) => a.outperformed_btc).length;
+    const total_coins = alts.length;
+    const score = total_coins > 0 ? Math.round((outperforming / total_coins) * 100) : 0;
+
+    const signal: AltcoinSeasonData["signal"] =
+      score >= 75 ? "altcoin" : score <= 25 ? "bitcoin" : "neutral";
+    const signal_label =
+      signal === "altcoin" ? "Altcoin Season 🔥" :
+      signal === "bitcoin" ? "Bitcoin Season 🟠" :
+      "Mixed / Neutral ⚖️";
+
+    // Sort to get top 5 and bottom 5 performers
+    const sorted = [...alts].sort((a, b) => b.change_30d_pct - a.change_30d_pct);
+    const top_performers = sorted.slice(0, 5);
+    const bottom_performers = sorted.slice(-5).reverse();
+
+    altcoin_season = {
+      score,
+      btc_change_30d_pct: parseFloat(btcChange.toFixed(2)),
+      total_coins,
+      outperforming,
+      signal,
+      signal_label,
+      top_performers,
+      bottom_performers,
+    };
+  } catch {
+    // Fall through with undefined altcoin_season
+  }
+
+  const result = altcoin_season
+    ? `${altcoin_season.signal_label} · Score ${altcoin_season.score}/100 · ${altcoin_season.outperforming}/${altcoin_season.total_coins} alts beat BTC (BTC 30d: ${altcoin_season.btc_change_30d_pct >= 0 ? "+" : ""}${altcoin_season.btc_change_30d_pct}%)`
+    : "Altcoin season data temporarily unavailable";
+
+  return { service_type: "altcoin-season", result, altcoin_season, timestamp, delivered_to };
+}
+
 export async function deliverService(delivered_to: string, serviceType: ServiceType): Promise<ServiceResult> {
   const timestamp = new Date().toISOString();
   if (serviceType === "solana-stats") return deliverSolanaStats(delivered_to, timestamp);
@@ -2238,5 +2338,6 @@ export async function deliverService(delivered_to: string, serviceType: ServiceT
   if (serviceType === "options-oi") return deliverOptionsOI(delivered_to, timestamp);
   if (serviceType === "options-max-pain") return deliverOptionsMaxPain(delivered_to, timestamp);
   if (serviceType === "btc-rainbow") return deliverBtcRainbow(delivered_to, timestamp);
+  if (serviceType === "altcoin-season") return deliverAltcoinSeason(delivered_to, timestamp);
   return deliverCryptoPrices(delivered_to, timestamp);
 }

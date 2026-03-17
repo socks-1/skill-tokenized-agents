@@ -36,6 +36,7 @@ import type {
   OptionsOIData,
   OptionsMaxPainData,
   BtcRainbowData,
+  AltcoinSeasonData,
 } from "@/lib/services";
 
 interface InvoiceParams {
@@ -271,6 +272,13 @@ const SERVICE_OPTIONS: { id: ServiceType; label: string; description: string; pr
     id: "btc-rainbow",
     label: "BTC Rainbow Chart",
     description: "Bitcoin's current price vs its long-run power-law model — shows which rainbow band BTC is in from 'Fire Sale' to 'Maximum Bubble Territory'",
+    price: "1 USDC",
+    category: "Market Data",
+  },
+  {
+    id: "altcoin-season",
+    label: "Altcoin Season Index",
+    description: "Are we in altcoin season or bitcoin season? Scores 0–100 based on how many of the top 50 coins outperformed BTC over the last 30 days",
     price: "1 USDC",
     category: "Market Data",
   },
@@ -639,6 +647,29 @@ const MOCK_BTC_RAINBOW: BtcRainbowData = {
   days_since_genesis: 6283,
   band: { index: 3, label: "Accumulate", color: "#00838f" },
   interpretation: "BTC is trading below trend — historically a good accumulation window.",
+};
+
+const MOCK_ALTCOIN_SEASON: AltcoinSeasonData = {
+  score: 38,
+  btc_change_30d_pct: 8.4,
+  total_coins: 48,
+  outperforming: 18,
+  signal: "neutral",
+  signal_label: "Mixed / Neutral ⚖️",
+  top_performers: [
+    { symbol: "SUI", name: "Sui", change_30d_pct: 42.1, outperformed_btc: true },
+    { symbol: "SEI", name: "Sei", change_30d_pct: 38.7, outperformed_btc: true },
+    { symbol: "TON", name: "Toncoin", change_30d_pct: 27.3, outperformed_btc: true },
+    { symbol: "AVAX", name: "Avalanche", change_30d_pct: 19.5, outperformed_btc: true },
+    { symbol: "LINK", name: "Chainlink", change_30d_pct: 14.2, outperformed_btc: true },
+  ],
+  bottom_performers: [
+    { symbol: "ICP", name: "Internet Computer", change_30d_pct: -28.3, outperformed_btc: false },
+    { symbol: "NEAR", name: "NEAR Protocol", change_30d_pct: -22.1, outperformed_btc: false },
+    { symbol: "FIL", name: "Filecoin", change_30d_pct: -18.9, outperformed_btc: false },
+    { symbol: "APT", name: "Aptos", change_30d_pct: -14.5, outperformed_btc: false },
+    { symbol: "ATOM", name: "Cosmos", change_30d_pct: -11.2, outperformed_btc: false },
+  ],
 };
 
 const MOCK_SIGNATURE =
@@ -1521,6 +1552,15 @@ function buildTourSteps(serviceType: ServiceType, liveData?: ServiceResult): Pay
       service_type: "btc-rainbow",
       result: `BTC $${rb.current_price_usd.toLocaleString()} · Model $${rb.model_price_usd.toLocaleString()} · ${rb.band.label} (${(rb.ratio * 100).toFixed(0)}% of model)`,
       btc_rainbow: rb,
+      timestamp: new Date().toISOString(),
+      delivered_to: "Demo1234...abcd",
+    };
+  } else if (serviceType === "altcoin-season") {
+    const as = liveData?.altcoin_season ?? MOCK_ALTCOIN_SEASON;
+    mockService = liveData ?? {
+      service_type: "altcoin-season",
+      result: `${as.signal_label} · Score ${as.score}/100 · ${as.outperforming}/${as.total_coins} alts beat BTC (BTC 30d: ${as.btc_change_30d_pct >= 0 ? "+" : ""}${as.btc_change_30d_pct}%)`,
+      altcoin_season: as,
       timestamp: new Date().toISOString(),
       delivered_to: "Demo1234...abcd",
     };
@@ -2809,6 +2849,86 @@ function ServiceResultTable({ service }: { service: ServiceResult }) {
         </div>
         <p style={{ marginTop: 4, fontSize: 12, color: "#888" }}>
           Power-law model · {rb.days_since_genesis.toLocaleString()} days since genesis · via CoinGecko
+        </p>
+      </div>
+    );
+  }
+
+  if (service.service_type === "altcoin-season" && service.altcoin_season) {
+    const as = service.altcoin_season;
+    const signalColor = as.signal === "altcoin" ? "#e65100" : as.signal === "bitcoin" ? "#1565c0" : "#555";
+    const signalBg = as.signal === "altcoin" ? "#fff3e0" : as.signal === "bitcoin" ? "#e3f2fd" : "#f5f5f5";
+    const barWidth = Math.min(100, Math.max(2, as.score));
+    const barColor = as.signal === "altcoin" ? "#e65100" : as.signal === "bitcoin" ? "#1565c0" : "#888";
+    return (
+      <div>
+        <div style={{ marginBottom: 14, padding: 14, background: "#fafafa", borderRadius: 8, border: "1px solid #f0f0f0" }}>
+          {/* Signal badge + score */}
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+            <div style={{ background: signalBg, color: signalColor, padding: "4px 14px", borderRadius: 20, fontWeight: 700, fontSize: 14, border: `1px solid ${signalColor}30` }}>
+              {as.signal_label}
+            </div>
+          </div>
+          {/* Score bar */}
+          <div style={{ marginBottom: 12 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#aaa", marginBottom: 4 }}>
+              <span>Bitcoin Season</span>
+              <span style={{ fontWeight: 700, color: barColor, fontSize: 13 }}>{as.score} / 100</span>
+              <span>Altcoin Season</span>
+            </div>
+            <div style={{ height: 8, borderRadius: 4, background: "#e8e8e8", position: "relative" }}>
+              <div style={{ position: "absolute", left: 0, top: 0, height: "100%", width: `${barWidth}%`, borderRadius: 4, background: `linear-gradient(to right, #1565c0, #888, #e65100)`, clipPath: `inset(0 ${100 - barWidth}% 0 0)` }} />
+              {/* threshold markers */}
+              <div style={{ position: "absolute", left: "25%", top: -4, width: 1, height: 16, background: "#ccc" }} />
+              <div style={{ position: "absolute", left: "75%", top: -4, width: 1, height: 16, background: "#ccc" }} />
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#bbb", marginTop: 2 }}>
+              <span>≤25</span>
+              <span>neutral 26–74</span>
+              <span>≥75</span>
+            </div>
+          </div>
+          {/* Stats row */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "8px 16px", marginBottom: 12 }}>
+            <div>
+              <div style={{ fontSize: 11, color: "#aaa", marginBottom: 2 }}>Alts vs BTC</div>
+              <div style={{ fontWeight: 700, fontSize: 16, color: "#222" }}>{as.outperforming}/{as.total_coins}</div>
+            </div>
+            <div>
+              <div style={{ fontSize: 11, color: "#aaa", marginBottom: 2 }}>BTC 30d</div>
+              <div style={{ fontWeight: 700, fontSize: 16, color: as.btc_change_30d_pct >= 0 ? "#1a7a3a" : "#c0392b" }}>
+                {as.btc_change_30d_pct >= 0 ? "+" : ""}{as.btc_change_30d_pct}%
+              </div>
+            </div>
+            <div>
+              <div style={{ fontSize: 11, color: "#aaa", marginBottom: 2 }}>Outperforming</div>
+              <div style={{ fontWeight: 700, fontSize: 16, color: "#222" }}>{as.score}%</div>
+            </div>
+          </div>
+          {/* Top & bottom performers */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: "#1a7a3a", marginBottom: 6 }}>Top Performers 30d</div>
+              {as.top_performers.map((c) => (
+                <div key={c.symbol} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, padding: "2px 0", borderBottom: "1px solid #f0f0f0" }}>
+                  <span style={{ fontWeight: 600 }}>{c.symbol}</span>
+                  <span style={{ color: "#1a7a3a" }}>+{c.change_30d_pct}%</span>
+                </div>
+              ))}
+            </div>
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: "#c0392b", marginBottom: 6 }}>Worst Performers 30d</div>
+              {as.bottom_performers.map((c) => (
+                <div key={c.symbol} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, padding: "2px 0", borderBottom: "1px solid #f0f0f0" }}>
+                  <span style={{ fontWeight: 600 }}>{c.symbol}</span>
+                  <span style={{ color: "#c0392b" }}>{c.change_30d_pct}%</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+        <p style={{ marginTop: 4, fontSize: 12, color: "#888" }}>
+          Top 50 non-stable coins · 30-day window · via CoinGecko
         </p>
       </div>
     );
