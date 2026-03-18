@@ -3,10 +3,10 @@
  * All functions are read-only calls to public APIs — no auth required.
  */
 
-export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season" | "btc-mining" | "bridge-volume" | "tvl-movers" | "lightning-network" | "eth-lst" | "realized-vol" | "lending-rates" | "protocol-revenue" | "btc-onchain" | "nft-market" | "market-breadth" | "perp-oi" | "stablecoin-chains" | "stablecoin-pegs" | "mining-pools" | "rwa-tvl" | "crypto-funding" | "chain-fees" | "chain-tvl" | "defi-exploits" | "global-dex" | "futures-basis";
+export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season" | "btc-mining" | "bridge-volume" | "tvl-movers" | "lightning-network" | "eth-lst" | "realized-vol" | "lending-rates" | "protocol-revenue" | "btc-onchain" | "nft-market" | "market-breadth" | "perp-oi" | "stablecoin-chains" | "stablecoin-pegs" | "mining-pools" | "rwa-tvl" | "crypto-funding" | "chain-fees" | "chain-tvl" | "defi-exploits" | "global-dex" | "futures-basis" | "dex-aggregators";
 
 /** All valid service type strings — use this for runtime validation instead of duplicating the list. */
-export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season", "btc-mining", "bridge-volume", "tvl-movers", "lightning-network", "eth-lst", "realized-vol", "lending-rates", "protocol-revenue", "btc-onchain", "nft-market", "market-breadth", "perp-oi", "stablecoin-chains", "stablecoin-pegs", "mining-pools", "rwa-tvl", "crypto-funding", "chain-fees", "chain-tvl", "defi-exploits", "global-dex", "futures-basis"];
+export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season", "btc-mining", "bridge-volume", "tvl-movers", "lightning-network", "eth-lst", "realized-vol", "lending-rates", "protocol-revenue", "btc-onchain", "nft-market", "market-breadth", "perp-oi", "stablecoin-chains", "stablecoin-pegs", "mining-pools", "rwa-tvl", "crypto-funding", "chain-fees", "chain-tvl", "defi-exploits", "global-dex", "futures-basis", "dex-aggregators"];
 
 export interface MarketData {
   symbol: string;
@@ -627,6 +627,20 @@ export interface FuturesBasisData {
   eth_spot: number;
 }
 
+export interface DexAggregatorEntry {
+  name: string;
+  chains: string[];       // top 3 chains the aggregator operates on
+  volume_24h: number;     // USD 24h routed volume
+  volume_7d: number;      // USD 7d routed volume
+  change_pct: number | null; // 24h volume change %
+}
+
+export interface DexAggregatorsData {
+  aggregators: DexAggregatorEntry[];
+  total_volume_24h: number;
+  total_volume_7d: number;
+}
+
 export interface ServiceResult {
   service_type: ServiceType;
   result: string;
@@ -681,6 +695,7 @@ export interface ServiceResult {
   defi_exploits?: DefiExploitsData;
   global_dex?: GlobalDexData;
   futures_basis?: FuturesBasisData;
+  dex_aggregators?: DexAggregatorsData;
   timestamp: string;
   delivered_to: string;
 }
@@ -3198,6 +3213,7 @@ export async function deliverService(delivered_to: string, serviceType: ServiceT
   if (serviceType === "defi-exploits") return deliverDefiExploits(delivered_to, timestamp);
   if (serviceType === "global-dex") return deliverGlobalDex(delivered_to, timestamp);
   if (serviceType === "futures-basis") return deliverFuturesBasis(delivered_to, timestamp);
+  if (serviceType === "dex-aggregators") return deliverDexAggregators(delivered_to, timestamp);
   return deliverCryptoPrices(delivered_to, timestamp);
 }
 
@@ -4191,4 +4207,75 @@ export async function deliverFuturesBasis(delivered_to: string, timestamp: strin
     : "BTC/ETH futures term structure data temporarily unavailable";
 
   return { service_type: "futures-basis", result, futures_basis, timestamp, delivered_to };
+}
+
+// ── DEX Aggregators cache ────────────────────────────────────────────────────
+let _dexAggregatorsCache: { data: DexAggregatorsData; expires: number } | null = null;
+
+/**
+ * Fetches DEX aggregator volume rankings from DeFi Llama.
+ * Shows top 10 DEX aggregators (Jupiter, 1inch, CoWSwap, etc.) by 24h routed volume.
+ * Cached 10 minutes.
+ */
+export async function deliverDexAggregators(delivered_to: string, timestamp: string): Promise<ServiceResult> {
+  if (_dexAggregatorsCache && Date.now() < _dexAggregatorsCache.expires) {
+    const da = _dexAggregatorsCache.data;
+    const fmtUsd = (v: number) => v >= 1e9 ? `$${(v / 1e9).toFixed(2)}B` : v >= 1e6 ? `$${(v / 1e6).toFixed(0)}M` : `$${v.toFixed(0)}`;
+    const top = da.aggregators[0];
+    const result = `Total agg vol (24h): ${fmtUsd(da.total_volume_24h)} · Top: ${top?.name} ${fmtUsd(top?.volume_24h ?? 0)} · ${da.aggregators.length} aggregators`;
+    return { service_type: "dex-aggregators", result, dex_aggregators: da, timestamp, delivered_to };
+  }
+
+  let dex_aggregators: DexAggregatorsData | undefined;
+
+  try {
+    const res = await fetch(
+      "https://api.llama.fi/overview/aggregators?excludeTotalDataChart=true&excludeTotalDataChartBreakdown=true&dataType=dailyVolume",
+      { signal: AbortSignal.timeout(12000), headers: { "User-Agent": "skill-tokenized-agents/1.0" } }
+    );
+    if (!res.ok) throw new Error(`DeFi Llama error ${res.status}`);
+
+    const json = await res.json() as {
+      total24h?: number;
+      total7d?: number;
+      protocols?: Array<{
+        name?: string;
+        chains?: string[];
+        total24h?: number;
+        total7d?: number;
+        change_1d?: number | null;
+      }>;
+    };
+
+    const protocols = json.protocols ?? [];
+    const sorted = protocols
+      .filter((p) => (p.total24h ?? 0) > 0)
+      .sort((a, b) => (b.total24h ?? 0) - (a.total24h ?? 0))
+      .slice(0, 10);
+
+    const aggregators: DexAggregatorEntry[] = sorted.map((p) => ({
+      name: p.name ?? "Unknown",
+      chains: (p.chains ?? []).slice(0, 3),
+      volume_24h: p.total24h ?? 0,
+      volume_7d: p.total7d ?? 0,
+      change_pct: p.change_1d ?? null,
+    }));
+
+    dex_aggregators = {
+      aggregators,
+      total_volume_24h: json.total24h ?? aggregators.reduce((s, a) => s + a.volume_24h, 0),
+      total_volume_7d: json.total7d ?? aggregators.reduce((s, a) => s + a.volume_7d, 0),
+    };
+    _dexAggregatorsCache = { data: dex_aggregators, expires: Date.now() + 10 * 60 * 1000 };
+  } catch {
+    // Fall through with undefined
+  }
+
+  const fmtUsd = (v: number) => v >= 1e9 ? `$${(v / 1e9).toFixed(2)}B` : v >= 1e6 ? `$${(v / 1e6).toFixed(0)}M` : `$${v.toFixed(0)}`;
+  const top = dex_aggregators?.aggregators[0];
+  const result = dex_aggregators && top
+    ? `Total agg vol (24h): ${fmtUsd(dex_aggregators.total_volume_24h)} · Top: ${top.name} ${fmtUsd(top.volume_24h)} · ${dex_aggregators.aggregators.length} aggregators`
+    : "DEX aggregator volume data temporarily unavailable";
+
+  return { service_type: "dex-aggregators", result, dex_aggregators, timestamp, delivered_to };
 }

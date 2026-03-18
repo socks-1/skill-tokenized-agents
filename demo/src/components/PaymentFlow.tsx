@@ -70,6 +70,8 @@ import type {
   GlobalDexEntry,
   FuturesBasisData,
   FuturesBasisEntry,
+  DexAggregatorEntry,
+  DexAggregatorsData,
 } from "@/lib/services";
 
 interface InvoiceParams {
@@ -468,6 +470,13 @@ const SERVICE_OPTIONS: { id: ServiceType; label: string; description: string; pr
     description: "BTC and ETH futures term structure from Deribit — mark price, basis vs spot, and annualized basis for every active dated expiry. Shows whether the market is in contango or backwardation at a glance.",
     price: "1 USDC",
     category: "Market Data",
+  },
+  {
+    id: "dex-aggregators",
+    label: "DEX Aggregator Volume Rankings",
+    description: "Top 10 DEX aggregators by 24h routed volume — Jupiter, 1inch, CoWSwap, KyberSwap, 0x, and more. Aggregators route trades across multiple DEXes for best execution. Total market volume with 24h change. Via DeFi Llama.",
+    price: "1 USDC",
+    category: "DeFi",
   },
 ];
 
@@ -1187,6 +1196,23 @@ const MOCK_FUTURES_BASIS: FuturesBasisData = {
     { instrument: "ETH-25SEP26",    expiry_label: "Sep 25", days_to_expiry: 191, mark_price: 2241.7,  spot_price: 2204, basis_usd:  37.7,  basis_pct:  1.711, annualized_basis_pct: 3.27 },
     { instrument: "ETH-25DEC26",    expiry_label: "Dec 25", days_to_expiry: 282, mark_price: 2263.9,  spot_price: 2204, basis_usd:  59.9,  basis_pct:  2.718, annualized_basis_pct: 3.52 },
   ] as FuturesBasisEntry[],
+};
+
+const MOCK_DEX_AGGREGATORS: DexAggregatorsData = {
+  total_volume_24h: 1_973_000_000,
+  total_volume_7d: 12_789_000_000,
+  aggregators: [
+    { name: "Jupiter Aggregator",  chains: ["Solana"],                           volume_24h: 474_648_460, volume_7d: 2_734_266_242, change_pct: -9.09 },
+    { name: "KyberSwap Aggregator",chains: ["Ethereum", "Arbitrum", "Avalanche"], volume_24h: 273_908_259, volume_7d: 1_451_900_838, change_pct: 14.98 },
+    { name: "OKX Swap",            chains: ["Ethereum", "Sonic", "ZKsync Era"],  volume_24h: 210_639_671, volume_7d: 1_526_423_517, change_pct: 4.77  },
+    { name: "CoWSwap",             chains: ["Ethereum", "Gnosis", "Arbitrum"],   volume_24h: 122_707_923, volume_7d:   826_765_429, change_pct: -40.45 },
+    { name: "1inch",               chains: ["Ethereum", "Arbitrum", "Polygon"],  volume_24h: 114_848_800, volume_7d:   925_488_127, change_pct: -45.53 },
+    { name: "OpenOcean",           chains: ["Ethereum", "BSC", "Polygon"],       volume_24h: 109_152_758, volume_7d:   447_752_312, change_pct: null   },
+    { name: "0x Aggregator",       chains: ["Arbitrum", "Avalanche", "Base"],    volume_24h:  88_253_603, volume_7d:   646_210_706, change_pct: -23.77 },
+    { name: "Velora",              chains: ["Ethereum", "OP Mainnet", "BSC"],    volume_24h:  71_474_327, volume_7d:   366_345_071, change_pct: 13.46  },
+    { name: "Binance Wallet",      chains: ["Ethereum", "Arbitrum", "Polygon"],  volume_24h:  62_678_065, volume_7d:   380_650_118, change_pct: 20.40  },
+    { name: "Bebop",               chains: ["Arbitrum", "Ethereum", "Polygon"],  volume_24h:  61_348_026, volume_7d:   448_166_814, change_pct: -55.79 },
+  ] as DexAggregatorEntry[],
 };
 
 const MOCK_SIGNATURE =
@@ -2272,6 +2298,17 @@ function buildTourSteps(serviceType: ServiceType, liveData?: ServiceResult): Pay
         ? `BTC Spot $${fb.btc_spot.toLocaleString(undefined, { maximumFractionDigits: 0 })} · Nearest basis ${nearest.basis_pct >= 0 ? "+" : ""}${nearest.basis_pct.toFixed(3)}% (${nearest.expiry_label}) · ${fb.btc.length + fb.eth.length} contracts`
         : "BTC/ETH futures term structure — Deribit",
       futures_basis: fb,
+      timestamp: new Date().toISOString(),
+      delivered_to: "Demo1234...abcd",
+    };
+  } else if (serviceType === "dex-aggregators") {
+    const da = liveData?.dex_aggregators ?? MOCK_DEX_AGGREGATORS;
+    const fmtUsd = (v: number) => v >= 1e9 ? `$${(v / 1e9).toFixed(2)}B` : v >= 1e6 ? `$${(v / 1e6).toFixed(0)}M` : `$${v.toFixed(0)}`;
+    const top = da.aggregators[0];
+    mockService = liveData ?? {
+      service_type: "dex-aggregators",
+      result: `Total agg vol (24h): ${fmtUsd(da.total_volume_24h)} · Top: ${top?.name} ${fmtUsd(top?.volume_24h ?? 0)} · ${da.aggregators.length} aggregators`,
+      dex_aggregators: da,
       timestamp: new Date().toISOString(),
       delivered_to: "Demo1234...abcd",
     };
@@ -4836,6 +4873,68 @@ function ServiceResultTable({ service }: { service: ServiceResult }) {
         </div>
         {renderTable(fb.btc, "BTC", fb.btc_spot)}
         {renderTable(fb.eth, "ETH", fb.eth_spot)}
+      </div>
+    );
+  }
+
+  if (service.service_type === "dex-aggregators" && service.dex_aggregators) {
+    const da = service.dex_aggregators;
+    const fmtUsd = (v: number) => v >= 1e9 ? `$${(v / 1e9).toFixed(2)}B` : v >= 1e6 ? `$${(v / 1e6).toFixed(0)}M` : `$${v.toFixed(0)}`;
+    const maxVol = da.aggregators[0]?.volume_24h ?? 1;
+    return (
+      <div>
+        <div style={{ marginBottom: 12, padding: 12, background: "#f0f9ff", borderRadius: 8, border: "1px solid #bae6fd", display: "flex", gap: 24, flexWrap: "wrap" }}>
+          <div>
+            <div style={{ fontSize: 11, color: "#aaa", marginBottom: 2 }}>Total Aggregator Volume (24h)</div>
+            <div style={{ fontWeight: 700, fontSize: 18, color: "#0369a1" }}>{fmtUsd(da.total_volume_24h)}</div>
+          </div>
+          <div>
+            <div style={{ fontSize: 11, color: "#aaa", marginBottom: 2 }}>7d Volume</div>
+            <div style={{ fontWeight: 700, fontSize: 18, color: "#222" }}>{fmtUsd(da.total_volume_7d)}</div>
+          </div>
+          <div>
+            <div style={{ fontSize: 11, color: "#aaa", marginBottom: 2 }}>Top Aggregator</div>
+            <div style={{ fontWeight: 600, fontSize: 15, color: "#555" }}>{da.aggregators[0]?.name}</div>
+          </div>
+        </div>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+          <thead>
+            <tr style={{ borderBottom: "1px solid #eee" }}>
+              <th style={{ textAlign: "left", padding: "4px 6px", color: "#aaa", fontWeight: 500 }}>#</th>
+              <th style={{ textAlign: "left", padding: "4px 6px", color: "#aaa", fontWeight: 500 }}>Aggregator</th>
+              <th style={{ textAlign: "right", padding: "4px 6px", color: "#aaa", fontWeight: 500 }}>24h Vol</th>
+              <th style={{ textAlign: "right", padding: "4px 6px", color: "#aaa", fontWeight: 500 }}>7d Vol</th>
+              <th style={{ textAlign: "right", padding: "4px 6px", color: "#aaa", fontWeight: 500 }}>24h Chg</th>
+            </tr>
+          </thead>
+          <tbody>
+            {da.aggregators.map((agg, i) => {
+              const barWidth = Math.round((agg.volume_24h / maxVol) * 100);
+              const isUp = (agg.change_pct ?? 0) >= 0;
+              return (
+                <tr key={i} style={{ borderBottom: "1px solid #f5f5f5" }}>
+                  <td style={{ padding: "5px 6px", color: "#aaa", fontSize: 12 }}>{i + 1}</td>
+                  <td style={{ padding: "5px 6px" }}>
+                    <div style={{ fontWeight: i === 0 ? 700 : 500, color: i === 0 ? "#111" : "#333" }}>{agg.name}</div>
+                    <div style={{ fontSize: 11, color: "#999", marginTop: 1 }}>{agg.chains.join(" · ")}</div>
+                    <div style={{ height: 3, background: "#f0f0f0", borderRadius: 2, marginTop: 3, overflow: "hidden" }}>
+                      <div style={{ width: `${barWidth}%`, height: "100%", background: i === 0 ? "#0369a1" : "#93c5fd", borderRadius: 2 }} />
+                    </div>
+                  </td>
+                  <td style={{ padding: "5px 6px", textAlign: "right", fontFamily: "monospace", fontWeight: 600, color: "#111" }}>{fmtUsd(agg.volume_24h)}</td>
+                  <td style={{ padding: "5px 6px", textAlign: "right", fontFamily: "monospace", color: "#666" }}>{fmtUsd(agg.volume_7d)}</td>
+                  <td style={{ padding: "5px 6px", textAlign: "right", fontWeight: 600, fontSize: 12,
+                    color: agg.change_pct == null ? "#bbb" : isUp ? "#16a34a" : "#dc2626" }}>
+                    {agg.change_pct == null ? "—" : `${isUp ? "+" : ""}${agg.change_pct.toFixed(1)}%`}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+        <p style={{ marginTop: 8, fontSize: 12, color: "#888" }}>
+          Top {da.aggregators.length} DEX aggregators by 24h routed volume · via DeFi Llama
+        </p>
       </div>
     );
   }
