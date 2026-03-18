@@ -48,6 +48,8 @@ import type {
   BtcOnchainData,
   NftMarketData,
   NftCollectionEntry,
+  MarketBreadthData,
+  MarketBreadthEntry,
 } from "@/lib/services";
 
 interface InvoiceParams {
@@ -360,6 +362,13 @@ const SERVICE_OPTIONS: { id: ServiceType; label: string; description: string; pr
     id: "nft-market",
     label: "NFT Market Snapshot",
     description: "Top blue-chip NFT collections ranked by 24h volume — floor price in ETH and USD, 24h volume, and price change for Pudgy Penguins, BAYC, CryptoPunks, Azuki, Milady, and MAYC.",
+    price: "1 USDC",
+    category: "Market Data",
+  },
+  {
+    id: "market-breadth",
+    label: "Crypto Market Breadth",
+    description: "Advance/decline ratio for top 100 coins — how many are up vs down today, breadth score 0-100, top 5 gainers and top 5 losers by 24h % change.",
     price: "1 USDC",
     category: "Market Data",
   },
@@ -884,6 +893,28 @@ const MOCK_NFT_MARKET: NftMarketData = {
     { name: "Milady Maker", symbol: "MILADY", floor_price_usd: 3200, floor_price_eth: 1.37, volume_24h_usd: 28000, volume_24h_eth: 12.0, market_cap_usd: 32_000_000, change_24h_pct: 4.7, market_cap_rank: 9 },
     { name: "Mutant Ape Yacht Club", symbol: "MAYC", floor_price_usd: 13500, floor_price_eth: 5.8, volume_24h_usd: 22000, volume_24h_eth: 9.4, market_cap_usd: 270_000_000, change_24h_pct: -1.5, market_cap_rank: 4 },
   ] as NftCollectionEntry[],
+};
+
+const MOCK_MARKET_BREADTH: MarketBreadthData = {
+  advancing: 58,
+  declining: 34,
+  neutral: 8,
+  total: 100,
+  breadth_score: 58,
+  top_gainers: [
+    { symbol: "SUI", name: "Sui", change_24h_pct: 8.4 },
+    { symbol: "SEI", name: "Sei", change_24h_pct: 6.1 },
+    { symbol: "INJ", name: "Injective", change_24h_pct: 5.3 },
+    { symbol: "TIA", name: "Celestia", change_24h_pct: 4.7 },
+    { symbol: "APT", name: "Aptos", change_24h_pct: 4.2 },
+  ] as MarketBreadthEntry[],
+  top_losers: [
+    { symbol: "RNDR", name: "Render", change_24h_pct: -4.8 },
+    { symbol: "FET", name: "Fetch.ai", change_24h_pct: -4.1 },
+    { symbol: "OCEAN", name: "Ocean Protocol", change_24h_pct: -3.9 },
+    { symbol: "GRT", name: "The Graph", change_24h_pct: -3.4 },
+    { symbol: "LPT", name: "Livepeer", change_24h_pct: -2.9 },
+  ] as MarketBreadthEntry[],
 };
 
 const MOCK_SIGNATURE =
@@ -1870,6 +1901,15 @@ function buildTourSteps(serviceType: ServiceType, liveData?: ServiceResult): Pay
       service_type: "nft-market",
       result: nm.collections.slice(0, 3).map((c) => `${c.symbol} floor ${fmtUsd(c.floor_price_usd)} (${c.change_24h_pct >= 0 ? "+" : ""}${c.change_24h_pct.toFixed(1)}%)`).join(" · "),
       nft_market: nm,
+      timestamp: new Date().toISOString(),
+      delivered_to: "Demo1234...abcd",
+    };
+  } else if (serviceType === "market-breadth") {
+    const mb = liveData?.market_breadth ?? MOCK_MARKET_BREADTH;
+    mockService = liveData ?? {
+      service_type: "market-breadth",
+      result: `${mb.advancing}/${mb.total} advancing (${mb.breadth_score}% breadth) · top: ${mb.top_gainers[0]?.symbol} +${mb.top_gainers[0]?.change_24h_pct.toFixed(1)}% · worst: ${mb.top_losers[0]?.symbol} ${mb.top_losers[0]?.change_24h_pct.toFixed(1)}%`,
+      market_breadth: mb,
       timestamp: new Date().toISOString(),
       delivered_to: "Demo1234...abcd",
     };
@@ -3702,6 +3742,70 @@ function ServiceResultTable({ service }: { service: ServiceResult }) {
         </table>
         <p style={{ marginTop: 8, fontSize: 12, color: "#888" }}>
           {nm.collections.length} collections · sorted by 24h volume · via CoinGecko
+        </p>
+      </div>
+    );
+  }
+
+  if (service.service_type === "market-breadth" && service.market_breadth) {
+    const mb = service.market_breadth;
+    const changeColor = (pct: number) => (pct >= 0 ? "#1a7a3a" : "#c0392b");
+    const regimeLabel = mb.breadth_score >= 70 ? "Broad Rally" : mb.breadth_score >= 55 ? "Moderate Advance" : mb.breadth_score >= 45 ? "Mixed" : mb.breadth_score >= 30 ? "Moderate Decline" : "Broad Sell-off";
+    const regimeColor = mb.breadth_score >= 55 ? "#1a7a3a" : mb.breadth_score >= 45 ? "#888" : "#c0392b";
+    return (
+      <div>
+        {/* Summary row */}
+        <div style={{ marginBottom: 14, padding: 14, background: "#fafafa", borderRadius: 8, border: "1px solid #f0f0f0" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: "10px 16px", marginBottom: 12 }}>
+            <div>
+              <div style={{ fontSize: 11, color: "#aaa", marginBottom: 2 }}>Breadth Score</div>
+              <div style={{ fontWeight: 700, fontSize: 22, color: regimeColor }}>{mb.breadth_score}</div>
+              <div style={{ fontSize: 10, color: regimeColor, fontWeight: 600 }}>{regimeLabel}</div>
+            </div>
+            <div>
+              <div style={{ fontSize: 11, color: "#aaa", marginBottom: 2 }}>Advancing</div>
+              <div style={{ fontWeight: 700, fontSize: 18, color: "#1a7a3a" }}>{mb.advancing}</div>
+              <div style={{ fontSize: 10, color: "#aaa" }}>of {mb.total} coins</div>
+            </div>
+            <div>
+              <div style={{ fontSize: 11, color: "#aaa", marginBottom: 2 }}>Declining</div>
+              <div style={{ fontWeight: 700, fontSize: 18, color: "#c0392b" }}>{mb.declining}</div>
+              <div style={{ fontSize: 10, color: "#aaa" }}>of {mb.total} coins</div>
+            </div>
+            <div>
+              <div style={{ fontSize: 11, color: "#aaa", marginBottom: 2 }}>Neutral</div>
+              <div style={{ fontWeight: 700, fontSize: 18, color: "#888" }}>{mb.neutral}</div>
+              <div style={{ fontSize: 10, color: "#aaa" }}>±0.5%</div>
+            </div>
+          </div>
+          {/* Breadth bar */}
+          <div style={{ height: 8, borderRadius: 4, background: "#eee", overflow: "hidden" }}>
+            <div style={{ height: "100%", width: `${mb.breadth_score}%`, background: mb.breadth_score >= 55 ? "#1a7a3a" : mb.breadth_score >= 45 ? "#f0a500" : "#c0392b", borderRadius: 4 }} />
+          </div>
+        </div>
+        {/* Gainers + Losers side by side */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          <div>
+            <div style={{ fontSize: 11, color: "#aaa", fontWeight: 600, marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.05em" }}>Top Gainers</div>
+            {mb.top_gainers.map((c, i) => (
+              <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", borderBottom: i < mb.top_gainers.length - 1 ? "1px solid #f5f5f5" : "none" }}>
+                <span style={{ fontSize: 13, color: "#333", fontWeight: 500 }}>{c.symbol}</span>
+                <span style={{ fontSize: 13, fontWeight: 600, color: changeColor(c.change_24h_pct) }}>+{c.change_24h_pct.toFixed(1)}%</span>
+              </div>
+            ))}
+          </div>
+          <div>
+            <div style={{ fontSize: 11, color: "#aaa", fontWeight: 600, marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.05em" }}>Top Losers</div>
+            {mb.top_losers.map((c, i) => (
+              <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", borderBottom: i < mb.top_losers.length - 1 ? "1px solid #f5f5f5" : "none" }}>
+                <span style={{ fontSize: 13, color: "#333", fontWeight: 500 }}>{c.symbol}</span>
+                <span style={{ fontSize: 13, fontWeight: 600, color: changeColor(c.change_24h_pct) }}>{c.change_24h_pct.toFixed(1)}%</span>
+              </div>
+            ))}
+          </div>
+        </div>
+        <p style={{ marginTop: 10, fontSize: 12, color: "#888" }}>
+          Top 100 coins by market cap · advance/decline breadth · via CoinGecko
         </p>
       </div>
     );

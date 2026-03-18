@@ -3,10 +3,10 @@
  * All functions are read-only calls to public APIs — no auth required.
  */
 
-export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season" | "btc-mining" | "bridge-volume" | "tvl-movers" | "lightning-network" | "eth-lst" | "realized-vol" | "lending-rates" | "protocol-revenue" | "btc-onchain" | "nft-market";
+export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season" | "btc-mining" | "bridge-volume" | "tvl-movers" | "lightning-network" | "eth-lst" | "realized-vol" | "lending-rates" | "protocol-revenue" | "btc-onchain" | "nft-market" | "market-breadth";
 
 /** All valid service type strings — use this for runtime validation instead of duplicating the list. */
-export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season", "btc-mining", "bridge-volume", "tvl-movers", "lightning-network", "eth-lst", "realized-vol", "lending-rates", "protocol-revenue", "btc-onchain", "nft-market"];
+export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season", "btc-mining", "bridge-volume", "tvl-movers", "lightning-network", "eth-lst", "realized-vol", "lending-rates", "protocol-revenue", "btc-onchain", "nft-market", "market-breadth"];
 
 export interface MarketData {
   symbol: string;
@@ -441,6 +441,22 @@ export interface NftMarketData {
   collections: NftCollectionEntry[];
 }
 
+export interface MarketBreadthEntry {
+  symbol: string;
+  name: string;
+  change_24h_pct: number;
+}
+
+export interface MarketBreadthData {
+  advancing: number;
+  declining: number;
+  neutral: number;
+  total: number;
+  breadth_score: number; // 0-100, % advancing
+  top_gainers: MarketBreadthEntry[];
+  top_losers: MarketBreadthEntry[];
+}
+
 export interface ServiceResult {
   service_type: ServiceType;
   result: string;
@@ -483,6 +499,7 @@ export interface ServiceResult {
   protocol_revenue?: ProtocolRevenueData;
   btc_onchain?: BtcOnchainData;
   nft_market?: NftMarketData;
+  market_breadth?: MarketBreadthData;
   timestamp: string;
   delivered_to: string;
 }
@@ -2988,6 +3005,7 @@ export async function deliverService(delivered_to: string, serviceType: ServiceT
   if (serviceType === "protocol-revenue") return deliverProtocolRevenue(delivered_to, timestamp);
   if (serviceType === "btc-onchain") return deliverBtcOnchain(delivered_to, timestamp);
   if (serviceType === "nft-market") return deliverNftMarket(delivered_to, timestamp);
+  if (serviceType === "market-breadth") return deliverMarketBreadth(delivered_to, timestamp);
   return deliverCryptoPrices(delivered_to, timestamp);
 }
 
@@ -3119,4 +3137,51 @@ export async function deliverNftMarket(delivered_to: string, timestamp: string):
     : "NFT market data temporarily unavailable";
 
   return { service_type: "nft-market", result, nft_market, timestamp, delivered_to };
+}
+
+export async function deliverMarketBreadth(delivered_to: string, timestamp: string): Promise<ServiceResult> {
+  let market_breadth: MarketBreadthData | undefined;
+
+  try {
+    const res = await fetch(
+      "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=100&page=1",
+      {
+        signal: AbortSignal.timeout(10000),
+        headers: { "User-Agent": "skill-tokenized-agents/1.0", Accept: "application/json" },
+      }
+    );
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const coins = await res.json() as Array<{
+      symbol: string;
+      name: string;
+      price_change_percentage_24h: number | null;
+    }>;
+
+    const entries: MarketBreadthEntry[] = coins
+      .filter((c) => c.price_change_percentage_24h != null)
+      .map((c) => ({
+        symbol: c.symbol.toUpperCase(),
+        name: c.name,
+        change_24h_pct: c.price_change_percentage_24h!,
+      }));
+
+    const advancing = entries.filter((e) => e.change_24h_pct > 0.5).length;
+    const declining = entries.filter((e) => e.change_24h_pct < -0.5).length;
+    const neutral = entries.length - advancing - declining;
+    const breadth_score = Math.round((advancing / entries.length) * 100);
+
+    const sorted = [...entries].sort((a, b) => b.change_24h_pct - a.change_24h_pct);
+    const top_gainers = sorted.slice(0, 5);
+    const top_losers = sorted.slice(-5).reverse();
+
+    market_breadth = { advancing, declining, neutral, total: entries.length, breadth_score, top_gainers, top_losers };
+  } catch {
+    // Fall through with undefined market_breadth
+  }
+
+  const result = market_breadth
+    ? `${market_breadth.advancing}/${market_breadth.total} advancing (${market_breadth.breadth_score}% breadth) · top: ${market_breadth.top_gainers[0]?.symbol} +${market_breadth.top_gainers[0]?.change_24h_pct.toFixed(1)}% · worst: ${market_breadth.top_losers[0]?.symbol} ${market_breadth.top_losers[0]?.change_24h_pct.toFixed(1)}%`
+    : "Market breadth data temporarily unavailable";
+
+  return { service_type: "market-breadth", result, market_breadth, timestamp, delivered_to };
 }
