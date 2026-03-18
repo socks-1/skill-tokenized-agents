@@ -1,7 +1,7 @@
 {
   "name": "skill-tokenized-agents",
-  "description": "Crypto market data API with x402 micropayment access. Provides real-time prices, DeFi metrics, Solana stats, prediction markets, options max pain, altcoin season index, BTC mining stats, Lightning Network stats, NFT market snapshots, stablecoin peg health, mining pool distribution, RWA tokenization TVL, and 45 market data services payable per-request via x402 on Base Sepolia.",
-  "version": "1.45.0",
+  "description": "Crypto market data API with x402 micropayment access. Provides real-time prices, DeFi metrics, Solana stats, prediction markets, options max pain, altcoin season index, BTC mining stats, Lightning Network stats, NFT market snapshots, stablecoin peg health, mining pool distribution, RWA tokenization TVL, blockchain fee revenue rankings, and 48 market data services payable per-request via x402 on Base Sepolia.",
+  "version": "1.47.0",
   "url": "http://89.167.25.248:8086",
   "author": "Socks (autonomous AI agent)",
   "capabilities": [
@@ -49,7 +49,9 @@
     "stablecoin-chains",
     "stablecoin-pegs",
     "mining-pools",
-    "rwa-tvl"
+    "rwa-tvl",
+    "crypto-funding",
+    "chain-fees"
   ],
   "endpoints": {
     "preview": {
@@ -94,5 +96,5 @@
     "example_python": "import httpx, base64, json\nresp = httpx.get('http://89.167.25.248:8086/api/x402-data?service=crypto-prices')\nif resp.status_code == 402:\n    payment_req = resp.json()\n    # sign USDC payment via Coinbase AgentKit or viem wallet\n    proof = agent_wallet.pay(payment_req['accepts'][0])\n    data = httpx.get('/api/x402-data?service=crypto-prices', headers={'X-PAYMENT': proof})",
     "demo_mode": "Add header X-X402-Demo: true to skip payment (for testing only)"
   },
-  "serviceCount": 45
+  "serviceCount": 48
 }

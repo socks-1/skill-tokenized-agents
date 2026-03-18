@@ -58,6 +58,10 @@ import type {
   StablecoinPegEntry,
   MiningPoolsData,
   MiningPoolEntry,
+  CryptoFundingData,
+  FundingRoundEntry,
+  ChainFeesData,
+  ChainFeeEntry,
 } from "@/lib/services";
 
 interface InvoiceParams {
@@ -414,6 +418,20 @@ const SERVICE_OPTIONS: { id: ServiceType; label: string; description: string; pr
     description: "Real World Asset tokenization metrics — total RWA TVL on-chain, top protocols by TVL (tokenized treasuries, credit, real estate), 7-day growth rates, and dominant chain. Covers Ondo Finance, Maple, Centrifuge, and more.",
     price: "1 USDC",
     category: "DeFi",
+  },
+  {
+    id: "crypto-funding",
+    label: "Crypto VC Funding",
+    description: "Recent crypto venture capital funding rounds — top deals by amount raised in the last 30 days, round types (Seed/Series A/B), lead investors, and category breakdown (DeFi, Infrastructure, AI, CEX). Via DeFi Llama.",
+    price: "1 USDC",
+    category: "Market Data",
+  },
+  {
+    id: "chain-fees",
+    label: "Blockchain Fee Revenue",
+    description: "Daily fee revenue rankings for top blockchains — Ethereum, Solana, Base, BSC, Arbitrum, Hyperliquid, and more. Shows 24h fees in USD and day-over-day change. A live measure of which chains are generating the most economic activity.",
+    price: "1 USDC",
+    category: "Market Data",
   },
 ];
 
@@ -1036,6 +1054,23 @@ const MOCK_MINING_POOLS: MiningPoolsData = {
     { name: "BTC.com",        slug: "btccom",      block_count:   6, share_pct:  1.4, rank: 9 },
     { name: "Unknown",        slug: "unknown",     block_count:   4, share_pct:  0.9, rank: 10 },
   ] as MiningPoolEntry[],
+};
+
+const MOCK_CHAIN_FEES: ChainFeesData = {
+  total_24h: 26_284_000,
+  top_chain: "Ethereum",
+  chains: [
+    { chain: "Ethereum",       fees_24h: 8_702_000, change_1d_pct: -12.8 },
+    { chain: "Solana",         fees_24h: 8_692_000, change_1d_pct:   3.2 },
+    { chain: "Hyperliquid L1", fees_24h: 2_730_000, change_1d_pct: -15.3 },
+    { chain: "Base",           fees_24h: 1_678_000, change_1d_pct: -12.5 },
+    { chain: "BSC",            fees_24h: 1_396_000, change_1d_pct:   6.8 },
+    { chain: "Arbitrum",       fees_24h: 1_356_000, change_1d_pct:  35.7 },
+    { chain: "Polygon",        fees_24h:   803_000, change_1d_pct:  41.5 },
+    { chain: "Tron",           fees_24h:   192_000, change_1d_pct:  34.8 },
+    { chain: "Avalanche",      fees_24h:   294_000, change_1d_pct:  26.2 },
+    { chain: "Optimism",       fees_24h:    32_000, change_1d_pct: -26.9 },
+  ] as ChainFeeEntry[],
 };
 
 const MOCK_SIGNATURE =
@@ -2069,6 +2104,16 @@ function buildTourSteps(serviceType: ServiceType, liveData?: ServiceResult): Pay
       service_type: "mining-pools",
       result: `${mp.pools[0]?.name} ${mp.pools[0]?.share_pct}% · Nakamoto: ${mp.nakamoto_coefficient} · ${mp.hashrate_eh} EH/s`,
       mining_pools: mp,
+      timestamp: new Date().toISOString(),
+      delivered_to: "Demo1234...abcd",
+    };
+  } else if (serviceType === "chain-fees") {
+    const cf = liveData?.chain_fees ?? MOCK_CHAIN_FEES;
+    const fmtUsd = (v: number) => v >= 1e6 ? `$${(v / 1e6).toFixed(1)}M` : v >= 1e3 ? `$${(v / 1e3).toFixed(0)}K` : `$${v}`;
+    mockService = liveData ?? {
+      service_type: "chain-fees",
+      result: `${cf.top_chain} leads · ${cf.chains[0]?.chain} ${fmtUsd(cf.chains[0]?.fees_24h ?? 0)}${cf.chains[0]?.change_1d_pct != null ? ` (${cf.chains[0].change_1d_pct >= 0 ? "+" : ""}${cf.chains[0].change_1d_pct.toFixed(1)}%)` : ""}`,
+      chain_fees: cf,
       timestamp: new Date().toISOString(),
       delivered_to: "Demo1234...abcd",
     };
@@ -4261,6 +4306,136 @@ function ServiceResultTable({ service }: { service: ServiceResult }) {
         </table>
         <p style={{ marginTop: 8, fontSize: 12, color: "#888" }}>
           Real World Assets (tokenized treasuries, credit, real estate) · via DeFi Llama
+        </p>
+      </div>
+    );
+  }
+
+  if (service.service_type === "crypto-funding" && service.crypto_funding) {
+    const cf = service.crypto_funding;
+    const fmtAmt = (v: number) => v >= 1000 ? `$${(v / 1000).toFixed(1)}B` : `$${v}M`;
+    const fmtDate = (ts: number) => {
+      const d = new Date(ts * 1000);
+      return `${d.getMonth() + 1}/${d.getDate()}`;
+    };
+    const ROUND_COLORS: Record<string, string> = {
+      "Seed": "#6366f1",
+      "Pre-Seed": "#8b5cf6",
+      "Series A": "#0ea5e9",
+      "Series B": "#22c55e",
+      "Series C": "#f59e0b",
+      "Strategic": "#64748b",
+    };
+    const roundColor = (r: string) => ROUND_COLORS[r] ?? "#94a3b8";
+    return (
+      <div>
+        <div style={{ marginBottom: 12, padding: 12, background: "#fafafa", borderRadius: 8, border: "1px solid #f0f0f0", display: "flex", gap: 28, flexWrap: "wrap" }}>
+          <div>
+            <div style={{ fontSize: 11, color: "#aaa", marginBottom: 2 }}>Total Raised (30d)</div>
+            <div style={{ fontWeight: 700, fontSize: 18, color: "#222" }}>{fmtAmt(cf.total_raised_usd_m)}</div>
+          </div>
+          <div>
+            <div style={{ fontSize: 11, color: "#aaa", marginBottom: 2 }}>Rounds</div>
+            <div style={{ fontWeight: 700, fontSize: 18, color: "#222" }}>{cf.round_count}</div>
+          </div>
+          <div>
+            <div style={{ fontSize: 11, color: "#aaa", marginBottom: 2 }}>Top Category</div>
+            <div style={{ fontWeight: 600, fontSize: 15, color: "#555" }}>{cf.top_category}</div>
+          </div>
+          <div>
+            <div style={{ fontSize: 11, color: "#aaa", marginBottom: 2 }}>Largest Round</div>
+            <div style={{ fontWeight: 600, fontSize: 15, color: "#333" }}>{cf.rounds[0]?.name} {fmtAmt(cf.rounds[0]?.amount_usd_m ?? 0)}</div>
+          </div>
+        </div>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+          <thead>
+            <tr style={{ borderBottom: "1px solid #eee" }}>
+              <th style={{ textAlign: "left", padding: "4px 6px", color: "#aaa", fontWeight: 500 }}>Project</th>
+              <th style={{ textAlign: "right", padding: "4px 6px", color: "#aaa", fontWeight: 500 }}>Amount</th>
+              <th style={{ textAlign: "left", padding: "4px 6px", color: "#aaa", fontWeight: 500 }}>Round</th>
+              <th style={{ textAlign: "left", padding: "4px 6px", color: "#aaa", fontWeight: 500 }}>Category</th>
+              <th style={{ textAlign: "left", padding: "4px 6px", color: "#aaa", fontWeight: 500 }}>Lead Investor</th>
+              <th style={{ textAlign: "right", padding: "4px 6px", color: "#aaa", fontWeight: 500 }}>Date</th>
+            </tr>
+          </thead>
+          <tbody>
+            {cf.rounds.map((r, i) => (
+              <tr key={i} style={{ borderBottom: "1px solid #f5f5f5" }}>
+                <td style={{ padding: "5px 6px", fontWeight: 600, color: "#222" }}>{r.name}</td>
+                <td style={{ padding: "5px 6px", textAlign: "right", fontFamily: "monospace", color: "#333", fontWeight: 700 }}>{fmtAmt(r.amount_usd_m)}</td>
+                <td style={{ padding: "5px 6px" }}>
+                  <span style={{ background: roundColor(r.round) + "22", color: roundColor(r.round), border: `1px solid ${roundColor(r.round)}44`, borderRadius: 4, padding: "1px 6px", fontSize: 11, fontWeight: 600 }}>{r.round}</span>
+                </td>
+                <td style={{ padding: "5px 6px", color: "#666", fontSize: 12 }}>{r.category}</td>
+                <td style={{ padding: "5px 6px", color: "#888", fontSize: 11 }}>{r.lead_investors[0] ?? "—"}</td>
+                <td style={{ padding: "5px 6px", textAlign: "right", color: "#aaa", fontSize: 11 }}>{fmtDate(r.date_ts)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <p style={{ marginTop: 8, fontSize: 12, color: "#888" }}>
+          Top {cf.round_count} rounds by amount · last {cf.period_days} days · via DeFi Llama
+        </p>
+      </div>
+    );
+  }
+
+  if (service.service_type === "chain-fees" && service.chain_fees) {
+    const cf = service.chain_fees;
+    const fmtUsd = (v: number) => v >= 1e6 ? `$${(v / 1e6).toFixed(2)}M` : v >= 1e3 ? `$${(v / 1e3).toFixed(0)}K` : `$${v.toFixed(0)}`;
+    const maxFees = cf.chains[0]?.fees_24h ?? 1;
+    return (
+      <div>
+        <div style={{ marginBottom: 12, padding: 12, background: "#fafafa", borderRadius: 8, border: "1px solid #f0f0f0", display: "flex", gap: 28, flexWrap: "wrap" }}>
+          <div>
+            <div style={{ fontSize: 11, color: "#aaa", marginBottom: 2 }}>Total 24h Fees</div>
+            <div style={{ fontWeight: 700, fontSize: 18, color: "#222" }}>{fmtUsd(cf.total_24h)}</div>
+          </div>
+          <div>
+            <div style={{ fontSize: 11, color: "#aaa", marginBottom: 2 }}>Top Chain</div>
+            <div style={{ fontWeight: 700, fontSize: 18, color: "#222" }}>{cf.top_chain}</div>
+          </div>
+          <div>
+            <div style={{ fontSize: 11, color: "#aaa", marginBottom: 2 }}>Chains Tracked</div>
+            <div style={{ fontWeight: 600, fontSize: 15, color: "#555" }}>{cf.chains.length}</div>
+          </div>
+        </div>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+          <thead>
+            <tr style={{ borderBottom: "1px solid #eee" }}>
+              <th style={{ textAlign: "left", padding: "4px 6px", color: "#aaa", fontWeight: 500 }}>Chain</th>
+              <th style={{ textAlign: "right", padding: "4px 6px", color: "#aaa", fontWeight: 500 }}>24h Fees</th>
+              <th style={{ textAlign: "right", padding: "4px 6px", color: "#aaa", fontWeight: 500 }}>1d Change</th>
+              <th style={{ padding: "4px 6px", color: "#aaa", fontWeight: 500, width: 120 }}>Share</th>
+            </tr>
+          </thead>
+          <tbody>
+            {cf.chains.map((c, i) => {
+              const sharePct = (c.fees_24h / cf.total_24h) * 100;
+              const barWidth = Math.round((c.fees_24h / maxFees) * 100);
+              const chg = c.change_1d_pct;
+              return (
+                <tr key={i} style={{ borderBottom: "1px solid #f5f5f5" }}>
+                  <td style={{ padding: "5px 6px", fontWeight: i === 0 ? 700 : 500, color: i === 0 ? "#111" : "#333" }}>{c.chain}</td>
+                  <td style={{ padding: "5px 6px", textAlign: "right", fontFamily: "monospace", fontWeight: 600, color: "#333" }}>{fmtUsd(c.fees_24h)}</td>
+                  <td style={{ padding: "5px 6px", textAlign: "right", fontFamily: "monospace", fontSize: 12, color: chg == null ? "#aaa" : chg >= 0 ? "#16a34a" : "#dc2626" }}>
+                    {chg == null ? "—" : `${chg >= 0 ? "+" : ""}${chg.toFixed(1)}%`}
+                  </td>
+                  <td style={{ padding: "5px 6px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <div style={{ flex: 1, height: 6, background: "#f0f0f0", borderRadius: 3, overflow: "hidden" }}>
+                        <div style={{ width: `${barWidth}%`, height: "100%", background: i === 0 ? "#6366f1" : "#94a3b8", borderRadius: 3 }} />
+                      </div>
+                      <span style={{ fontSize: 11, color: "#999", width: 32, textAlign: "right" }}>{sharePct.toFixed(0)}%</span>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+        <p style={{ marginTop: 8, fontSize: 12, color: "#888" }}>
+          24-hour fee revenue by blockchain · via DeFi Llama
         </p>
       </div>
     );

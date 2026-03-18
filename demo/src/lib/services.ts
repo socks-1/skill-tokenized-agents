@@ -3,10 +3,10 @@
  * All functions are read-only calls to public APIs — no auth required.
  */
 
-export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season" | "btc-mining" | "bridge-volume" | "tvl-movers" | "lightning-network" | "eth-lst" | "realized-vol" | "lending-rates" | "protocol-revenue" | "btc-onchain" | "nft-market" | "market-breadth" | "perp-oi" | "stablecoin-chains" | "stablecoin-pegs" | "mining-pools" | "rwa-tvl";
+export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season" | "btc-mining" | "bridge-volume" | "tvl-movers" | "lightning-network" | "eth-lst" | "realized-vol" | "lending-rates" | "protocol-revenue" | "btc-onchain" | "nft-market" | "market-breadth" | "perp-oi" | "stablecoin-chains" | "stablecoin-pegs" | "mining-pools" | "rwa-tvl" | "crypto-funding" | "chain-fees";
 
 /** All valid service type strings — use this for runtime validation instead of duplicating the list. */
-export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season", "btc-mining", "bridge-volume", "tvl-movers", "lightning-network", "eth-lst", "realized-vol", "lending-rates", "protocol-revenue", "btc-onchain", "nft-market", "market-breadth", "perp-oi", "stablecoin-chains", "stablecoin-pegs", "mining-pools", "rwa-tvl"];
+export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season", "btc-mining", "bridge-volume", "tvl-movers", "lightning-network", "eth-lst", "realized-vol", "lending-rates", "protocol-revenue", "btc-onchain", "nft-market", "market-breadth", "perp-oi", "stablecoin-chains", "stablecoin-pegs", "mining-pools", "rwa-tvl", "crypto-funding", "chain-fees"];
 
 export interface MarketData {
   symbol: string;
@@ -538,6 +538,35 @@ export interface RwaTvlData {
   week_change_pct: number | null;
 }
 
+export interface FundingRoundEntry {
+  name: string;
+  date_ts: number;           // Unix timestamp
+  round: string;             // Seed, Series A, etc.
+  amount_usd_m: number;      // amount in millions USD
+  category: string;          // DeFi, CEX, Infrastructure, AI, etc.
+  lead_investors: string[];  // lead investor names
+}
+
+export interface CryptoFundingData {
+  rounds: FundingRoundEntry[];
+  total_raised_usd_m: number;
+  top_category: string;
+  period_days: number;       // how many days back
+  round_count: number;
+}
+
+export interface ChainFeeEntry {
+  chain: string;
+  fees_24h: number;          // USD
+  change_1d_pct: number | null;
+}
+
+export interface ChainFeesData {
+  chains: ChainFeeEntry[];   // sorted by fees_24h descending
+  total_24h: number;         // sum of all tracked chains
+  top_chain: string;         // highest-fee chain
+}
+
 export interface ServiceResult {
   service_type: ServiceType;
   result: string;
@@ -586,6 +615,8 @@ export interface ServiceResult {
   stablecoin_pegs?: StablecoinPegsData;
   mining_pools?: MiningPoolsData;
   rwa_tvl?: RwaTvlData;
+  crypto_funding?: CryptoFundingData;
+  chain_fees?: ChainFeesData;
   timestamp: string;
   delivered_to: string;
 }
@@ -3097,6 +3128,8 @@ export async function deliverService(delivered_to: string, serviceType: ServiceT
   if (serviceType === "stablecoin-pegs") return deliverStablecoinPegs(delivered_to, timestamp);
   if (serviceType === "mining-pools") return deliverMiningPools(delivered_to, timestamp);
   if (serviceType === "rwa-tvl") return deliverRwaTvl(delivered_to, timestamp);
+  if (serviceType === "crypto-funding") return deliverCryptoFunding(delivered_to, timestamp);
+  if (serviceType === "chain-fees") return deliverChainFees(delivered_to, timestamp);
   return deliverCryptoPrices(delivered_to, timestamp);
 }
 
@@ -3609,4 +3642,148 @@ export async function deliverRwaTvl(delivered_to: string, timestamp: string): Pr
     : "RWA TVL data temporarily unavailable";
 
   return { service_type: "rwa-tvl", result, rwa_tvl, timestamp, delivered_to };
+}
+// Server-side cache for DeFi Llama /raises (10-min rate limit protection)
+let _cryptoFundingCache: { data: CryptoFundingData; expires: number } | null = null;
+
+/**
+ * Fetches recent crypto VC funding rounds via DeFi Llama /raises.
+ * Shows top rounds from the past 30 days sorted by amount raised.
+ * Uses a 12-minute server-side cache to stay within DeFi Llama rate limits.
+ */
+export async function deliverCryptoFunding(delivered_to: string, timestamp: string): Promise<ServiceResult> {
+  // Return cached data if available and fresh
+  if (_cryptoFundingCache && Date.now() < _cryptoFundingCache.expires) {
+    const cf = _cryptoFundingCache.data;
+    const fmtUsd = (v: number) => v >= 1000 ? `$${(v / 1000).toFixed(1)}B` : `$${v}M`;
+    const result = `${cf.round_count} rounds · $${cf.total_raised_usd_m}M raised (30d) · Top: ${cf.rounds[0].name} ${fmtUsd(cf.rounds[0].amount_usd_m)} ${cf.rounds[0].round} · #1 sector: ${cf.top_category}`;
+    return { service_type: "crypto-funding", result, crypto_funding: cf, timestamp, delivered_to };
+  }
+
+  let crypto_funding: CryptoFundingData | undefined;
+
+  try {
+    const res = await fetch("https://api.llama.fi/raises", {
+      signal: AbortSignal.timeout(12000),
+      headers: { "User-Agent": "skill-tokenized-agents/1.0", Accept: "application/json" },
+    });
+    if (!res.ok) throw new Error(`DeFi Llama HTTP ${res.status}`);
+
+    const data = await res.json() as {
+      raises: Array<{
+        name: string;
+        date: number;
+        round: string | null;
+        amount: number | null;
+        category: string | null;
+        categoryGroup: string | null;
+        leadInvestors: string[];
+        otherInvestors: string[];
+      }>;
+    };
+
+    const PERIOD_DAYS = 30;
+    const cutoff = (Date.now() / 1000) - PERIOD_DAYS * 86400;
+
+    const recent = data.raises
+      .filter((r) => r.date >= cutoff && r.amount != null && Number(r.amount) > 0)
+      .sort((a, b) => (b.amount ?? 0) - (a.amount ?? 0))
+      .slice(0, 12);
+
+    if (recent.length === 0) throw new Error("No recent funding rounds found");
+
+    const rounds: FundingRoundEntry[] = recent.map((r) => ({
+      name: r.name,
+      date_ts: r.date,
+      round: r.round ?? "Unknown",
+      amount_usd_m: Math.round((r.amount ?? 0) * 10) / 10,
+      category: r.category ?? r.categoryGroup ?? "Other",
+      lead_investors: r.leadInvestors ?? [],
+    }));
+
+    const total_raised_usd_m = Math.round(rounds.reduce((s, r) => s + r.amount_usd_m, 0) * 10) / 10;
+
+    // Most common category
+    const catCount: Record<string, number> = {};
+    for (const r of rounds) {
+      catCount[r.category] = (catCount[r.category] ?? 0) + 1;
+    }
+    const top_category = Object.entries(catCount).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "DeFi";
+
+    crypto_funding = { rounds, total_raised_usd_m, top_category, period_days: PERIOD_DAYS, round_count: rounds.length };
+    // Store in server-side cache (12 min TTL to safely span the 10-min rate limit window)
+    _cryptoFundingCache = { data: crypto_funding, expires: Date.now() + 12 * 60 * 1000 };
+  } catch {
+    // Fall through with undefined
+  }
+
+  const fmtUsd = (v: number) =>
+    v >= 1000 ? `$${(v / 1000).toFixed(1)}B` : `$${v}M`;
+
+  const result = crypto_funding && crypto_funding.rounds.length > 0
+    ? `${crypto_funding.round_count} rounds · $${crypto_funding.total_raised_usd_m}M raised (30d) · Top: ${crypto_funding.rounds[0].name} ${fmtUsd(crypto_funding.rounds[0].amount_usd_m)} ${crypto_funding.rounds[0].round} · #1 sector: ${crypto_funding.top_category}`
+    : "Crypto funding data temporarily unavailable";
+
+  return { service_type: "crypto-funding", result, crypto_funding, timestamp, delivered_to };
+}
+
+// Server-side cache for chain fees (15-min TTL — DeFi Llama rate limit protection)
+let _chainFeesCache: { data: ChainFeesData; expires: number } | null = null;
+
+const CHAIN_FEE_TARGETS = [
+  "Ethereum", "Solana", "Hyperliquid L1", "Base", "BSC",
+  "Arbitrum", "Polygon", "Tron", "Avalanche", "Optimism",
+];
+
+/**
+ * Fetches 24-hour fee revenue for major blockchains via DeFi Llama.
+ * Ranks chains by daily fee generation — a proxy for network activity and demand.
+ * Makes parallel requests and caches for 15 minutes to stay within rate limits.
+ */
+export async function deliverChainFees(delivered_to: string, timestamp: string): Promise<ServiceResult> {
+  if (_chainFeesCache && Date.now() < _chainFeesCache.expires) {
+    const cf = _chainFeesCache.data;
+    const fmtUsd = (v: number) => v >= 1e6 ? `$${(v / 1e6).toFixed(1)}M` : v >= 1e3 ? `$${(v / 1e3).toFixed(0)}K` : `$${v.toFixed(0)}`;
+    const result = `${cf.top_chain} leads · 24h total ${fmtUsd(cf.total_24h)} · Top: ${cf.chains[0]?.chain} ${fmtUsd(cf.chains[0]?.fees_24h ?? 0)}${cf.chains[0]?.change_1d_pct != null ? ` (${cf.chains[0].change_1d_pct >= 0 ? "+" : ""}${cf.chains[0].change_1d_pct.toFixed(1)}%)` : ""}`;
+    return { service_type: "chain-fees", result, chain_fees: cf, timestamp, delivered_to };
+  }
+
+  let chain_fees: ChainFeesData | undefined;
+
+  try {
+    const results = await Promise.allSettled(
+      CHAIN_FEE_TARGETS.map(async (chain) => {
+        const encodedChain = encodeURIComponent(chain);
+        const res = await fetch(
+          `https://api.llama.fi/overview/fees/${encodedChain}?dataType=dailyFees&excludeTotalDataChart=true&excludeTotalDataChartBreakdown=true`,
+          { signal: AbortSignal.timeout(12000), headers: { "User-Agent": "skill-tokenized-agents/1.0", Accept: "application/json" } }
+        );
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json() as { total24h?: number; change_1d?: number };
+        return { chain, fees_24h: data.total24h ?? 0, change_1d_pct: data.change_1d ?? null } as ChainFeeEntry;
+      })
+    );
+
+    const chains: ChainFeeEntry[] = results
+      .filter((r): r is PromiseFulfilledResult<ChainFeeEntry> => r.status === "fulfilled" && r.value.fees_24h > 0)
+      .map((r) => r.value)
+      .sort((a, b) => b.fees_24h - a.fees_24h);
+
+    if (chains.length === 0) throw new Error("No chain fee data returned");
+
+    const total_24h = chains.reduce((s, c) => s + c.fees_24h, 0);
+    const top_chain = chains[0].chain;
+    chain_fees = { chains, total_24h, top_chain };
+    _chainFeesCache = { data: chain_fees, expires: Date.now() + 15 * 60 * 1000 };
+  } catch {
+    // Fall through with undefined
+  }
+
+  const fmtUsd = (v: number) => v >= 1e6 ? `$${(v / 1e6).toFixed(1)}M` : v >= 1e3 ? `$${(v / 1e3).toFixed(0)}K` : `$${v.toFixed(0)}`;
+
+  const result = chain_fees && chain_fees.chains.length > 0
+    ? `${chain_fees.top_chain} leads · 24h total ${fmtUsd(chain_fees.total_24h)} · Top: ${chain_fees.chains[0].chain} ${fmtUsd(chain_fees.chains[0].fees_24h)}${chain_fees.chains[0].change_1d_pct != null ? ` (${chain_fees.chains[0].change_1d_pct >= 0 ? "+" : ""}${chain_fees.chains[0].change_1d_pct.toFixed(1)}%)` : ""}`
+    : "Chain fee data temporarily unavailable";
+
+  return { service_type: "chain-fees", result, chain_fees, timestamp, delivered_to };
 }
