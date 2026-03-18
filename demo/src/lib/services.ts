@@ -3,10 +3,10 @@
  * All functions are read-only calls to public APIs — no auth required.
  */
 
-export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season" | "btc-mining" | "bridge-volume" | "tvl-movers" | "lightning-network" | "eth-lst" | "realized-vol" | "lending-rates" | "protocol-revenue";
+export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season" | "btc-mining" | "bridge-volume" | "tvl-movers" | "lightning-network" | "eth-lst" | "realized-vol" | "lending-rates" | "protocol-revenue" | "btc-onchain";
 
 /** All valid service type strings — use this for runtime validation instead of duplicating the list. */
-export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season", "btc-mining", "bridge-volume", "tvl-movers", "lightning-network", "eth-lst", "realized-vol", "lending-rates", "protocol-revenue"];
+export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season", "btc-mining", "bridge-volume", "tvl-movers", "lightning-network", "eth-lst", "realized-vol", "lending-rates", "protocol-revenue", "btc-onchain"];
 
 export interface MarketData {
   symbol: string;
@@ -465,6 +465,7 @@ export interface ServiceResult {
   realized_vol?: RealizedVolData;
   lending_rates?: LendingRatesData;
   protocol_revenue?: ProtocolRevenueData;
+  btc_onchain?: BtcOnchainData;
   timestamp: string;
   delivered_to: string;
 }
@@ -498,6 +499,15 @@ export interface LendingRatesData {
   best_stable_protocol: string;
   best_eth_apy: number;
   best_eth_protocol: string;
+}
+
+export interface BtcOnchainData {
+  tx_count_24h: number;        // confirmed transactions in past 24h
+  tx_volume_usd: number;       // estimated USD value transferred 24h
+  tx_volume_btc: number;       // estimated BTC transferred 24h
+  blocks_mined_24h: number;    // blocks mined in past 24h (≈144 target)
+  subsidy_revenue_usd: number; // block subsidy revenue 24h (blocks × 3.125 BTC × price)
+  avg_tx_value_usd: number;    // average transaction value in USD
 }
 
 /**
@@ -2959,5 +2969,57 @@ export async function deliverService(delivered_to: string, serviceType: ServiceT
   if (serviceType === "realized-vol") return deliverRealizedVol(delivered_to, timestamp);
   if (serviceType === "lending-rates") return deliverLendingRates(delivered_to, timestamp);
   if (serviceType === "protocol-revenue") return deliverProtocolRevenue(delivered_to, timestamp);
+  if (serviceType === "btc-onchain") return deliverBtcOnchain(delivered_to, timestamp);
   return deliverCryptoPrices(delivered_to, timestamp);
+}
+
+export async function deliverBtcOnchain(delivered_to: string, timestamp: string): Promise<ServiceResult> {
+  let btc_onchain: BtcOnchainData | undefined;
+
+  try {
+    const res = await fetch("https://blockchain.info/stats?format=json", {
+      signal: AbortSignal.timeout(10000),
+      headers: { "User-Agent": "skill-tokenized-agents/1.0" },
+    });
+    if (!res.ok) throw new Error(`blockchain.info HTTP ${res.status}`);
+
+    const data = await res.json() as {
+      n_tx: number;
+      estimated_transaction_volume_usd: number;
+      estimated_btc_sent: number;  // in satoshis
+      n_blocks_mined: number;
+      market_price_usd: number;
+    };
+
+    const tx_count_24h = data.n_tx ?? 0;
+    const tx_volume_usd = data.estimated_transaction_volume_usd ?? 0;
+    const tx_volume_btc = parseFloat(((data.estimated_btc_sent ?? 0) / 1e8).toFixed(0));
+    const blocks_mined_24h = data.n_blocks_mined ?? 0;
+    const btc_price = data.market_price_usd ?? 0;
+    // Block subsidy post-April 2024 halving = 3.125 BTC/block
+    const subsidy_revenue_usd = Math.round(blocks_mined_24h * 3.125 * btc_price);
+    const avg_tx_value_usd = tx_count_24h > 0 ? Math.round(tx_volume_usd / tx_count_24h) : 0;
+
+    if (tx_count_24h > 0) {
+      btc_onchain = {
+        tx_count_24h,
+        tx_volume_usd,
+        tx_volume_btc,
+        blocks_mined_24h,
+        subsidy_revenue_usd,
+        avg_tx_value_usd,
+      };
+    }
+  } catch {
+    // Fall through with undefined btc_onchain
+  }
+
+  const fmtUsd = (v: number) =>
+    v >= 1e9 ? `$${(v / 1e9).toFixed(1)}B` : v >= 1e6 ? `$${(v / 1e6).toFixed(0)}M` : `$${v.toLocaleString()}`;
+
+  const result = btc_onchain
+    ? `${btc_onchain.tx_count_24h.toLocaleString()} txs · ${fmtUsd(btc_onchain.tx_volume_usd)} transferred · ${btc_onchain.blocks_mined_24h} blocks mined · subsidy revenue ${fmtUsd(btc_onchain.subsidy_revenue_usd)}`
+    : "BTC on-chain data temporarily unavailable";
+
+  return { service_type: "btc-onchain", result, btc_onchain, timestamp, delivered_to };
 }

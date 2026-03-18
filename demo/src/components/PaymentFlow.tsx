@@ -45,6 +45,7 @@ import type {
   RealizedVolData,
   LendingRatesData,
   ProtocolRevenueData,
+  BtcOnchainData,
 } from "@/lib/services";
 
 interface InvoiceParams {
@@ -345,6 +346,13 @@ const SERVICE_OPTIONS: { id: ServiceType; label: string; description: string; pr
     description: "Top DeFi protocols ranked by actual revenue kept — the share of fees flowing to treasuries and token holders. Distinct from total fees charged to users.",
     price: "1 USDC",
     category: "DeFi",
+  },
+  {
+    id: "btc-onchain",
+    label: "Bitcoin On-Chain Activity",
+    description: "24h Bitcoin transaction count, USD transfer volume, blocks mined, and miner revenue — fundamental network health metrics from blockchain.com",
+    price: "1 USDC",
+    category: "Market Data",
   },
 ];
 
@@ -847,6 +855,15 @@ const MOCK_LENDING_RATES: LendingRatesData = {
   best_stable_protocol: "maple USDC",
   best_eth_apy: 1.71,
   best_eth_protocol: "aave-v3 (Arbitrum)",
+};
+
+const MOCK_BTC_ONCHAIN: BtcOnchainData = {
+  tx_count_24h: 412_583,
+  tx_volume_usd: 31_400_000_000,
+  tx_volume_btc: 374_200,
+  blocks_mined_24h: 144,
+  subsidy_revenue_usd: 33_600_000,
+  avg_tx_value_usd: 76_100,
 };
 
 const MOCK_SIGNATURE =
@@ -1813,6 +1830,16 @@ function buildTourSteps(serviceType: ServiceType, liveData?: ServiceResult): Pay
       service_type: "protocol-revenue",
       result: pr.entries.slice(0, 3).map((e) => `${e.name} ${fmtRev(e.revenue_30d)} 30d`).join(" | "),
       protocol_revenue: pr,
+      timestamp: new Date().toISOString(),
+      delivered_to: "Demo1234...abcd",
+    };
+  } else if (serviceType === "btc-onchain") {
+    const bo = liveData?.btc_onchain ?? MOCK_BTC_ONCHAIN;
+    const fmtUsd = (v: number) => v >= 1e9 ? `$${(v / 1e9).toFixed(1)}B` : `$${(v / 1e6).toFixed(0)}M`;
+    mockService = liveData ?? {
+      service_type: "btc-onchain",
+      result: `${bo.tx_count_24h.toLocaleString()} txs · ${fmtUsd(bo.tx_volume_usd)} transferred · ${bo.blocks_mined_24h} blocks · subsidy ${fmtUsd(bo.subsidy_revenue_usd)}`,
+      btc_onchain: bo,
       timestamp: new Date().toISOString(),
       delivered_to: "Demo1234...abcd",
     };
@@ -3563,6 +3590,50 @@ function ServiceResultTable({ service }: { service: ServiceResult }) {
         </table>
         <p style={{ marginTop: 8, fontSize: 12, color: "#888" }}>
           {pr.entries.length} protocols · sorted by 30d revenue · via DeFi Llama
+        </p>
+      </div>
+    );
+  }
+
+  if (service.service_type === "btc-onchain" && service.btc_onchain) {
+    const bo = service.btc_onchain;
+    const fmtUsd = (v: number) =>
+      v >= 1e9 ? `$${(v / 1e9).toFixed(2)}B` : v >= 1e6 ? `$${(v / 1e6).toFixed(1)}M` : `$${v.toLocaleString()}`;
+    const blocksColor = bo.blocks_mined_24h < 130 ? "#c0392b" : bo.blocks_mined_24h > 158 ? "#c0392b" : "#1a7a3a";
+    return (
+      <div>
+        <div style={{ marginBottom: 14, padding: 14, background: "#fafafa", borderRadius: 8, border: "1px solid #f0f0f0" }}>
+          {/* Top row: transactions + volume */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px 16px", marginBottom: 14 }}>
+            <div>
+              <div style={{ fontSize: 11, color: "#aaa", marginBottom: 2 }}>Transactions (24h)</div>
+              <div style={{ fontWeight: 700, fontSize: 18, color: "#222" }}>{bo.tx_count_24h.toLocaleString()}</div>
+            </div>
+            <div>
+              <div style={{ fontSize: 11, color: "#aaa", marginBottom: 2 }}>USD Transferred (24h)</div>
+              <div style={{ fontWeight: 700, fontSize: 18, color: "#222" }}>{fmtUsd(bo.tx_volume_usd)}</div>
+            </div>
+          </div>
+          {/* Bottom row: blocks, avg tx value, miner revenue */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "8px 16px" }}>
+            <div>
+              <div style={{ fontSize: 11, color: "#aaa", marginBottom: 2 }}>Blocks Mined</div>
+              <div style={{ fontWeight: 600, fontSize: 14, color: blocksColor }}>{bo.blocks_mined_24h}</div>
+              <div style={{ fontSize: 10, color: "#aaa" }}>target 144/day</div>
+            </div>
+            <div>
+              <div style={{ fontSize: 11, color: "#aaa", marginBottom: 2 }}>Avg Tx Value</div>
+              <div style={{ fontWeight: 600, fontSize: 14, color: "#222" }}>{fmtUsd(bo.avg_tx_value_usd)}</div>
+            </div>
+            <div>
+              <div style={{ fontSize: 11, color: "#aaa", marginBottom: 2 }}>Block Subsidy</div>
+              <div style={{ fontWeight: 600, fontSize: 14, color: "#222" }}>{fmtUsd(bo.subsidy_revenue_usd)}</div>
+              <div style={{ fontSize: 10, color: "#aaa" }}>3.125 BTC/block</div>
+            </div>
+          </div>
+        </div>
+        <p style={{ marginTop: 4, fontSize: 12, color: "#888" }}>
+          On-chain activity · via blockchain.com
         </p>
       </div>
     );
