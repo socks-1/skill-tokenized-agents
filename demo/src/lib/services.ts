@@ -3,10 +3,10 @@
  * All functions are read-only calls to public APIs — no auth required.
  */
 
-export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season" | "btc-mining" | "bridge-volume" | "tvl-movers" | "lightning-network" | "eth-lst" | "realized-vol" | "lending-rates" | "protocol-revenue" | "btc-onchain" | "nft-market" | "market-breadth" | "perp-oi" | "stablecoin-chains" | "stablecoin-pegs" | "mining-pools" | "rwa-tvl" | "crypto-funding" | "chain-fees" | "chain-tvl" | "defi-exploits" | "global-dex";
+export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season" | "btc-mining" | "bridge-volume" | "tvl-movers" | "lightning-network" | "eth-lst" | "realized-vol" | "lending-rates" | "protocol-revenue" | "btc-onchain" | "nft-market" | "market-breadth" | "perp-oi" | "stablecoin-chains" | "stablecoin-pegs" | "mining-pools" | "rwa-tvl" | "crypto-funding" | "chain-fees" | "chain-tvl" | "defi-exploits" | "global-dex" | "futures-basis";
 
 /** All valid service type strings — use this for runtime validation instead of duplicating the list. */
-export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season", "btc-mining", "bridge-volume", "tvl-movers", "lightning-network", "eth-lst", "realized-vol", "lending-rates", "protocol-revenue", "btc-onchain", "nft-market", "market-breadth", "perp-oi", "stablecoin-chains", "stablecoin-pegs", "mining-pools", "rwa-tvl", "crypto-funding", "chain-fees", "chain-tvl", "defi-exploits", "global-dex"];
+export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season", "btc-mining", "bridge-volume", "tvl-movers", "lightning-network", "eth-lst", "realized-vol", "lending-rates", "protocol-revenue", "btc-onchain", "nft-market", "market-breadth", "perp-oi", "stablecoin-chains", "stablecoin-pegs", "mining-pools", "rwa-tvl", "crypto-funding", "chain-fees", "chain-tvl", "defi-exploits", "global-dex", "futures-basis"];
 
 export interface MarketData {
   symbol: string;
@@ -609,6 +609,24 @@ export interface GlobalDexData {
   total_volume_24h: number;
 }
 
+export interface FuturesBasisEntry {
+  instrument: string;           // "BTC-26JUN26"
+  expiry_label: string;         // "Jun 26" or "Perp"
+  days_to_expiry: number;       // 0 for perpetual
+  mark_price: number;
+  spot_price: number;
+  basis_usd: number;            // mark_price - spot_price
+  basis_pct: number;            // (basis_usd / spot_price) * 100
+  annualized_basis_pct: number | null; // null for perp or < 3 days to expiry
+}
+
+export interface FuturesBasisData {
+  btc: FuturesBasisEntry[];
+  eth: FuturesBasisEntry[];
+  btc_spot: number;
+  eth_spot: number;
+}
+
 export interface ServiceResult {
   service_type: ServiceType;
   result: string;
@@ -662,6 +680,7 @@ export interface ServiceResult {
   chain_tvl?: ChainTvlData;
   defi_exploits?: DefiExploitsData;
   global_dex?: GlobalDexData;
+  futures_basis?: FuturesBasisData;
   timestamp: string;
   delivered_to: string;
 }
@@ -3178,6 +3197,7 @@ export async function deliverService(delivered_to: string, serviceType: ServiceT
   if (serviceType === "chain-tvl") return deliverChainTvl(delivered_to, timestamp);
   if (serviceType === "defi-exploits") return deliverDefiExploits(delivered_to, timestamp);
   if (serviceType === "global-dex") return deliverGlobalDex(delivered_to, timestamp);
+  if (serviceType === "futures-basis") return deliverFuturesBasis(delivered_to, timestamp);
   return deliverCryptoPrices(delivered_to, timestamp);
 }
 
@@ -4044,4 +4064,131 @@ export async function deliverGlobalDex(delivered_to: string, timestamp: string):
     : "Global DEX volume data temporarily unavailable";
 
   return { service_type: "global-dex", result, global_dex, timestamp, delivered_to };
+}
+
+// ---------------------------------------------------------------------------
+// 51st service: Futures Term Structure
+// ---------------------------------------------------------------------------
+
+/** Parse an expiry date from a Deribit instrument name like "BTC-20MAR26" */
+function parseDeribitExpiry(instrument: string): Date | null {
+  const m = instrument.match(/-(\d{1,2})([A-Z]{3})(\d{2})$/);
+  if (!m) return null;
+  const [, dayStr, monthStr, yearStr] = m;
+  const months: Record<string, number> = {
+    JAN: 0, FEB: 1, MAR: 2, APR: 3, MAY: 4, JUN: 5,
+    JUL: 6, AUG: 7, SEP: 8, OCT: 9, NOV: 10, DEC: 11,
+  };
+  if (!(monthStr in months)) return null;
+  return new Date(2000 + parseInt(yearStr, 10), months[monthStr], parseInt(dayStr, 10));
+}
+
+function formatExpiryLabel(instrument: string): string {
+  if (instrument.endsWith("-PERPETUAL")) return "Perp";
+  const expiry = parseDeribitExpiry(instrument);
+  if (!expiry) return instrument;
+  const month = expiry.toLocaleString("en-US", { month: "short" });
+  return `${month} ${expiry.getDate()}`;
+}
+
+function parseFuturesEntries(
+  results: Array<{ instrument_name?: string; mark_price?: number; estimated_delivery_price?: number }>,
+  now: Date
+): FuturesBasisEntry[] {
+  const entries: FuturesBasisEntry[] = [];
+  for (const r of results) {
+    const name = r.instrument_name ?? "";
+    const mark = r.mark_price ?? 0;
+    const spot = r.estimated_delivery_price ?? 0;
+    if (!name || mark <= 0 || spot <= 0) continue;
+
+    const isPerp = name.endsWith("-PERPETUAL");
+    let days = 0;
+    if (!isPerp) {
+      const expiry = parseDeribitExpiry(name);
+      if (!expiry) continue;
+      days = Math.max(0, Math.round((expiry.getTime() - now.getTime()) / 86_400_000));
+    }
+
+    const basis_usd = mark - spot;
+    const basis_pct = (basis_usd / spot) * 100;
+    const annualized_basis_pct =
+      !isPerp && days >= 3 ? basis_pct * (365 / days) : null;
+
+    entries.push({
+      instrument: name,
+      expiry_label: formatExpiryLabel(name),
+      days_to_expiry: days,
+      mark_price: mark,
+      spot_price: spot,
+      basis_usd,
+      basis_pct,
+      annualized_basis_pct,
+    });
+  }
+  // Perpetual first, then ascending by days
+  return entries.sort((a, b) => {
+    if (a.days_to_expiry === 0) return -1;
+    if (b.days_to_expiry === 0) return 1;
+    return a.days_to_expiry - b.days_to_expiry;
+  });
+}
+
+let _futuresBasisCache: { data: FuturesBasisData; expires: number } | null = null;
+
+/**
+ * Fetches BTC and ETH futures term structure from Deribit.
+ * Shows mark price, basis vs spot, and annualized basis for each expiry.
+ * Cached 5 minutes.
+ */
+export async function deliverFuturesBasis(delivered_to: string, timestamp: string): Promise<ServiceResult> {
+  if (_futuresBasisCache && Date.now() < _futuresBasisCache.expires) {
+    const fb = _futuresBasisCache.data;
+    const nearest = fb.btc.find((e) => e.days_to_expiry > 0);
+    const result = nearest
+      ? `BTC Spot $${fb.btc_spot.toLocaleString(undefined, { maximumFractionDigits: 0 })} · Nearest basis ${nearest.basis_pct >= 0 ? "+" : ""}${nearest.basis_pct.toFixed(3)}% (${nearest.expiry_label}) · ${fb.btc.length + fb.eth.length} contracts`
+      : "BTC/ETH futures term structure — Deribit";
+    return { service_type: "futures-basis", result, futures_basis: fb, timestamp, delivered_to };
+  }
+
+  let futures_basis: FuturesBasisData | undefined;
+  const now = new Date();
+
+  try {
+    const [btcRes, ethRes] = await Promise.all([
+      fetch(
+        "https://www.deribit.com/api/v2/public/get_book_summary_by_currency?currency=BTC&kind=future",
+        { signal: AbortSignal.timeout(12000), headers: { "User-Agent": "skill-tokenized-agents/1.0" } }
+      ),
+      fetch(
+        "https://www.deribit.com/api/v2/public/get_book_summary_by_currency?currency=ETH&kind=future",
+        { signal: AbortSignal.timeout(12000), headers: { "User-Agent": "skill-tokenized-agents/1.0" } }
+      ),
+    ]);
+
+    if (!btcRes.ok || !ethRes.ok) throw new Error("Deribit API error");
+
+    const btcJson = await btcRes.json() as { result?: Array<{ instrument_name?: string; mark_price?: number; estimated_delivery_price?: number }> };
+    const ethJson = await ethRes.json() as { result?: Array<{ instrument_name?: string; mark_price?: number; estimated_delivery_price?: number }> };
+
+    const btcEntries = parseFuturesEntries(btcJson.result ?? [], now);
+    const ethEntries = parseFuturesEntries(ethJson.result ?? [], now);
+
+    if (btcEntries.length === 0) throw new Error("No BTC futures data");
+
+    const btcSpot = btcEntries[0]?.spot_price ?? 0;
+    const ethSpot = ethEntries[0]?.spot_price ?? 0;
+
+    futures_basis = { btc: btcEntries, eth: ethEntries, btc_spot: btcSpot, eth_spot: ethSpot };
+    _futuresBasisCache = { data: futures_basis, expires: Date.now() + 5 * 60 * 1000 };
+  } catch {
+    // Fall through with undefined
+  }
+
+  const nearest = futures_basis?.btc.find((e) => e.days_to_expiry > 0);
+  const result = futures_basis && nearest
+    ? `BTC Spot $${futures_basis.btc_spot.toLocaleString(undefined, { maximumFractionDigits: 0 })} · Nearest basis ${nearest.basis_pct >= 0 ? "+" : ""}${nearest.basis_pct.toFixed(3)}% (${nearest.expiry_label}) · ${futures_basis.btc.length + futures_basis.eth.length} contracts`
+    : "BTC/ETH futures term structure data temporarily unavailable";
+
+  return { service_type: "futures-basis", result, futures_basis, timestamp, delivered_to };
 }

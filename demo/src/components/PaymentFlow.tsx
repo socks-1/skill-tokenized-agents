@@ -68,6 +68,8 @@ import type {
   DefiExploitEntry,
   GlobalDexData,
   GlobalDexEntry,
+  FuturesBasisData,
+  FuturesBasisEntry,
 } from "@/lib/services";
 
 interface InvoiceParams {
@@ -459,6 +461,13 @@ const SERVICE_OPTIONS: { id: ServiceType; label: string; description: string; pr
     description: "Top 12 decentralized exchanges across all chains by 24h trading volume — Uniswap, Raydium, PancakeSwap, Orca, GMX, and more. Total global DEX volume with 24h change. Via DeFi Llama.",
     price: "1 USDC",
     category: "DeFi",
+  },
+  {
+    id: "futures-basis",
+    label: "Crypto Futures Term Structure",
+    description: "BTC and ETH futures term structure from Deribit — mark price, basis vs spot, and annualized basis for every active dated expiry. Shows whether the market is in contango or backwardation at a glance.",
+    price: "1 USDC",
+    category: "Market Data",
   },
 ];
 
@@ -1155,6 +1164,29 @@ const MOCK_GLOBAL_DEX: GlobalDexData = {
     { name: "Hyperliquid",  chains: ["Hyperliquid"],                    volume_24h:   165_000_000, change_pct:  3.4 },
     { name: "Velodrome",    chains: ["Optimism"],                       volume_24h:   140_000_000, change_pct:  0.6 },
   ] as GlobalDexEntry[],
+};
+
+const MOCK_FUTURES_BASIS: FuturesBasisData = {
+  btc_spot: 71590,
+  eth_spot: 2204,
+  btc: [
+    { instrument: "BTC-PERPETUAL",  expiry_label: "Perp",   days_to_expiry: 0,   mark_price: 71600,  spot_price: 71590, basis_usd:  10, basis_pct:  0.014, annualized_basis_pct: null },
+    { instrument: "BTC-20MAR26",    expiry_label: "Mar 20", days_to_expiry: 2,   mark_price: 71603,  spot_price: 71590, basis_usd:  13, basis_pct:  0.018, annualized_basis_pct: null },
+    { instrument: "BTC-27MAR26",    expiry_label: "Mar 27", days_to_expiry: 9,   mark_price: 71633,  spot_price: 71590, basis_usd:  43, basis_pct:  0.060, annualized_basis_pct: 2.44 },
+    { instrument: "BTC-24APR26",    expiry_label: "Apr 24", days_to_expiry: 37,  mark_price: 71729,  spot_price: 71590, basis_usd: 139, basis_pct:  0.194, annualized_basis_pct: 1.91 },
+    { instrument: "BTC-26JUN26",    expiry_label: "Jun 26", days_to_expiry: 100, mark_price: 72039,  spot_price: 71590, basis_usd: 449, basis_pct:  0.627, annualized_basis_pct: 2.29 },
+    { instrument: "BTC-25SEP26",    expiry_label: "Sep 25", days_to_expiry: 191, mark_price: 72637,  spot_price: 71590, basis_usd: 1047, basis_pct: 1.462, annualized_basis_pct: 2.79 },
+    { instrument: "BTC-25DEC26",    expiry_label: "Dec 25", days_to_expiry: 282, mark_price: 73413,  spot_price: 71590, basis_usd: 1823, basis_pct: 2.546, annualized_basis_pct: 3.30 },
+  ] as FuturesBasisEntry[],
+  eth: [
+    { instrument: "ETH-PERPETUAL",  expiry_label: "Perp",   days_to_expiry: 0,   mark_price: 2204.7,  spot_price: 2204, basis_usd:   0.7,  basis_pct:  0.032, annualized_basis_pct: null },
+    { instrument: "ETH-20MAR26",    expiry_label: "Mar 20", days_to_expiry: 2,   mark_price: 2204.6,  spot_price: 2204, basis_usd:   0.6,  basis_pct:  0.027, annualized_basis_pct: null },
+    { instrument: "ETH-27MAR26",    expiry_label: "Mar 27", days_to_expiry: 9,   mark_price: 2207.7,  spot_price: 2204, basis_usd:   3.7,  basis_pct:  0.168, annualized_basis_pct: 6.82 },
+    { instrument: "ETH-24APR26",    expiry_label: "Apr 24", days_to_expiry: 37,  mark_price: 2210.6,  spot_price: 2204, basis_usd:   6.6,  basis_pct:  0.299, annualized_basis_pct: 2.95 },
+    { instrument: "ETH-26JUN26",    expiry_label: "Jun 26", days_to_expiry: 100, mark_price: 2222.1,  spot_price: 2204, basis_usd:  18.1,  basis_pct:  0.821, annualized_basis_pct: 3.00 },
+    { instrument: "ETH-25SEP26",    expiry_label: "Sep 25", days_to_expiry: 191, mark_price: 2241.7,  spot_price: 2204, basis_usd:  37.7,  basis_pct:  1.711, annualized_basis_pct: 3.27 },
+    { instrument: "ETH-25DEC26",    expiry_label: "Dec 25", days_to_expiry: 282, mark_price: 2263.9,  spot_price: 2204, basis_usd:  59.9,  basis_pct:  2.718, annualized_basis_pct: 3.52 },
+  ] as FuturesBasisEntry[],
 };
 
 const MOCK_SIGNATURE =
@@ -2228,6 +2260,18 @@ function buildTourSteps(serviceType: ServiceType, liveData?: ServiceResult): Pay
       service_type: "global-dex",
       result: `Total DEX Vol (24h): ${fmtUsd(gd.total_volume_24h)} · Top: ${gd.dexes[0]?.name} ${fmtUsd(gd.dexes[0]?.volume_24h ?? 0)} · ${gd.dexes.length} DEXes ranked`,
       global_dex: gd,
+      timestamp: new Date().toISOString(),
+      delivered_to: "Demo1234...abcd",
+    };
+  } else if (serviceType === "futures-basis") {
+    const fb = liveData?.futures_basis ?? MOCK_FUTURES_BASIS;
+    const nearest = fb.btc.find((e) => e.days_to_expiry > 0);
+    mockService = liveData ?? {
+      service_type: "futures-basis",
+      result: nearest
+        ? `BTC Spot $${fb.btc_spot.toLocaleString(undefined, { maximumFractionDigits: 0 })} · Nearest basis ${nearest.basis_pct >= 0 ? "+" : ""}${nearest.basis_pct.toFixed(3)}% (${nearest.expiry_label}) · ${fb.btc.length + fb.eth.length} contracts`
+        : "BTC/ETH futures term structure — Deribit",
+      futures_basis: fb,
       timestamp: new Date().toISOString(),
       delivered_to: "Demo1234...abcd",
     };
@@ -4732,6 +4776,66 @@ function ServiceResultTable({ service }: { service: ServiceResult }) {
         <p style={{ marginTop: 8, fontSize: 12, color: "#888" }}>
           Top {gd.dexes.length} DEXes by 24h trading volume across all chains · via DeFi Llama
         </p>
+      </div>
+    );
+  }
+
+  if (service.service_type === "futures-basis" && service.futures_basis) {
+    const fb = service.futures_basis;
+    const fmtPrice = (v: number, decimals = 0) => `$${v.toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}`;
+    const fmtBasis = (v: number) => `${v >= 0 ? "+" : ""}${v.toFixed(3)}%`;
+    const basisColor = (v: number) => v >= 0 ? "#16a34a" : "#dc2626";
+
+    const renderTable = (entries: FuturesBasisEntry[], currency: string, spot: number) => {
+      const dated = entries.filter((e) => e.days_to_expiry > 0);
+      return (
+        <div style={{ marginBottom: 20 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
+            <span style={{ fontWeight: 700, fontSize: 14, color: "#111" }}>{currency}</span>
+            <span style={{ fontSize: 12, color: "#666" }}>Spot: <strong>{fmtPrice(spot)}</strong></span>
+            {dated.length > 0 && (
+              <span style={{ fontSize: 11, color: "#888", background: "#f0f0f0", padding: "2px 7px", borderRadius: 10 }}>
+                {dated.every((e) => (e.annualized_basis_pct ?? 0) >= 0) ? "Contango ▲" : "Backwardation ▼"}
+              </span>
+            )}
+          </div>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+            <thead>
+              <tr style={{ borderBottom: "1px solid #eee" }}>
+                <th style={{ textAlign: "left",  padding: "3px 6px", color: "#aaa", fontWeight: 500 }}>Expiry</th>
+                <th style={{ textAlign: "right", padding: "3px 6px", color: "#aaa", fontWeight: 500 }}>Days</th>
+                <th style={{ textAlign: "right", padding: "3px 6px", color: "#aaa", fontWeight: 500 }}>Mark Price</th>
+                <th style={{ textAlign: "right", padding: "3px 6px", color: "#aaa", fontWeight: 500 }}>Basis $</th>
+                <th style={{ textAlign: "right", padding: "3px 6px", color: "#aaa", fontWeight: 500 }}>Basis %</th>
+                <th style={{ textAlign: "right", padding: "3px 6px", color: "#aaa", fontWeight: 500 }}>Ann. %</th>
+              </tr>
+            </thead>
+            <tbody>
+              {entries.map((e, i) => (
+                <tr key={i} style={{ borderBottom: "1px solid #f5f5f5", background: e.days_to_expiry === 0 ? "#fafafa" : "transparent" }}>
+                  <td style={{ padding: "4px 6px", fontWeight: e.days_to_expiry === 0 ? 600 : 400, color: "#333" }}>{e.expiry_label}</td>
+                  <td style={{ padding: "4px 6px", textAlign: "right", color: "#aaa" }}>{e.days_to_expiry === 0 ? "—" : e.days_to_expiry}</td>
+                  <td style={{ padding: "4px 6px", textAlign: "right", fontFamily: "monospace", color: "#111" }}>{fmtPrice(e.mark_price, currency === "BTC" ? 0 : 2)}</td>
+                  <td style={{ padding: "4px 6px", textAlign: "right", fontFamily: "monospace", color: basisColor(e.basis_usd) }}>{e.basis_usd >= 0 ? "+" : ""}{currency === "BTC" ? e.basis_usd.toFixed(0) : e.basis_usd.toFixed(2)}</td>
+                  <td style={{ padding: "4px 6px", textAlign: "right", fontWeight: 600, color: basisColor(e.basis_pct) }}>{fmtBasis(e.basis_pct)}</td>
+                  <td style={{ padding: "4px 6px", textAlign: "right", color: e.annualized_basis_pct != null ? basisColor(e.annualized_basis_pct) : "#bbb" }}>
+                    {e.annualized_basis_pct != null ? `${e.annualized_basis_pct >= 0 ? "+" : ""}${e.annualized_basis_pct.toFixed(2)}%` : "—"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      );
+    };
+
+    return (
+      <div>
+        <div style={{ marginBottom: 14, padding: 10, background: "#f0fdf4", borderRadius: 8, border: "1px solid #bbf7d0", fontSize: 12, color: "#555" }}>
+          Basis = futures mark price − spot. Annualized basis = basis% × (365 / days). Positive = contango (market pays premium for future delivery). Via Deribit.
+        </div>
+        {renderTable(fb.btc, "BTC", fb.btc_spot)}
+        {renderTable(fb.eth, "ETH", fb.eth_spot)}
       </div>
     );
   }
