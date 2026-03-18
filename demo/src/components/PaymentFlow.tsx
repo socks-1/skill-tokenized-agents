@@ -62,6 +62,8 @@ import type {
   FundingRoundEntry,
   ChainFeesData,
   ChainFeeEntry,
+  ChainTvlData,
+  ChainTvlEntry,
 } from "@/lib/services";
 
 interface InvoiceParams {
@@ -432,6 +434,13 @@ const SERVICE_OPTIONS: { id: ServiceType; label: string; description: string; pr
     description: "Daily fee revenue rankings for top blockchains — Ethereum, Solana, Base, BSC, Arbitrum, Hyperliquid, and more. Shows 24h fees in USD and day-over-day change. A live measure of which chains are generating the most economic activity.",
     price: "1 USDC",
     category: "Market Data",
+  },
+  {
+    id: "chain-tvl",
+    label: "Blockchain TVL Distribution",
+    description: "Total value locked across top blockchains — Ethereum, Solana, BSC, Base, Tron, and more. Shows each chain's TVL in USD, percentage share of total DeFi capital, and Ethereum's dominance. A macro view of where DeFi is deployed. Via DeFi Llama.",
+    price: "1 USDC",
+    category: "DeFi",
   },
 ];
 
@@ -1071,6 +1080,26 @@ const MOCK_CHAIN_FEES: ChainFeesData = {
     { chain: "Avalanche",      fees_24h:   294_000, change_1d_pct:  26.2 },
     { chain: "Optimism",       fees_24h:    32_000, change_1d_pct: -26.9 },
   ] as ChainFeeEntry[],
+};
+
+const MOCK_CHAIN_TVL: ChainTvlData = {
+  total_tvl: 82_400_000_000,
+  eth_dominance_pct: 67.2,
+  top_chain: "Ethereum",
+  chains: [
+    { name: "Ethereum", tvl: 55_373_000_000, share_pct: 67.2 },
+    { name: "Solana",   tvl:  7_034_000_000, share_pct:  8.5 },
+    { name: "BSC",      tvl:  5_800_000_000, share_pct:  7.0 },
+    { name: "Tron",     tvl:  4_100_000_000, share_pct:  5.0 },
+    { name: "Base",     tvl:  4_070_000_000, share_pct:  4.9 },
+    { name: "Arbitrum", tvl:  2_470_000_000, share_pct:  3.0 },
+    { name: "Polygon",  tvl:    982_000_000, share_pct:  1.2 },
+    { name: "Avalanche",tvl:    690_000_000, share_pct:  0.8 },
+    { name: "Optimism", tvl:    560_000_000, share_pct:  0.7 },
+    { name: "Sui",      tvl:    501_000_000, share_pct:  0.6 },
+    { name: "Near",     tvl:    430_000_000, share_pct:  0.5 },
+    { name: "Aptos",    tvl:    390_000_000, share_pct:  0.5 },
+  ] as ChainTvlEntry[],
 };
 
 const MOCK_SIGNATURE =
@@ -2114,6 +2143,16 @@ function buildTourSteps(serviceType: ServiceType, liveData?: ServiceResult): Pay
       service_type: "chain-fees",
       result: `${cf.top_chain} leads · ${cf.chains[0]?.chain} ${fmtUsd(cf.chains[0]?.fees_24h ?? 0)}${cf.chains[0]?.change_1d_pct != null ? ` (${cf.chains[0].change_1d_pct >= 0 ? "+" : ""}${cf.chains[0].change_1d_pct.toFixed(1)}%)` : ""}`,
       chain_fees: cf,
+      timestamp: new Date().toISOString(),
+      delivered_to: "Demo1234...abcd",
+    };
+  } else if (serviceType === "chain-tvl") {
+    const ct = liveData?.chain_tvl ?? MOCK_CHAIN_TVL;
+    const fmtUsd = (v: number) => v >= 1e9 ? `$${(v / 1e9).toFixed(1)}B` : v >= 1e6 ? `$${(v / 1e6).toFixed(0)}M` : `$${v}`;
+    mockService = liveData ?? {
+      service_type: "chain-tvl",
+      result: `Total DeFi TVL: ${fmtUsd(ct.total_tvl)} · ETH dominance ${ct.eth_dominance_pct.toFixed(1)}% · Top: ${ct.chains[0]?.name} ${fmtUsd(ct.chains[0]?.tvl ?? 0)} (${ct.chains[0]?.share_pct.toFixed(1)}%)`,
+      chain_tvl: ct,
       timestamp: new Date().toISOString(),
       delivered_to: "Demo1234...abcd",
     };
@@ -4436,6 +4475,61 @@ function ServiceResultTable({ service }: { service: ServiceResult }) {
         </table>
         <p style={{ marginTop: 8, fontSize: 12, color: "#888" }}>
           24-hour fee revenue by blockchain · via DeFi Llama
+        </p>
+      </div>
+    );
+  }
+
+  if (service.service_type === "chain-tvl" && service.chain_tvl) {
+    const ct = service.chain_tvl;
+    const fmtUsd = (v: number) => v >= 1e9 ? `$${(v / 1e9).toFixed(2)}B` : v >= 1e6 ? `$${(v / 1e6).toFixed(0)}M` : `$${v.toFixed(0)}`;
+    const maxTvl = ct.chains[0]?.tvl ?? 1;
+    return (
+      <div>
+        <div style={{ marginBottom: 12, padding: 12, background: "#fafafa", borderRadius: 8, border: "1px solid #f0f0f0", display: "flex", gap: 28, flexWrap: "wrap" }}>
+          <div>
+            <div style={{ fontSize: 11, color: "#aaa", marginBottom: 2 }}>Total DeFi TVL</div>
+            <div style={{ fontWeight: 700, fontSize: 18, color: "#222" }}>{fmtUsd(ct.total_tvl)}</div>
+          </div>
+          <div>
+            <div style={{ fontSize: 11, color: "#aaa", marginBottom: 2 }}>ETH Dominance</div>
+            <div style={{ fontWeight: 700, fontSize: 18, color: "#6366f1" }}>{ct.eth_dominance_pct.toFixed(1)}%</div>
+          </div>
+          <div>
+            <div style={{ fontSize: 11, color: "#aaa", marginBottom: 2 }}>Top Chain</div>
+            <div style={{ fontWeight: 600, fontSize: 15, color: "#555" }}>{ct.top_chain}</div>
+          </div>
+        </div>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+          <thead>
+            <tr style={{ borderBottom: "1px solid #eee" }}>
+              <th style={{ textAlign: "left", padding: "4px 6px", color: "#aaa", fontWeight: 500 }}>Chain</th>
+              <th style={{ textAlign: "right", padding: "4px 6px", color: "#aaa", fontWeight: 500 }}>TVL</th>
+              <th style={{ padding: "4px 6px", color: "#aaa", fontWeight: 500, width: 140 }}>Share</th>
+            </tr>
+          </thead>
+          <tbody>
+            {ct.chains.map((c, i) => {
+              const barWidth = Math.round((c.tvl / maxTvl) * 100);
+              return (
+                <tr key={i} style={{ borderBottom: "1px solid #f5f5f5" }}>
+                  <td style={{ padding: "5px 6px", fontWeight: i === 0 ? 700 : 500, color: i === 0 ? "#111" : "#333" }}>{c.name}</td>
+                  <td style={{ padding: "5px 6px", textAlign: "right", fontFamily: "monospace", fontWeight: 600, color: "#333" }}>{fmtUsd(c.tvl)}</td>
+                  <td style={{ padding: "5px 6px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <div style={{ flex: 1, height: 6, background: "#f0f0f0", borderRadius: 3, overflow: "hidden" }}>
+                        <div style={{ width: `${barWidth}%`, height: "100%", background: i === 0 ? "#6366f1" : "#94a3b8", borderRadius: 3 }} />
+                      </div>
+                      <span style={{ fontSize: 11, color: "#999", width: 36, textAlign: "right" }}>{c.share_pct.toFixed(1)}%</span>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+        <p style={{ marginTop: 8, fontSize: 12, color: "#888" }}>
+          TVL by blockchain · {ct.chains.length} chains tracked · via DeFi Llama
         </p>
       </div>
     );

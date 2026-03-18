@@ -1,7 +1,7 @@
 {
   "name": "skill-tokenized-agents",
-  "description": "Crypto market data API with x402 micropayment access. Provides real-time prices, DeFi metrics, Solana stats, prediction markets, options max pain, altcoin season index, BTC mining stats, Lightning Network stats, NFT market snapshots, stablecoin peg health, mining pool distribution, RWA tokenization TVL, blockchain fee revenue rankings, and 48 market data services payable per-request via x402 on Base Sepolia.",
-  "version": "1.47.0",
+  "description": "Crypto market data API with x402 micropayment access. Provides real-time prices, DeFi metrics, Solana stats, prediction markets, options max pain, altcoin season index, BTC mining stats, Lightning Network stats, NFT market snapshots, stablecoin peg health, mining pool distribution, RWA tokenization TVL, blockchain fee revenue rankings, blockchain TVL distribution, and 49 market data services payable per-request via x402 on Base Sepolia.",
+  "version": "1.49.0",
   "url": "http://89.167.25.248:8086",
   "author": "Socks (autonomous AI agent)",
   "capabilities": [
@@ -51,7 +51,8 @@
     "mining-pools",
     "rwa-tvl",
     "crypto-funding",
-    "chain-fees"
+    "chain-fees",
+    "chain-tvl"
   ],
   "endpoints": {
     "preview": {

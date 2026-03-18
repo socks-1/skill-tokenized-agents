@@ -3,10 +3,10 @@
  * All functions are read-only calls to public APIs — no auth required.
  */
 
-export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season" | "btc-mining" | "bridge-volume" | "tvl-movers" | "lightning-network" | "eth-lst" | "realized-vol" | "lending-rates" | "protocol-revenue" | "btc-onchain" | "nft-market" | "market-breadth" | "perp-oi" | "stablecoin-chains" | "stablecoin-pegs" | "mining-pools" | "rwa-tvl" | "crypto-funding" | "chain-fees";
+export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season" | "btc-mining" | "bridge-volume" | "tvl-movers" | "lightning-network" | "eth-lst" | "realized-vol" | "lending-rates" | "protocol-revenue" | "btc-onchain" | "nft-market" | "market-breadth" | "perp-oi" | "stablecoin-chains" | "stablecoin-pegs" | "mining-pools" | "rwa-tvl" | "crypto-funding" | "chain-fees" | "chain-tvl";
 
 /** All valid service type strings — use this for runtime validation instead of duplicating the list. */
-export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season", "btc-mining", "bridge-volume", "tvl-movers", "lightning-network", "eth-lst", "realized-vol", "lending-rates", "protocol-revenue", "btc-onchain", "nft-market", "market-breadth", "perp-oi", "stablecoin-chains", "stablecoin-pegs", "mining-pools", "rwa-tvl", "crypto-funding", "chain-fees"];
+export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season", "btc-mining", "bridge-volume", "tvl-movers", "lightning-network", "eth-lst", "realized-vol", "lending-rates", "protocol-revenue", "btc-onchain", "nft-market", "market-breadth", "perp-oi", "stablecoin-chains", "stablecoin-pegs", "mining-pools", "rwa-tvl", "crypto-funding", "chain-fees", "chain-tvl"];
 
 export interface MarketData {
   symbol: string;
@@ -567,6 +567,19 @@ export interface ChainFeesData {
   top_chain: string;         // highest-fee chain
 }
 
+export interface ChainTvlEntry {
+  name: string;
+  tvl: number;               // USD
+  share_pct: number;         // % of total tracked TVL
+}
+
+export interface ChainTvlData {
+  chains: ChainTvlEntry[];   // top chains sorted by TVL descending
+  total_tvl: number;         // sum of all tracked chains USD
+  eth_dominance_pct: number; // Ethereum's share of total
+  top_chain: string;         // highest-TVL chain name
+}
+
 export interface ServiceResult {
   service_type: ServiceType;
   result: string;
@@ -617,6 +630,7 @@ export interface ServiceResult {
   rwa_tvl?: RwaTvlData;
   crypto_funding?: CryptoFundingData;
   chain_fees?: ChainFeesData;
+  chain_tvl?: ChainTvlData;
   timestamp: string;
   delivered_to: string;
 }
@@ -3130,6 +3144,7 @@ export async function deliverService(delivered_to: string, serviceType: ServiceT
   if (serviceType === "rwa-tvl") return deliverRwaTvl(delivered_to, timestamp);
   if (serviceType === "crypto-funding") return deliverCryptoFunding(delivered_to, timestamp);
   if (serviceType === "chain-fees") return deliverChainFees(delivered_to, timestamp);
+  if (serviceType === "chain-tvl") return deliverChainTvl(delivered_to, timestamp);
   return deliverCryptoPrices(delivered_to, timestamp);
 }
 
@@ -3786,4 +3801,65 @@ export async function deliverChainFees(delivered_to: string, timestamp: string):
     : "Chain fee data temporarily unavailable";
 
   return { service_type: "chain-fees", result, chain_fees, timestamp, delivered_to };
+}
+
+// Server-side cache for chain TVL (20-min TTL)
+let _chainTvlCache: { data: ChainTvlData; expires: number } | null = null;
+
+/**
+ * Fetches total-value-locked distribution across top blockchains via DeFi Llama.
+ * Shows where DeFi capital is deployed — Ethereum, Solana, BSC, Base, Tron, etc.
+ * Ranked by TVL with % share of total tracked DeFi. Cached 20 minutes.
+ */
+export async function deliverChainTvl(delivered_to: string, timestamp: string): Promise<ServiceResult> {
+  if (_chainTvlCache && Date.now() < _chainTvlCache.expires) {
+    const ct = _chainTvlCache.data;
+    const fmtUsd = (v: number) => v >= 1e9 ? `$${(v / 1e9).toFixed(1)}B` : v >= 1e6 ? `$${(v / 1e6).toFixed(0)}M` : `$${v.toFixed(0)}`;
+    const result = `Total DeFi TVL: ${fmtUsd(ct.total_tvl)} · ETH dominance ${ct.eth_dominance_pct.toFixed(1)}% · Top: ${ct.chains[0]?.name} ${fmtUsd(ct.chains[0]?.tvl ?? 0)} (${ct.chains[0]?.share_pct.toFixed(1)}%)`;
+    return { service_type: "chain-tvl", result, chain_tvl: ct, timestamp, delivered_to };
+  }
+
+  let chain_tvl: ChainTvlData | undefined;
+
+  try {
+    const res = await fetch("https://api.llama.fi/v2/chains", {
+      signal: AbortSignal.timeout(12000),
+      headers: { "User-Agent": "skill-tokenized-agents/1.0", Accept: "application/json" },
+    });
+    if (!res.ok) throw new Error(`DeFi Llama HTTP ${res.status}`);
+
+    const raw = await res.json() as Array<{ name: string; tvl?: number }>;
+
+    // Sort by TVL descending, take top 12, exclude tiny/unknown entries
+    const sorted = raw
+      .filter((c) => typeof c.tvl === "number" && c.tvl > 1e6 && c.name)
+      .sort((a, b) => (b.tvl ?? 0) - (a.tvl ?? 0))
+      .slice(0, 12);
+
+    if (sorted.length === 0) throw new Error("No valid chain TVL data");
+
+    const total_tvl = sorted.reduce((s, c) => s + (c.tvl ?? 0), 0);
+    const chains: ChainTvlEntry[] = sorted.map((c) => ({
+      name: c.name,
+      tvl: c.tvl ?? 0,
+      share_pct: total_tvl > 0 ? ((c.tvl ?? 0) / total_tvl) * 100 : 0,
+    }));
+
+    const eth = chains.find((c) => c.name === "Ethereum");
+    const eth_dominance_pct = eth ? eth.share_pct : 0;
+    const top_chain = chains[0].name;
+
+    chain_tvl = { chains, total_tvl, eth_dominance_pct, top_chain };
+    _chainTvlCache = { data: chain_tvl, expires: Date.now() + 20 * 60 * 1000 };
+  } catch {
+    // Fall through with undefined
+  }
+
+  const fmtUsd = (v: number) => v >= 1e9 ? `$${(v / 1e9).toFixed(1)}B` : v >= 1e6 ? `$${(v / 1e6).toFixed(0)}M` : `$${v.toFixed(0)}`;
+
+  const result = chain_tvl && chain_tvl.chains.length > 0
+    ? `Total DeFi TVL: ${fmtUsd(chain_tvl.total_tvl)} · ETH dominance ${chain_tvl.eth_dominance_pct.toFixed(1)}% · Top: ${chain_tvl.chains[0].name} ${fmtUsd(chain_tvl.chains[0].tvl)} (${chain_tvl.chains[0].share_pct.toFixed(1)}%)`
+    : "Chain TVL data temporarily unavailable";
+
+  return { service_type: "chain-tvl", result, chain_tvl, timestamp, delivered_to };
 }
