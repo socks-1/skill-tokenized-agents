@@ -3,10 +3,10 @@
  * All functions are read-only calls to public APIs — no auth required.
  */
 
-export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season" | "btc-mining" | "bridge-volume" | "tvl-movers" | "lightning-network" | "eth-lst" | "realized-vol" | "lending-rates";
+export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season" | "btc-mining" | "bridge-volume" | "tvl-movers" | "lightning-network" | "eth-lst" | "realized-vol" | "lending-rates" | "protocol-revenue";
 
 /** All valid service type strings — use this for runtime validation instead of duplicating the list. */
-export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season", "btc-mining", "bridge-volume", "tvl-movers", "lightning-network", "eth-lst", "realized-vol", "lending-rates"];
+export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season", "btc-mining", "bridge-volume", "tvl-movers", "lightning-network", "eth-lst", "realized-vol", "lending-rates", "protocol-revenue"];
 
 export interface MarketData {
   symbol: string;
@@ -284,6 +284,19 @@ export interface DefiFeesData {
   entries: DefiFeesEntry[];
 }
 
+export interface ProtocolRevenueEntry {
+  name: string;
+  category: string;
+  revenue_30d: number;
+  revenue_24h: number;
+  change_1m: number | null;
+  chains: string[];
+}
+
+export interface ProtocolRevenueData {
+  entries: ProtocolRevenueEntry[];
+}
+
 export interface CexExchange {
   rank: number;
   name: string;
@@ -451,6 +464,7 @@ export interface ServiceResult {
   eth_lst?: SolLstData;
   realized_vol?: RealizedVolData;
   lending_rates?: LendingRatesData;
+  protocol_revenue?: ProtocolRevenueData;
   timestamp: string;
   delivered_to: string;
 }
@@ -2844,6 +2858,69 @@ export async function deliverLendingRates(delivered_to: string, timestamp: strin
   return { service_type: "lending-rates", result, lending_rates, timestamp, delivered_to };
 }
 
+/**
+ * Fetches DeFi protocol revenue rankings via DeFi Llama.
+ * Revenue is the portion of fees that protocols keep for themselves (treasury/token holders),
+ * distinct from total user fees. Shows which protocols are most profitable.
+ */
+export async function deliverProtocolRevenue(delivered_to: string, timestamp: string): Promise<ServiceResult> {
+  let protocol_revenue: ProtocolRevenueData | undefined;
+
+  try {
+    const res = await fetch(
+      "https://api.llama.fi/overview/fees?excludeTotalDataChartBreakdown=true&excludeTotalDataChart=true&dataType=dailyRevenue",
+      { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(12000) }
+    );
+    if (res.ok) {
+      const json = await res.json() as {
+        protocols: Array<{
+          name: string;
+          displayName?: string;
+          category: string;
+          chains: string[];
+          total24h: number | null;
+          total30d: number | null;
+          change_1m: number | null;
+        }>;
+      };
+
+      const entries: ProtocolRevenueEntry[] = json.protocols
+        .filter((p) => !(p.chains.length === 1 && p.chains[0] === "Off Chain"))
+        .filter((p) => (p.total30d ?? 0) > 0)
+        .sort((a, b) => (b.total30d ?? 0) - (a.total30d ?? 0))
+        .slice(0, 10)
+        .map((p) => ({
+          name: p.displayName ?? p.name,
+          category: p.category,
+          revenue_30d: p.total30d ?? 0,
+          revenue_24h: p.total24h ?? 0,
+          change_1m: p.change_1m ?? null,
+          chains: (p.chains ?? []).filter((c) => c !== "Off Chain").slice(0, 2),
+        }));
+
+      if (entries.length > 0) {
+        protocol_revenue = { entries };
+      }
+    }
+  } catch {
+    // Fall through with undefined protocol_revenue
+  }
+
+  const fmtRev = (v: number) =>
+    v >= 1_000_000_000 ? `$${(v / 1_000_000_000).toFixed(2)}B` :
+    v >= 1_000_000 ? `$${(v / 1_000_000).toFixed(1)}M` : `$${(v / 1_000).toFixed(0)}K`;
+
+  const result =
+    protocol_revenue && protocol_revenue.entries.length > 0
+      ? protocol_revenue.entries
+          .slice(0, 3)
+          .map((e) => `${e.name} ${fmtRev(e.revenue_30d)} 30d`)
+          .join(" | ")
+      : "Protocol revenue data temporarily unavailable";
+
+  return { service_type: "protocol-revenue", result, protocol_revenue, timestamp, delivered_to };
+}
+
 export async function deliverService(delivered_to: string, serviceType: ServiceType): Promise<ServiceResult> {
   const timestamp = new Date().toISOString();
   if (serviceType === "solana-stats") return deliverSolanaStats(delivered_to, timestamp);
@@ -2881,5 +2958,6 @@ export async function deliverService(delivered_to: string, serviceType: ServiceT
   if (serviceType === "eth-lst") return deliverEthLst(delivered_to, timestamp);
   if (serviceType === "realized-vol") return deliverRealizedVol(delivered_to, timestamp);
   if (serviceType === "lending-rates") return deliverLendingRates(delivered_to, timestamp);
+  if (serviceType === "protocol-revenue") return deliverProtocolRevenue(delivered_to, timestamp);
   return deliverCryptoPrices(delivered_to, timestamp);
 }

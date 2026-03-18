@@ -44,6 +44,7 @@ import type {
   EthLstData,
   RealizedVolData,
   LendingRatesData,
+  ProtocolRevenueData,
 } from "@/lib/services";
 
 interface InvoiceParams {
@@ -335,6 +336,13 @@ const SERVICE_OPTIONS: { id: ServiceType; label: string; description: string; pr
     id: "lending-rates",
     label: "EVM Lending Rates",
     description: "Best supply rates for USDC, USDT, ETH, and more across Aave v3, Compound v3, Maple, and other top EVM lending protocols — via DeFi Llama",
+    price: "1 USDC",
+    category: "DeFi",
+  },
+  {
+    id: "protocol-revenue",
+    label: "DeFi Protocol Revenue",
+    description: "Top DeFi protocols ranked by actual revenue kept — the share of fees flowing to treasuries and token holders. Distinct from total fees charged to users.",
     price: "1 USDC",
     category: "DeFi",
   },
@@ -642,6 +650,21 @@ const MOCK_DEFI_FEES: DefiFeesData = {
     { name: "pump.fun", category: "Launchpad", total30d: 24_800_000, total24h: 758_000, change_1m: -22.0, chains: ["Solana"] },
     { name: "Kamino Lend", category: "Lending", total30d: 18_200_000, total24h: 560_000, change_1m: 6.3, chains: ["Solana"] },
     { name: "Raydium", category: "Dexs", total30d: 16_700_000, total24h: 510_000, change_1m: -9.1, chains: ["Solana"] },
+  ],
+};
+
+const MOCK_PROTOCOL_REVENUE: ProtocolRevenueData = {
+  entries: [
+    { name: "Hyperliquid Perps", category: "Derivatives", revenue_30d: 38_500_000, revenue_24h: 1_430_000, change_1m: 15.2, chains: ["Hyperliquid L1"] },
+    { name: "pump.fun", category: "Launchpad", revenue_30d: 24_800_000, revenue_24h: 758_000, change_1m: -22.0, chains: ["Solana"] },
+    { name: "Aave V3", category: "Lending", revenue_30d: 9_740_000, revenue_24h: 316_000, change_1m: 5.7, chains: ["Ethereum", "OP Mainnet"] },
+    { name: "Sky", category: "CDP", revenue_30d: 8_100_000, revenue_24h: 247_000, change_1m: 2.2, chains: ["Ethereum"] },
+    { name: "Lido", category: "Liquid Staking", revenue_30d: 6_213_000, revenue_24h: 198_000, change_1m: 3.1, chains: ["Ethereum"] },
+    { name: "Jupiter Perpetual Exchange", category: "Derivatives", revenue_30d: 5_265_000, revenue_24h: 165_000, change_1m: -4.5, chains: ["Solana"] },
+    { name: "GMX", category: "Derivatives", revenue_30d: 4_820_000, revenue_24h: 147_000, change_1m: -11.3, chains: ["Arbitrum", "Avalanche"] },
+    { name: "Uniswap V3", category: "Dexs", revenue_30d: 2_840_000, revenue_24h: 92_000, change_1m: -1.8, chains: ["Ethereum", "Base"] },
+    { name: "dYdX v4", category: "Derivatives", revenue_30d: 2_250_000, revenue_24h: 68_000, change_1m: 8.4, chains: ["dYdX"] },
+    { name: "Convex Finance", category: "Yield", revenue_30d: 1_980_000, revenue_24h: 60_000, change_1m: -6.2, chains: ["Ethereum"] },
   ],
 };
 
@@ -1780,6 +1803,16 @@ function buildTourSteps(serviceType: ServiceType, liveData?: ServiceResult): Pay
       result: `Best stable: ${lr.best_stable_protocol} ${lr.best_stable_apy.toFixed(2)}% · Best ETH: ${lr.best_eth_protocol} ${lr.best_eth_apy.toFixed(2)}% · ` +
         lr.pools.slice(0, 3).map((p) => `${p.symbol} ${p.supply_apy.toFixed(2)}%`).join(" · "),
       lending_rates: lr,
+      timestamp: new Date().toISOString(),
+      delivered_to: "Demo1234...abcd",
+    };
+  } else if (serviceType === "protocol-revenue") {
+    const pr = liveData?.protocol_revenue ?? MOCK_PROTOCOL_REVENUE;
+    const fmtRev = (v: number) => v >= 1_000_000_000 ? `$${(v / 1_000_000_000).toFixed(2)}B` : v >= 1_000_000 ? `$${(v / 1_000_000).toFixed(1)}M` : `$${(v / 1_000).toFixed(0)}K`;
+    mockService = liveData ?? {
+      service_type: "protocol-revenue",
+      result: pr.entries.slice(0, 3).map((e) => `${e.name} ${fmtRev(e.revenue_30d)} 30d`).join(" | "),
+      protocol_revenue: pr,
       timestamp: new Date().toISOString(),
       delivered_to: "Demo1234...abcd",
     };
@@ -3472,6 +3505,64 @@ function ServiceResultTable({ service }: { service: ServiceResult }) {
         </table>
         <p style={{ marginTop: 8, fontSize: 12, color: "#888" }}>
           Supply APY from on-chain lending markets · Aave v3, Compound v3, Maple &amp; more · via DeFi Llama
+        </p>
+      </div>
+    );
+  }
+
+  if (service.service_type === "protocol-revenue" && service.protocol_revenue) {
+    const pr = service.protocol_revenue;
+    const fmtRev = (v: number) =>
+      v >= 1_000_000_000 ? `$${(v / 1_000_000_000).toFixed(2)}B` :
+      v >= 1_000_000 ? `$${(v / 1_000_000).toFixed(1)}M` : `$${(v / 1_000).toFixed(0)}K`;
+    return (
+      <div>
+        <p style={{ fontSize: 12, color: "#888", marginBottom: 8 }}>
+          Revenue = fees kept by the protocol (treasury + token holders), not total user fees
+        </p>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+          <thead>
+            <tr style={{ borderBottom: "2px solid #e8e8e8" }}>
+              <th style={{ padding: "6px 8px", textAlign: "left", fontSize: 12, color: "#888", fontWeight: 600 }}>Protocol</th>
+              <th style={{ padding: "6px 8px", textAlign: "right", fontSize: 12, color: "#888", fontWeight: 600 }}>30d Revenue</th>
+              <th style={{ padding: "6px 8px", textAlign: "right", fontSize: 12, color: "#888", fontWeight: 600 }}>1m Δ</th>
+            </tr>
+          </thead>
+          <tbody>
+            {pr.entries.map((e, i) => (
+              <tr key={i} style={{ borderBottom: "1px solid #f0f0f0" }}>
+                <td style={{ padding: "7px 8px" }}>
+                  <span style={{ fontWeight: 500, fontSize: 13 }}>{e.name}</span>
+                  <span style={{ display: "block", fontSize: 11, color: "#aaa", marginTop: 1 }}>
+                    {e.category}{e.chains.length > 0 ? ` · ${e.chains.join(", ")}` : ""}
+                  </span>
+                </td>
+                <td style={{ padding: "7px 8px", textAlign: "right", fontWeight: 600, fontSize: 13, color: "#444" }}>
+                  {fmtRev(e.revenue_30d)}
+                </td>
+                <td style={{ padding: "7px 8px", textAlign: "right" }}>
+                  {e.change_1m !== null ? (
+                    <span style={{
+                      display: "inline-block",
+                      padding: "2px 7px",
+                      borderRadius: 10,
+                      fontSize: 12,
+                      fontWeight: 700,
+                      background: e.change_1m >= 0 ? "#e6f7ee" : "#fff0f0",
+                      color: e.change_1m >= 0 ? "#1a7a3a" : "#c0392b",
+                    }}>
+                      {e.change_1m >= 0 ? "+" : ""}{e.change_1m.toFixed(1)}%
+                    </span>
+                  ) : (
+                    <span style={{ color: "#ccc", fontSize: 12 }}>—</span>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <p style={{ marginTop: 8, fontSize: 12, color: "#888" }}>
+          {pr.entries.length} protocols · sorted by 30d revenue · via DeFi Llama
         </p>
       </div>
     );
