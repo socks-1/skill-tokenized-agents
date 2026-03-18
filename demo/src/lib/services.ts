@@ -3,10 +3,10 @@
  * All functions are read-only calls to public APIs — no auth required.
  */
 
-export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season" | "btc-mining" | "bridge-volume" | "tvl-movers" | "lightning-network" | "eth-lst" | "realized-vol";
+export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season" | "btc-mining" | "bridge-volume" | "tvl-movers" | "lightning-network" | "eth-lst" | "realized-vol" | "lending-rates";
 
 /** All valid service type strings — use this for runtime validation instead of duplicating the list. */
-export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season", "btc-mining", "bridge-volume", "tvl-movers", "lightning-network", "eth-lst", "realized-vol"];
+export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season", "btc-mining", "bridge-volume", "tvl-movers", "lightning-network", "eth-lst", "realized-vol", "lending-rates"];
 
 export interface MarketData {
   symbol: string;
@@ -450,6 +450,7 @@ export interface ServiceResult {
   lightning_network?: LightningNetworkData;
   eth_lst?: SolLstData;
   realized_vol?: RealizedVolData;
+  lending_rates?: LendingRatesData;
   timestamp: string;
   delivered_to: string;
 }
@@ -467,6 +468,22 @@ export interface VolatilityEntry {
 export interface RealizedVolData {
   assets: VolatilityEntry[];
   market_regime: "escalating" | "stable" | "cooling";
+}
+
+export interface LendingRateEntry {
+  protocol: string;
+  chain: string;
+  symbol: string;
+  supply_apy: number;
+  tvl_usd: number;
+}
+
+export interface LendingRatesData {
+  pools: LendingRateEntry[];
+  best_stable_apy: number;
+  best_stable_protocol: string;
+  best_eth_apy: number;
+  best_eth_protocol: string;
 }
 
 /**
@@ -2734,6 +2751,99 @@ export async function deliverRealizedVol(delivered_to: string, timestamp: string
   return { service_type: "realized-vol", result, realized_vol, timestamp, delivered_to };
 }
 
+/**
+ * Fetches top EVM DeFi lending supply rates across Aave v3, Compound v3, Maple, and other
+ * major lending protocols on Ethereum and L2s — via DeFi Llama yields API.
+ */
+export async function deliverLendingRates(delivered_to: string, timestamp: string): Promise<ServiceResult> {
+  let lending_rates: LendingRatesData | undefined;
+
+  const LENDING_PROTOCOLS = new Set([
+    "aave-v3", "compound-v3", "morpho", "spark", "euler", "fluid", "maple",
+    "aave-v2", "compoundv2",
+  ]);
+
+  try {
+    const res = await fetch("https://yields.llama.fi/pools", {
+      headers: { Accept: "application/json", "User-Agent": "skill-tokenized-agents/1.0" },
+      signal: AbortSignal.timeout(12000),
+    });
+
+    if (res.ok) {
+      const data = (await res.json()) as {
+        data: Array<{
+          chain: string;
+          project: string;
+          symbol: string;
+          apyBase: number | null;
+          tvlUsd: number;
+          stablecoin?: boolean;
+        }>;
+      };
+
+      const pools = data.data
+        .filter(
+          (p) =>
+            LENDING_PROTOCOLS.has(p.project) &&
+            (p.apyBase ?? 0) > 0.05 &&
+            p.tvlUsd > 50_000_000
+        )
+        .sort((a, b) => (b.apyBase ?? 0) - (a.apyBase ?? 0))
+        .slice(0, 10)
+        .map((p) => ({
+          protocol: p.project,
+          chain: p.chain,
+          symbol: p.symbol,
+          supply_apy: parseFloat((p.apyBase ?? 0).toFixed(2)),
+          tvl_usd: p.tvlUsd,
+        }));
+
+      // Best stablecoin rate
+      const stablePools = data.data.filter(
+        (p) =>
+          LENDING_PROTOCOLS.has(p.project) &&
+          (p.stablecoin === true ||
+            ["USDC", "USDT", "DAI", "PYUSD", "RLUSD", "USDE", "SUSDE"].includes(p.symbol)) &&
+          (p.apyBase ?? 0) > 0.05 &&
+          p.tvlUsd > 50_000_000
+      );
+      stablePools.sort((a, b) => (b.apyBase ?? 0) - (a.apyBase ?? 0));
+
+      // Best ETH rate
+      const ethPools = data.data.filter(
+        (p) =>
+          LENDING_PROTOCOLS.has(p.project) &&
+          ["WETH", "ETH"].includes(p.symbol) &&
+          (p.apyBase ?? 0) > 0.05 &&
+          p.tvlUsd > 50_000_000
+      );
+      ethPools.sort((a, b) => (b.apyBase ?? 0) - (a.apyBase ?? 0));
+
+      if (pools.length > 0) {
+        lending_rates = {
+          pools,
+          best_stable_apy: parseFloat((stablePools[0]?.apyBase ?? 0).toFixed(2)),
+          best_stable_protocol: stablePools[0] ? `${stablePools[0].project} ${stablePools[0].symbol}` : "—",
+          best_eth_apy: parseFloat((ethPools[0]?.apyBase ?? 0).toFixed(2)),
+          best_eth_protocol: ethPools[0] ? `${ethPools[0].project} (${ethPools[0].chain})` : "—",
+        };
+      }
+    }
+  } catch {
+    // Fall through with undefined lending_rates
+  }
+
+  const result = lending_rates
+    ? `Best stable: ${lending_rates.best_stable_protocol} ${lending_rates.best_stable_apy.toFixed(2)}% · Best ETH: ${lending_rates.best_eth_protocol} ${lending_rates.best_eth_apy.toFixed(2)}% · Top: ` +
+      lending_rates.pools
+        .slice(0, 3)
+        .map((p) => `${p.symbol} ${p.supply_apy.toFixed(2)}%`)
+        .join(" · ")
+    : "Lending rate data temporarily unavailable";
+
+  return { service_type: "lending-rates", result, lending_rates, timestamp, delivered_to };
+}
+
 export async function deliverService(delivered_to: string, serviceType: ServiceType): Promise<ServiceResult> {
   const timestamp = new Date().toISOString();
   if (serviceType === "solana-stats") return deliverSolanaStats(delivered_to, timestamp);
@@ -2770,5 +2880,6 @@ export async function deliverService(delivered_to: string, serviceType: ServiceT
   if (serviceType === "lightning-network") return deliverLightningNetwork(delivered_to, timestamp);
   if (serviceType === "eth-lst") return deliverEthLst(delivered_to, timestamp);
   if (serviceType === "realized-vol") return deliverRealizedVol(delivered_to, timestamp);
+  if (serviceType === "lending-rates") return deliverLendingRates(delivered_to, timestamp);
   return deliverCryptoPrices(delivered_to, timestamp);
 }

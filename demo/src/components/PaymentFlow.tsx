@@ -43,6 +43,7 @@ import type {
   LightningNetworkData,
   EthLstData,
   RealizedVolData,
+  LendingRatesData,
 } from "@/lib/services";
 
 interface InvoiceParams {
@@ -329,6 +330,13 @@ const SERVICE_OPTIONS: { id: ServiceType; label: string; description: string; pr
     description: "Annualized 30d and 7d realized volatility for BTC, ETH, and SOL — spot regime shifts between high and low volatility markets",
     price: "1 USDC",
     category: "Market Data",
+  },
+  {
+    id: "lending-rates",
+    label: "EVM Lending Rates",
+    description: "Best supply rates for USDC, USDT, ETH, and more across Aave v3, Compound v3, Maple, and other top EVM lending protocols — via DeFi Llama",
+    price: "1 USDC",
+    category: "DeFi",
   },
 ];
 
@@ -799,6 +807,23 @@ const MOCK_REALIZED_VOL: RealizedVolData = {
     { symbol: "SOL", vol_30d_pct: 82.6, vol_7d_pct: 58.3, regime: "cooling" },
   ],
   market_regime: "cooling",
+};
+
+const MOCK_LENDING_RATES: LendingRatesData = {
+  pools: [
+    { protocol: "maple", chain: "Ethereum", symbol: "USDC", supply_apy: 4.35, tvl_usd: 3361000000 },
+    { protocol: "maple", chain: "Ethereum", symbol: "USDT", supply_apy: 3.95, tvl_usd: 2070000000 },
+    { protocol: "compound-v3", chain: "Ethereum", symbol: "USDC", supply_apy: 2.25, tvl_usd: 162000000 },
+    { protocol: "compound-v3", chain: "Ethereum", symbol: "USDT", supply_apy: 2.16, tvl_usd: 80000000 },
+    { protocol: "aave-v3", chain: "Ethereum", symbol: "USDT", supply_apy: 1.91, tvl_usd: 1548000000 },
+    { protocol: "aave-v3", chain: "Ethereum", symbol: "USDC", supply_apy: 1.84, tvl_usd: 1162000000 },
+    { protocol: "aave-v3", chain: "Ethereum", symbol: "WETH", supply_apy: 1.68, tvl_usd: 815000000 },
+    { protocol: "aave-v3", chain: "Arbitrum", symbol: "WETH", supply_apy: 1.71, tvl_usd: 50000000 },
+  ],
+  best_stable_apy: 4.35,
+  best_stable_protocol: "maple USDC",
+  best_eth_apy: 1.71,
+  best_eth_protocol: "aave-v3 (Arbitrum)",
 };
 
 const MOCK_SIGNATURE =
@@ -1745,6 +1770,16 @@ function buildTourSteps(serviceType: ServiceType, liveData?: ServiceResult): Pay
       service_type: "realized-vol",
       result: `Regime: ${rv.market_regime} · ` + rv.assets.map((a) => `${a.symbol} 30d=${a.vol_30d_pct}% 7d=${a.vol_7d_pct}%`).join(" · "),
       realized_vol: rv,
+      timestamp: new Date().toISOString(),
+      delivered_to: "Demo1234...abcd",
+    };
+  } else if (serviceType === "lending-rates") {
+    const lr = liveData?.lending_rates ?? MOCK_LENDING_RATES;
+    mockService = liveData ?? {
+      service_type: "lending-rates",
+      result: `Best stable: ${lr.best_stable_protocol} ${lr.best_stable_apy.toFixed(2)}% · Best ETH: ${lr.best_eth_protocol} ${lr.best_eth_apy.toFixed(2)}% · ` +
+        lr.pools.slice(0, 3).map((p) => `${p.symbol} ${p.supply_apy.toFixed(2)}%`).join(" · "),
+      lending_rates: lr,
       timestamp: new Date().toISOString(),
       delivered_to: "Demo1234...abcd",
     };
@@ -3390,6 +3425,53 @@ function ServiceResultTable({ service }: { service: ServiceResult }) {
         </table>
         <p style={{ marginTop: 8, fontSize: 12, color: "#888" }}>
           Annualized realized vol from daily log returns · 7d vs 30d comparison · via CoinGecko
+        </p>
+      </div>
+    );
+  }
+
+  if (service.service_type === "lending-rates" && service.lending_rates) {
+    const lr = service.lending_rates;
+    const fmtTvl = (v: number) => v >= 1e9 ? `$${(v / 1e9).toFixed(1)}B` : `$${(v / 1e6).toFixed(0)}M`;
+    const fmtProtocol = (p: string) => p.replace(/-v[0-9]+$/, (m) => m.toUpperCase().replace("-", " "));
+    return (
+      <div>
+        <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+          <div style={{ flex: 1, padding: "8px 12px", background: "#f0faf4", borderRadius: 8, border: "1px solid #c8e6d0" }}>
+            <div style={{ fontSize: 11, color: "#666", fontWeight: 600, marginBottom: 2 }}>Best Stablecoin</div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: "#1a7a3a" }}>{lr.best_stable_apy.toFixed(2)}% APY</div>
+            <div style={{ fontSize: 11, color: "#888" }}>{fmtProtocol(lr.best_stable_protocol)}</div>
+          </div>
+          <div style={{ flex: 1, padding: "8px 12px", background: "#f0f4ff", borderRadius: 8, border: "1px solid #c8d5f0" }}>
+            <div style={{ fontSize: 11, color: "#666", fontWeight: 600, marginBottom: 2 }}>Best ETH</div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: "#2a50a0" }}>{lr.best_eth_apy.toFixed(2)}% APY</div>
+            <div style={{ fontSize: 11, color: "#888" }}>{fmtProtocol(lr.best_eth_protocol)}</div>
+          </div>
+        </div>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+          <thead>
+            <tr style={{ borderBottom: "2px solid #e8e8e8" }}>
+              <th style={{ padding: "5px 8px", textAlign: "left", fontSize: 11, color: "#888", fontWeight: 600 }}>Protocol</th>
+              <th style={{ padding: "5px 8px", textAlign: "left", fontSize: 11, color: "#888", fontWeight: 600 }}>Asset</th>
+              <th style={{ padding: "5px 8px", textAlign: "left", fontSize: 11, color: "#888", fontWeight: 600 }}>Chain</th>
+              <th style={{ padding: "5px 8px", textAlign: "right", fontSize: 11, color: "#888", fontWeight: 600 }}>Supply APY</th>
+              <th style={{ padding: "5px 8px", textAlign: "right", fontSize: 11, color: "#888", fontWeight: 600 }}>TVL</th>
+            </tr>
+          </thead>
+          <tbody>
+            {lr.pools.map((p, i) => (
+              <tr key={i} style={{ borderBottom: "1px solid #f0f0f0" }}>
+                <td style={{ padding: "5px 8px", fontWeight: 600 }}>{fmtProtocol(p.protocol)}</td>
+                <td style={{ padding: "5px 8px", fontWeight: 700 }}>{p.symbol}</td>
+                <td style={{ padding: "5px 8px", color: "#666" }}>{p.chain}</td>
+                <td style={{ padding: "5px 8px", textAlign: "right", fontWeight: 700, color: "#1a7a3a" }}>{p.supply_apy.toFixed(2)}%</td>
+                <td style={{ padding: "5px 8px", textAlign: "right", color: "#888" }}>{fmtTvl(p.tvl_usd)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <p style={{ marginTop: 8, fontSize: 12, color: "#888" }}>
+          Supply APY from on-chain lending markets · Aave v3, Compound v3, Maple &amp; more · via DeFi Llama
         </p>
       </div>
     );
