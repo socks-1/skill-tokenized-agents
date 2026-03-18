@@ -3,10 +3,10 @@
  * All functions are read-only calls to public APIs — no auth required.
  */
 
-export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season" | "btc-mining" | "bridge-volume" | "tvl-movers" | "lightning-network" | "eth-lst" | "realized-vol" | "lending-rates" | "protocol-revenue" | "btc-onchain" | "nft-market" | "market-breadth" | "perp-oi" | "stablecoin-chains" | "stablecoin-pegs";
+export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season" | "btc-mining" | "bridge-volume" | "tvl-movers" | "lightning-network" | "eth-lst" | "realized-vol" | "lending-rates" | "protocol-revenue" | "btc-onchain" | "nft-market" | "market-breadth" | "perp-oi" | "stablecoin-chains" | "stablecoin-pegs" | "mining-pools";
 
 /** All valid service type strings — use this for runtime validation instead of duplicating the list. */
-export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season", "btc-mining", "bridge-volume", "tvl-movers", "lightning-network", "eth-lst", "realized-vol", "lending-rates", "protocol-revenue", "btc-onchain", "nft-market", "market-breadth", "perp-oi", "stablecoin-chains", "stablecoin-pegs"];
+export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season", "btc-mining", "bridge-volume", "tvl-movers", "lightning-network", "eth-lst", "realized-vol", "lending-rates", "protocol-revenue", "btc-onchain", "nft-market", "market-breadth", "perp-oi", "stablecoin-chains", "stablecoin-pegs", "mining-pools"];
 
 export interface MarketData {
   symbol: string;
@@ -504,6 +504,23 @@ export interface StablecoinPegsData {
   total_supply_usd: number;
 }
 
+export interface MiningPoolEntry {
+  name: string;
+  slug: string;
+  block_count: number;
+  share_pct: number;
+  rank: number;
+}
+
+export interface MiningPoolsData {
+  pools: MiningPoolEntry[];
+  total_blocks_3d: number;
+  hashrate_eh: number;
+  nakamoto_coefficient: number;
+  top3_concentration_pct: number;
+  window: string;
+}
+
 export interface ServiceResult {
   service_type: ServiceType;
   result: string;
@@ -550,6 +567,7 @@ export interface ServiceResult {
   perp_oi?: PerpOIData;
   stablecoin_chains?: StablecoinChainsData;
   stablecoin_pegs?: StablecoinPegsData;
+  mining_pools?: MiningPoolsData;
   timestamp: string;
   delivered_to: string;
 }
@@ -3059,6 +3077,7 @@ export async function deliverService(delivered_to: string, serviceType: ServiceT
   if (serviceType === "perp-oi") return deliverPerpOI(delivered_to, timestamp);
   if (serviceType === "stablecoin-chains") return deliverStablecoinChains(delivered_to, timestamp);
   if (serviceType === "stablecoin-pegs") return deliverStablecoinPegs(delivered_to, timestamp);
+  if (serviceType === "mining-pools") return deliverMiningPools(delivered_to, timestamp);
   return deliverCryptoPrices(delivered_to, timestamp);
 }
 
@@ -3445,4 +3464,62 @@ export async function deliverStablecoinPegs(delivered_to: string, timestamp: str
     : "Stablecoin peg data temporarily unavailable";
 
   return { service_type: "stablecoin-pegs", result, stablecoin_pegs, timestamp, delivered_to };
+}
+
+export async function deliverMiningPools(delivered_to: string, timestamp: string): Promise<ServiceResult> {
+  let mining_pools: MiningPoolsData | undefined;
+
+  try {
+    const res = await fetch("https://mempool.space/api/v1/mining/pools/3d", {
+      headers: { Accept: "application/json" },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) throw new Error(`mempool.space HTTP ${res.status}`);
+    const data = await res.json() as {
+      pools: Array<{ name: string; slug: string; blockCount: number; rank: number }>;
+      blockCount: number;
+      lastEstimatedHashrate3d: number;
+    };
+
+    const totalBlocks = data.blockCount;
+    const hashrateEh = data.lastEstimatedHashrate3d / 1e18;
+
+    const pools: MiningPoolEntry[] = data.pools.slice(0, 10).map((p) => ({
+      name: p.name,
+      slug: p.slug,
+      block_count: p.blockCount,
+      share_pct: Math.round((p.blockCount / totalBlocks) * 1000) / 10,
+      rank: p.rank,
+    }));
+
+    // Nakamoto coefficient: fewest pools whose combined share exceeds 50%
+    let nc = 0;
+    let cumulative = 0;
+    for (const p of data.pools) {
+      cumulative += p.blockCount;
+      nc++;
+      if (cumulative / totalBlocks > 0.5) break;
+    }
+
+    const top3Pct = Math.round(
+      data.pools.slice(0, 3).reduce((s, p) => s + p.blockCount, 0) / totalBlocks * 1000
+    ) / 10;
+
+    mining_pools = {
+      pools,
+      total_blocks_3d: totalBlocks,
+      hashrate_eh: Math.round(hashrateEh * 10) / 10,
+      nakamoto_coefficient: nc,
+      top3_concentration_pct: top3Pct,
+      window: "3 days",
+    };
+  } catch {
+    // Fall through with undefined
+  }
+
+  const result = mining_pools && mining_pools.pools.length > 0
+    ? `${mining_pools.pools[0].name} ${mining_pools.pools[0].share_pct}% · Nakamoto: ${mining_pools.nakamoto_coefficient} · ${mining_pools.hashrate_eh} EH/s`
+    : "Mining pool data temporarily unavailable";
+
+  return { service_type: "mining-pools", result, mining_pools, timestamp, delivered_to };
 }

@@ -56,6 +56,8 @@ import type {
   StablecoinChainEntry,
   StablecoinPegsData,
   StablecoinPegEntry,
+  MiningPoolsData,
+  MiningPoolEntry,
 } from "@/lib/services";
 
 interface InvoiceParams {
@@ -396,6 +398,13 @@ const SERVICE_OPTIONS: { id: ServiceType; label: string; description: string; pr
     id: "stablecoin-pegs",
     label: "Stablecoin Peg Health Monitor",
     description: "Live peg health for top USD stablecoins — price deviation from $1, circulating supply, and depeg status. Covers USDT, USDC, USDS, USDe, DAI, and more. Flags warnings and depegs in real-time.",
+    price: "1 USDC",
+    category: "Market Data",
+  },
+  {
+    id: "mining-pools",
+    label: "BTC Mining Pool Distribution",
+    description: "Bitcoin mining pool share over the last 3 days — block count per pool, hashrate share %, network hashrate in EH/s, and the Nakamoto coefficient (min pools needed to reach 51% of blocks).",
     price: "1 USDC",
     category: "Market Data",
   },
@@ -1000,6 +1009,26 @@ const MOCK_STABLECOIN_PEGS: StablecoinPegsData = {
     { symbol: "USDD",  name: "USDD",       price: 1.0001, dev_pct: +0.01, circ_usd:   1_100_000_000, peg_status: "on-peg",  peg_mechanism: "crypto-backed" },
     { symbol: "FDUSD", name: "First Digital USD", price: 1.0000, dev_pct: 0.00, circ_usd: 1_400_000_000, peg_status: "on-peg", peg_mechanism: "fiat-backed" },
   ] as StablecoinPegEntry[],
+};
+
+const MOCK_MINING_POOLS: MiningPoolsData = {
+  total_blocks_3d: 432,
+  hashrate_eh: 848.3,
+  nakamoto_coefficient: 2,
+  top3_concentration_pct: 61.1,
+  window: "3 days",
+  pools: [
+    { name: "Foundry USA",    slug: "foundryusa",  block_count: 155, share_pct: 35.9, rank: 1 },
+    { name: "AntPool",        slug: "antpool",     block_count: 109, share_pct: 25.2, rank: 2 },
+    { name: "SpiderPool",     slug: "spiderpool",  block_count:  50, share_pct: 11.6, rank: 3 },
+    { name: "F2Pool",         slug: "f2pool",      block_count:  37, share_pct:  8.6, rank: 4 },
+    { name: "ViaBTC",         slug: "viabtc",      block_count:  32, share_pct:  7.4, rank: 5 },
+    { name: "Binance Pool",   slug: "binancepool", block_count:  20, share_pct:  4.6, rank: 6 },
+    { name: "MARA Pool",      slug: "marapool",    block_count:  12, share_pct:  2.8, rank: 7 },
+    { name: "Luxor",          slug: "luxor",       block_count:   7, share_pct:  1.6, rank: 8 },
+    { name: "BTC.com",        slug: "btccom",      block_count:   6, share_pct:  1.4, rank: 9 },
+    { name: "Unknown",        slug: "unknown",     block_count:   4, share_pct:  0.9, rank: 10 },
+  ] as MiningPoolEntry[],
 };
 
 const MOCK_SIGNATURE =
@@ -2024,6 +2053,15 @@ function buildTourSteps(serviceType: ServiceType, liveData?: ServiceResult): Pay
       service_type: "stablecoin-pegs",
       result: `${sp.on_peg_count} on-peg · ${sp.warning_count} warnings · ${sp.depegged_count} depegged · ${sp.stablecoins[0]?.symbol} ${(sp.stablecoins[0]?.dev_pct ?? 0) >= 0 ? "+" : ""}${sp.stablecoins[0]?.dev_pct}%`,
       stablecoin_pegs: sp,
+      timestamp: new Date().toISOString(),
+      delivered_to: "Demo1234...abcd",
+    };
+  } else if (serviceType === "mining-pools") {
+    const mp = liveData?.mining_pools ?? MOCK_MINING_POOLS;
+    mockService = liveData ?? {
+      service_type: "mining-pools",
+      result: `${mp.pools[0]?.name} ${mp.pools[0]?.share_pct}% · Nakamoto: ${mp.nakamoto_coefficient} · ${mp.hashrate_eh} EH/s`,
+      mining_pools: mp,
       timestamp: new Date().toISOString(),
       delivered_to: "Demo1234...abcd",
     };
@@ -4094,6 +4132,65 @@ function ServiceResultTable({ service }: { service: ServiceResult }) {
         </table>
         <p style={{ marginTop: 8, fontSize: 12, color: "#888" }}>
           {sp.stablecoins.length} USD-pegged stablecoins tracked · ±0.1% on-peg, ±0.5% warning · via DeFi Llama
+        </p>
+      </div>
+    );
+  }
+
+  if (service.service_type === "mining-pools" && service.mining_pools) {
+    const mp = service.mining_pools;
+    const fmtEh = (v: number) => `${v.toFixed(1)} EH/s`;
+    const ncColor = mp.nakamoto_coefficient <= 2 ? "#ef4444" : mp.nakamoto_coefficient <= 3 ? "#f59e0b" : "#22c55e";
+    return (
+      <div>
+        <div style={{ marginBottom: 12, padding: 12, background: "#fafafa", borderRadius: 8, border: "1px solid #f0f0f0", display: "flex", gap: 28, flexWrap: "wrap" }}>
+          <div>
+            <div style={{ fontSize: 11, color: "#aaa", marginBottom: 2 }}>Hashrate</div>
+            <div style={{ fontWeight: 700, fontSize: 18, color: "#222" }}>{fmtEh(mp.hashrate_eh)}</div>
+          </div>
+          <div>
+            <div style={{ fontSize: 11, color: "#aaa", marginBottom: 2 }}>Nakamoto Coeff</div>
+            <div style={{ fontWeight: 700, fontSize: 18, color: ncColor }}>{mp.nakamoto_coefficient}</div>
+          </div>
+          <div>
+            <div style={{ fontSize: 11, color: "#aaa", marginBottom: 2 }}>Top-3 Share</div>
+            <div style={{ fontWeight: 600, fontSize: 15, color: "#555" }}>{mp.top3_concentration_pct}%</div>
+          </div>
+          <div>
+            <div style={{ fontSize: 11, color: "#aaa", marginBottom: 2 }}>Blocks (3d)</div>
+            <div style={{ fontWeight: 600, fontSize: 15, color: "#555" }}>{mp.total_blocks_3d.toLocaleString()}</div>
+          </div>
+        </div>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+          <thead>
+            <tr style={{ borderBottom: "1px solid #eee" }}>
+              <th style={{ textAlign: "left", padding: "4px 6px", color: "#aaa", fontWeight: 500 }}>#</th>
+              <th style={{ textAlign: "left", padding: "4px 6px", color: "#aaa", fontWeight: 500 }}>Pool</th>
+              <th style={{ textAlign: "right", padding: "4px 6px", color: "#aaa", fontWeight: 500 }}>Blocks</th>
+              <th style={{ textAlign: "right", padding: "4px 6px", color: "#aaa", fontWeight: 500 }}>Share</th>
+              <th style={{ textAlign: "left", padding: "4px 6px", color: "#aaa", fontWeight: 500 }}>Bar</th>
+            </tr>
+          </thead>
+          <tbody>
+            {mp.pools.map((p) => {
+              const barW = Math.round(p.share_pct * 2);
+              const barColor = p.rank <= 2 ? "#f87171" : p.rank <= 4 ? "#fbbf24" : "#60a5fa";
+              return (
+                <tr key={p.slug} style={{ borderBottom: "1px solid #f5f5f5" }}>
+                  <td style={{ padding: "5px 6px", color: "#aaa", fontSize: 11 }}>{p.rank}</td>
+                  <td style={{ padding: "5px 6px", fontWeight: 600, color: "#222" }}>{p.name}</td>
+                  <td style={{ padding: "5px 6px", textAlign: "right", fontFamily: "monospace", color: "#555" }}>{p.block_count}</td>
+                  <td style={{ padding: "5px 6px", textAlign: "right", fontWeight: 700, color: p.rank === 1 ? "#ef4444" : "#333" }}>{p.share_pct}%</td>
+                  <td style={{ padding: "5px 6px" }}>
+                    <div style={{ height: 8, width: barW, background: barColor, borderRadius: 3 }} />
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+        <p style={{ marginTop: 8, fontSize: 12, color: "#888" }}>
+          Nakamoto coefficient: {mp.nakamoto_coefficient} (pools needed for 51% attack) · {mp.window} window · via mempool.space
         </p>
       </div>
     );
