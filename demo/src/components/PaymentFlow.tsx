@@ -50,6 +50,8 @@ import type {
   NftCollectionEntry,
   MarketBreadthData,
   MarketBreadthEntry,
+  PerpOIData,
+  PerpExchangeEntry,
 } from "@/lib/services";
 
 interface InvoiceParams {
@@ -369,6 +371,13 @@ const SERVICE_OPTIONS: { id: ServiceType; label: string; description: string; pr
     id: "market-breadth",
     label: "Crypto Market Breadth",
     description: "Advance/decline ratio for top 100 coins — how many are up vs down today, breadth score 0-100, top 5 gainers and top 5 losers by 24h % change.",
+    price: "1 USDC",
+    category: "Market Data",
+  },
+  {
+    id: "perp-oi",
+    label: "Perp Exchange Open Interest",
+    description: "Top crypto derivatives exchanges ranked by open interest — BTC-equivalent OI converted to USD, 24h trading volume, and perpetual pair count. Covers Binance, Bybit, OKX, Hyperliquid, and more.",
     price: "1 USDC",
     category: "Market Data",
   },
@@ -915,6 +924,24 @@ const MOCK_MARKET_BREADTH: MarketBreadthData = {
     { symbol: "GRT", name: "The Graph", change_24h_pct: -3.4 },
     { symbol: "LPT", name: "Livepeer", change_24h_pct: -2.9 },
   ] as MarketBreadthEntry[],
+};
+
+const MOCK_PERP_OI: PerpOIData = {
+  btc_price: 83500,
+  total_oi_btc: 1_369_070,
+  total_oi_usd: 114_317_345_000,
+  exchanges: [
+    { name: "Binance (Futures)", oi_btc: 326172, oi_usd: 27_235_362_000, vol_24h_btc: 612294, vol_24h_usd: 51_126_549_000, perp_pairs: 378 },
+    { name: "Bybit (Futures)", oi_btc: 149829, oi_usd: 12_510_721_500, vol_24h_btc: 179576, vol_24h_usd: 14_994_596_000, perp_pairs: 321 },
+    { name: "OKX (Futures)", oi_btc: 96714, oi_usd: 8_075_619_000, vol_24h_btc: 284246, vol_24h_usd: 23_734_541_000, perp_pairs: 267 },
+    { name: "Gate (Futures)", oi_btc: 141786, oi_usd: 11_839_131_000, vol_24h_btc: 212131, vol_24h_usd: 17_713_438_500, perp_pairs: 415 },
+    { name: "MEXC (Futures)", oi_btc: 111381, oi_usd: 9_300_313_500, vol_24h_btc: 139767, vol_24h_usd: 11_671_544_500, perp_pairs: 402 },
+    { name: "Bitget Futures", oi_btc: 93675, oi_usd: 7_821_862_500, vol_24h_btc: 108697, vol_24h_usd: 9_076_199_500, perp_pairs: 319 },
+    { name: "Hyperliquid (Futures)", oi_btc: 93371, oi_usd: 7_796_481_500, vol_24h_btc: 74482, vol_24h_usd: 6_219_247_000, perp_pairs: 122 },
+    { name: "BYDFi (Futures)", oi_btc: 114569, oi_usd: 9_566_511_500, vol_24h_btc: 13866, vol_24h_usd: 1_157_811_000, perp_pairs: 187 },
+    { name: "Bitmart Futures", oi_btc: 134965, oi_usd: 11_269_577_500, vol_24h_btc: 236580, vol_24h_usd: 19_754_430_000, perp_pairs: 280 },
+    { name: "LBank (Futures)", oi_btc: 107589, oi_usd: 8_983_681_500, vol_24h_btc: 86498, vol_24h_usd: 7_222_583_000, perp_pairs: 234 },
+  ] as PerpExchangeEntry[],
 };
 
 const MOCK_SIGNATURE =
@@ -1910,6 +1937,16 @@ function buildTourSteps(serviceType: ServiceType, liveData?: ServiceResult): Pay
       service_type: "market-breadth",
       result: `${mb.advancing}/${mb.total} advancing (${mb.breadth_score}% breadth) · top: ${mb.top_gainers[0]?.symbol} +${mb.top_gainers[0]?.change_24h_pct.toFixed(1)}% · worst: ${mb.top_losers[0]?.symbol} ${mb.top_losers[0]?.change_24h_pct.toFixed(1)}%`,
       market_breadth: mb,
+      timestamp: new Date().toISOString(),
+      delivered_to: "Demo1234...abcd",
+    };
+  } else if (serviceType === "perp-oi") {
+    const po = liveData?.perp_oi ?? MOCK_PERP_OI;
+    const fmtUsd = (v: number) => v >= 1e9 ? `$${(v / 1e9).toFixed(1)}B` : `$${(v / 1e6).toFixed(0)}M`;
+    mockService = liveData ?? {
+      service_type: "perp-oi",
+      result: `${po.exchanges[0].name} ${fmtUsd(po.exchanges[0].oi_usd)} OI · ${po.exchanges[1]?.name ?? ""} ${fmtUsd(po.exchanges[1]?.oi_usd ?? 0)} · top-10 total ${fmtUsd(po.total_oi_usd)}`,
+      perp_oi: po,
       timestamp: new Date().toISOString(),
       delivered_to: "Demo1234...abcd",
     };
@@ -3806,6 +3843,55 @@ function ServiceResultTable({ service }: { service: ServiceResult }) {
         </div>
         <p style={{ marginTop: 10, fontSize: 12, color: "#888" }}>
           Top 100 coins by market cap · advance/decline breadth · via CoinGecko
+        </p>
+      </div>
+    );
+  }
+
+  if (service.service_type === "perp-oi" && service.perp_oi) {
+    const po = service.perp_oi;
+    const fmtUsd = (v: number) =>
+      v >= 1e9 ? `$${(v / 1e9).toFixed(2)}B` : v >= 1e6 ? `$${(v / 1e6).toFixed(0)}M` : `$${v.toLocaleString()}`;
+    return (
+      <div>
+        <div style={{ marginBottom: 12, padding: 12, background: "#fafafa", borderRadius: 8, border: "1px solid #f0f0f0", display: "flex", gap: 28, flexWrap: "wrap" }}>
+          <div>
+            <div style={{ fontSize: 11, color: "#aaa", marginBottom: 2 }}>Top-10 Total OI</div>
+            <div style={{ fontWeight: 700, fontSize: 20, color: "#222" }}>{fmtUsd(po.total_oi_usd)}</div>
+          </div>
+          <div>
+            <div style={{ fontSize: 11, color: "#aaa", marginBottom: 2 }}>Total OI (BTC)</div>
+            <div style={{ fontWeight: 600, fontSize: 15, color: "#555" }}>{po.total_oi_btc.toLocaleString()} BTC</div>
+          </div>
+          <div>
+            <div style={{ fontSize: 11, color: "#aaa", marginBottom: 2 }}>BTC Price</div>
+            <div style={{ fontWeight: 600, fontSize: 15, color: "#555" }}>${po.btc_price.toLocaleString()}</div>
+          </div>
+        </div>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+          <thead>
+            <tr style={{ borderBottom: "1px solid #eee" }}>
+              <th style={{ textAlign: "left", padding: "4px 6px", color: "#aaa", fontWeight: 500 }}>#</th>
+              <th style={{ textAlign: "left", padding: "4px 6px", color: "#aaa", fontWeight: 500 }}>Exchange</th>
+              <th style={{ textAlign: "right", padding: "4px 6px", color: "#aaa", fontWeight: 500 }}>Open Interest</th>
+              <th style={{ textAlign: "right", padding: "4px 6px", color: "#aaa", fontWeight: 500 }}>24h Volume</th>
+              <th style={{ textAlign: "right", padding: "4px 6px", color: "#aaa", fontWeight: 500 }}>Perps</th>
+            </tr>
+          </thead>
+          <tbody>
+            {po.exchanges.map((ex, i) => (
+              <tr key={ex.name} style={{ borderBottom: "1px solid #f5f5f5" }}>
+                <td style={{ padding: "5px 6px", color: "#aaa", fontSize: 12 }}>{i + 1}</td>
+                <td style={{ padding: "5px 6px", fontWeight: 600, color: "#222" }}>{ex.name}</td>
+                <td style={{ padding: "5px 6px", textAlign: "right", color: "#222", fontWeight: 500 }}>{fmtUsd(ex.oi_usd)}</td>
+                <td style={{ padding: "5px 6px", textAlign: "right", color: "#555" }}>{fmtUsd(ex.vol_24h_usd)}</td>
+                <td style={{ padding: "5px 6px", textAlign: "right", color: "#888" }}>{ex.perp_pairs}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <p style={{ marginTop: 8, fontSize: 12, color: "#888" }}>
+          Top {po.exchanges.length} perp exchanges by open interest · via CoinGecko
         </p>
       </div>
     );

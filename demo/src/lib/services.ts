@@ -3,10 +3,10 @@
  * All functions are read-only calls to public APIs — no auth required.
  */
 
-export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season" | "btc-mining" | "bridge-volume" | "tvl-movers" | "lightning-network" | "eth-lst" | "realized-vol" | "lending-rates" | "protocol-revenue" | "btc-onchain" | "nft-market" | "market-breadth";
+export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season" | "btc-mining" | "bridge-volume" | "tvl-movers" | "lightning-network" | "eth-lst" | "realized-vol" | "lending-rates" | "protocol-revenue" | "btc-onchain" | "nft-market" | "market-breadth" | "perp-oi";
 
 /** All valid service type strings — use this for runtime validation instead of duplicating the list. */
-export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season", "btc-mining", "bridge-volume", "tvl-movers", "lightning-network", "eth-lst", "realized-vol", "lending-rates", "protocol-revenue", "btc-onchain", "nft-market", "market-breadth"];
+export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season", "btc-mining", "bridge-volume", "tvl-movers", "lightning-network", "eth-lst", "realized-vol", "lending-rates", "protocol-revenue", "btc-onchain", "nft-market", "market-breadth", "perp-oi"];
 
 export interface MarketData {
   symbol: string;
@@ -457,6 +457,22 @@ export interface MarketBreadthData {
   top_losers: MarketBreadthEntry[];
 }
 
+export interface PerpExchangeEntry {
+  name: string;
+  oi_btc: number;
+  oi_usd: number;
+  vol_24h_btc: number;
+  vol_24h_usd: number;
+  perp_pairs: number;
+}
+
+export interface PerpOIData {
+  exchanges: PerpExchangeEntry[];
+  btc_price: number;
+  total_oi_btc: number;
+  total_oi_usd: number;
+}
+
 export interface ServiceResult {
   service_type: ServiceType;
   result: string;
@@ -500,6 +516,7 @@ export interface ServiceResult {
   btc_onchain?: BtcOnchainData;
   nft_market?: NftMarketData;
   market_breadth?: MarketBreadthData;
+  perp_oi?: PerpOIData;
   timestamp: string;
   delivered_to: string;
 }
@@ -3006,6 +3023,7 @@ export async function deliverService(delivered_to: string, serviceType: ServiceT
   if (serviceType === "btc-onchain") return deliverBtcOnchain(delivered_to, timestamp);
   if (serviceType === "nft-market") return deliverNftMarket(delivered_to, timestamp);
   if (serviceType === "market-breadth") return deliverMarketBreadth(delivered_to, timestamp);
+  if (serviceType === "perp-oi") return deliverPerpOI(delivered_to, timestamp);
   return deliverCryptoPrices(delivered_to, timestamp);
 }
 
@@ -3184,4 +3202,72 @@ export async function deliverMarketBreadth(delivered_to: string, timestamp: stri
     : "Market breadth data temporarily unavailable";
 
   return { service_type: "market-breadth", result, market_breadth, timestamp, delivered_to };
+}
+
+/**
+ * Fetches top crypto derivatives exchanges ranked by open interest via CoinGecko free API.
+ * Shows BTC-equivalent OI converted to USD, 24h trading volume, and perpetual pair count.
+ * Covers major venues: Binance, Bybit, OKX, Gate, Hyperliquid, Bitget, MEXC, and more.
+ */
+export async function deliverPerpOI(delivered_to: string, timestamp: string): Promise<ServiceResult> {
+  let perp_oi: PerpOIData | undefined;
+
+  try {
+    const [priceRes, exchRes] = await Promise.all([
+      fetch("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd", {
+        signal: AbortSignal.timeout(10000),
+        headers: { "User-Agent": "skill-tokenized-agents/1.0", Accept: "application/json" },
+      }),
+      fetch("https://api.coingecko.com/api/v3/derivatives/exchanges?order=open_interest_btc_desc&per_page=15&page=1", {
+        signal: AbortSignal.timeout(10000),
+        headers: { "User-Agent": "skill-tokenized-agents/1.0", Accept: "application/json" },
+      }),
+    ]);
+
+    if (!priceRes.ok) throw new Error(`price HTTP ${priceRes.status}`);
+    if (!exchRes.ok) throw new Error(`exchanges HTTP ${exchRes.status}`);
+
+    const priceData = await priceRes.json() as { bitcoin: { usd: number } };
+    const btc_price = priceData.bitcoin?.usd ?? 0;
+
+    const rawExchanges = await exchRes.json() as Array<{
+      name: string;
+      open_interest_btc: number | null;
+      trade_volume_24h_btc: number | null;
+      number_of_perpetual_pairs: number | null;
+    }>;
+
+    const entries: PerpExchangeEntry[] = rawExchanges
+      .filter((e) => e.open_interest_btc != null && Number(e.open_interest_btc) > 0)
+      .slice(0, 10)
+      .map((e) => {
+        const oi_btc = Number(e.open_interest_btc ?? 0);
+        const vol_btc = Number(e.trade_volume_24h_btc ?? 0);
+        return {
+          name: e.name,
+          oi_btc: Math.round(oi_btc),
+          oi_usd: Math.round(oi_btc * btc_price),
+          vol_24h_btc: Math.round(vol_btc),
+          vol_24h_usd: Math.round(vol_btc * btc_price),
+          perp_pairs: e.number_of_perpetual_pairs ?? 0,
+        };
+      });
+
+    if (entries.length > 0 && btc_price > 0) {
+      const total_oi_btc = entries.reduce((s, e) => s + e.oi_btc, 0);
+      const total_oi_usd = Math.round(total_oi_btc * btc_price);
+      perp_oi = { exchanges: entries, btc_price, total_oi_btc, total_oi_usd };
+    }
+  } catch {
+    // Fall through with undefined perp_oi
+  }
+
+  const fmtUsd = (v: number) =>
+    v >= 1e9 ? `$${(v / 1e9).toFixed(1)}B` : v >= 1e6 ? `$${(v / 1e6).toFixed(0)}M` : `$${v.toLocaleString()}`;
+
+  const result = perp_oi && perp_oi.exchanges.length > 0
+    ? `${perp_oi.exchanges[0].name} ${fmtUsd(perp_oi.exchanges[0].oi_usd)} OI · ${perp_oi.exchanges[1]?.name ?? ""} ${fmtUsd(perp_oi.exchanges[1]?.oi_usd ?? 0)} · top-10 total ${fmtUsd(perp_oi.total_oi_usd)}`
+    : "Perp exchange OI data temporarily unavailable";
+
+  return { service_type: "perp-oi", result, perp_oi, timestamp, delivered_to };
 }
