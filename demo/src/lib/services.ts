@@ -3,10 +3,10 @@
  * All functions are read-only calls to public APIs — no auth required.
  */
 
-export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season" | "btc-mining" | "bridge-volume" | "tvl-movers" | "lightning-network" | "eth-lst" | "realized-vol" | "lending-rates" | "protocol-revenue" | "btc-onchain" | "nft-market" | "market-breadth" | "perp-oi" | "stablecoin-chains" | "stablecoin-pegs" | "mining-pools" | "rwa-tvl" | "crypto-funding" | "chain-fees" | "chain-tvl" | "defi-exploits" | "global-dex" | "futures-basis" | "dex-aggregators";
+export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season" | "btc-mining" | "bridge-volume" | "tvl-movers" | "lightning-network" | "eth-lst" | "realized-vol" | "lending-rates" | "protocol-revenue" | "btc-onchain" | "nft-market" | "market-breadth" | "perp-oi" | "stablecoin-chains" | "stablecoin-pegs" | "mining-pools" | "rwa-tvl" | "crypto-funding" | "chain-fees" | "chain-tvl" | "defi-exploits" | "global-dex" | "futures-basis" | "dex-aggregators" | "meme-coins";
 
 /** All valid service type strings — use this for runtime validation instead of duplicating the list. */
-export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season", "btc-mining", "bridge-volume", "tvl-movers", "lightning-network", "eth-lst", "realized-vol", "lending-rates", "protocol-revenue", "btc-onchain", "nft-market", "market-breadth", "perp-oi", "stablecoin-chains", "stablecoin-pegs", "mining-pools", "rwa-tvl", "crypto-funding", "chain-fees", "chain-tvl", "defi-exploits", "global-dex", "futures-basis", "dex-aggregators"];
+export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season", "btc-mining", "bridge-volume", "tvl-movers", "lightning-network", "eth-lst", "realized-vol", "lending-rates", "protocol-revenue", "btc-onchain", "nft-market", "market-breadth", "perp-oi", "stablecoin-chains", "stablecoin-pegs", "mining-pools", "rwa-tvl", "crypto-funding", "chain-fees", "chain-tvl", "defi-exploits", "global-dex", "futures-basis", "dex-aggregators", "meme-coins"];
 
 export interface MarketData {
   symbol: string;
@@ -641,6 +641,22 @@ export interface DexAggregatorsData {
   total_volume_7d: number;
 }
 
+export interface MemeCoinEntry {
+  name: string;
+  symbol: string;
+  price_usd: number;
+  change_24h_pct: number | null;
+  market_cap_usd: number;
+  volume_24h_usd: number;
+}
+
+export interface MemeCoinsData {
+  coins: MemeCoinEntry[];
+  total_market_cap_usd: number;
+  top_gainer: string;       // symbol of top 24h gainer
+  top_loser: string;        // symbol of top 24h loser
+}
+
 export interface ServiceResult {
   service_type: ServiceType;
   result: string;
@@ -696,6 +712,7 @@ export interface ServiceResult {
   global_dex?: GlobalDexData;
   futures_basis?: FuturesBasisData;
   dex_aggregators?: DexAggregatorsData;
+  meme_coins?: MemeCoinsData;
   timestamp: string;
   delivered_to: string;
 }
@@ -3214,6 +3231,7 @@ export async function deliverService(delivered_to: string, serviceType: ServiceT
   if (serviceType === "global-dex") return deliverGlobalDex(delivered_to, timestamp);
   if (serviceType === "futures-basis") return deliverFuturesBasis(delivered_to, timestamp);
   if (serviceType === "dex-aggregators") return deliverDexAggregators(delivered_to, timestamp);
+  if (serviceType === "meme-coins") return deliverMemeCoins(delivered_to, timestamp);
   return deliverCryptoPrices(delivered_to, timestamp);
 }
 
@@ -4278,4 +4296,66 @@ export async function deliverDexAggregators(delivered_to: string, timestamp: str
     : "DEX aggregator volume data temporarily unavailable";
 
   return { service_type: "dex-aggregators", result, dex_aggregators, timestamp, delivered_to };
+}
+
+let _memeCoinsCache: { data: MemeCoinsData; expires: number } | null = null;
+
+/**
+ * Fetches meme coin rankings by market cap from CoinGecko.
+ * Shows top 15 meme coins (DOGE, SHIB, PEPE, WIF, etc.) with price and 24h change.
+ * Cached 5 minutes.
+ */
+export async function deliverMemeCoins(delivered_to: string, timestamp: string): Promise<ServiceResult> {
+  if (_memeCoinsCache && Date.now() < _memeCoinsCache.expires) {
+    const mc = _memeCoinsCache.data;
+    const fmtMcap = (v: number) => v >= 1e9 ? `$${(v / 1e9).toFixed(1)}B` : `$${(v / 1e6).toFixed(0)}M`;
+    const result = `${mc.coins.length} meme coins · Total mcap ${fmtMcap(mc.total_market_cap_usd)} · Top gainer: ${mc.top_gainer} · Biggest drop: ${mc.top_loser}`;
+    return { service_type: "meme-coins", result, meme_coins: mc, timestamp, delivered_to };
+  }
+
+  let meme_coins: MemeCoinsData | undefined;
+
+  try {
+    const res = await fetch(
+      "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&category=meme-token&order=market_cap_desc&per_page=15&page=1&price_change_percentage=24h",
+      { signal: AbortSignal.timeout(12000), headers: { "User-Agent": "skill-tokenized-agents/1.0" } }
+    );
+    if (!res.ok) throw new Error(`CoinGecko error ${res.status}`);
+
+    const json = await res.json() as Array<{
+      name?: string;
+      symbol?: string;
+      current_price?: number;
+      price_change_percentage_24h?: number | null;
+      market_cap?: number;
+      total_volume?: number;
+    }>;
+
+    const coins: MemeCoinEntry[] = json.map((c) => ({
+      name: c.name ?? "Unknown",
+      symbol: (c.symbol ?? "?").toUpperCase(),
+      price_usd: c.current_price ?? 0,
+      change_24h_pct: c.price_change_percentage_24h ?? null,
+      market_cap_usd: c.market_cap ?? 0,
+      volume_24h_usd: c.total_volume ?? 0,
+    }));
+
+    const total_market_cap_usd = coins.reduce((s, c) => s + c.market_cap_usd, 0);
+    const withChange = coins.filter((c) => c.change_24h_pct != null);
+    const sorted = [...withChange].sort((a, b) => (b.change_24h_pct ?? 0) - (a.change_24h_pct ?? 0));
+    const top_gainer = sorted[0]?.symbol ?? "—";
+    const top_loser = sorted[sorted.length - 1]?.symbol ?? "—";
+
+    meme_coins = { coins, total_market_cap_usd, top_gainer, top_loser };
+    _memeCoinsCache = { data: meme_coins, expires: Date.now() + 5 * 60 * 1000 };
+  } catch {
+    // Fall through with undefined
+  }
+
+  const fmtMcap = (v: number) => v >= 1e9 ? `$${(v / 1e9).toFixed(1)}B` : `$${(v / 1e6).toFixed(0)}M`;
+  const result = meme_coins && meme_coins.coins.length > 0
+    ? `${meme_coins.coins.length} meme coins · Total mcap ${fmtMcap(meme_coins.total_market_cap_usd)} · Top gainer: ${meme_coins.top_gainer} · Biggest drop: ${meme_coins.top_loser}`
+    : "Meme coin data temporarily unavailable";
+
+  return { service_type: "meme-coins", result, meme_coins, timestamp, delivered_to };
 }

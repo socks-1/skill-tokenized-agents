@@ -72,6 +72,8 @@ import type {
   FuturesBasisEntry,
   DexAggregatorEntry,
   DexAggregatorsData,
+  MemeCoinEntry,
+  MemeCoinsData,
 } from "@/lib/services";
 
 interface InvoiceParams {
@@ -477,6 +479,13 @@ const SERVICE_OPTIONS: { id: ServiceType; label: string; description: string; pr
     description: "Top 10 DEX aggregators by 24h routed volume — Jupiter, 1inch, CoWSwap, KyberSwap, 0x, and more. Aggregators route trades across multiple DEXes for best execution. Total market volume with 24h change. Via DeFi Llama.",
     price: "1 USDC",
     category: "DeFi",
+  },
+  {
+    id: "meme-coins",
+    label: "Meme Coin Leaderboard",
+    description: "Top 15 meme coins by market cap — DOGE, SHIB, PEPE, WIF, and more. Price, 24h change, market cap, volume. The heart of crypto retail sentiment in one table. Via CoinGecko.",
+    price: "1 USDC",
+    category: "Market Data",
   },
 ];
 
@@ -1213,6 +1222,24 @@ const MOCK_DEX_AGGREGATORS: DexAggregatorsData = {
     { name: "Binance Wallet",      chains: ["Ethereum", "Arbitrum", "Polygon"],  volume_24h:  62_678_065, volume_7d:   380_650_118, change_pct: 20.40  },
     { name: "Bebop",               chains: ["Arbitrum", "Ethereum", "Polygon"],  volume_24h:  61_348_026, volume_7d:   448_166_814, change_pct: -55.79 },
   ] as DexAggregatorEntry[],
+};
+
+const MOCK_MEME_COINS: MemeCoinsData = {
+  total_market_cap_usd: 68_400_000_000,
+  top_gainer: "PEPE",
+  top_loser: "BONK",
+  coins: [
+    { name: "Dogecoin",           symbol: "DOGE",  price_usd: 0.0952,     change_24h_pct: -6.03,  market_cap_usd: 14_618_024_115, volume_24h_usd: 1_507_166_707 },
+    { name: "Shiba Inu",          symbol: "SHIB",  price_usd: 0.0000058,  change_24h_pct: -5.29,  market_cap_usd:  8_614_322_100, volume_24h_usd:   523_081_400 },
+    { name: "Pepe",               symbol: "PEPE",  price_usd: 0.00000352, change_24h_pct: 3.41,   market_cap_usd:  4_812_011_200, volume_24h_usd:   891_234_567 },
+    { name: "dogwifhat",          symbol: "WIF",   price_usd: 0.871,      change_24h_pct: -4.12,  market_cap_usd:   871_000_000,  volume_24h_usd:   103_400_000 },
+    { name: "Floki",              symbol: "FLOKI", price_usd: 0.0000832,  change_24h_pct: -3.87,  market_cap_usd:   792_345_678,  volume_24h_usd:    89_120_000 },
+    { name: "Bonk",               symbol: "BONK",  price_usd: 0.0000119,  change_24h_pct: -8.21,  market_cap_usd:   703_450_000,  volume_24h_usd:   122_830_000 },
+    { name: "Popcat",             symbol: "POPCAT",price_usd: 0.295,      change_24h_pct: -5.60,  market_cap_usd:   295_000_000,  volume_24h_usd:    67_340_000 },
+    { name: "Cat in a dogs world",symbol: "MEW",   price_usd: 0.00384,    change_24h_pct: -4.92,  market_cap_usd:   252_100_000,  volume_24h_usd:    38_710_000 },
+    { name: "Mog Coin",           symbol: "MOG",   price_usd: 0.00000133, change_24h_pct: 1.24,   market_cap_usd:   213_780_000,  volume_24h_usd:    24_560_000 },
+    { name: "Turbo",              symbol: "TURBO", price_usd: 0.00437,    change_24h_pct: -2.80,  market_cap_usd:   186_290_000,  volume_24h_usd:    31_120_000 },
+  ] as MemeCoinEntry[],
 };
 
 const MOCK_SIGNATURE =
@@ -2309,6 +2336,16 @@ function buildTourSteps(serviceType: ServiceType, liveData?: ServiceResult): Pay
       service_type: "dex-aggregators",
       result: `Total agg vol (24h): ${fmtUsd(da.total_volume_24h)} · Top: ${top?.name} ${fmtUsd(top?.volume_24h ?? 0)} · ${da.aggregators.length} aggregators`,
       dex_aggregators: da,
+      timestamp: new Date().toISOString(),
+      delivered_to: "Demo1234...abcd",
+    };
+  } else if (serviceType === "meme-coins") {
+    const mc = liveData?.meme_coins ?? MOCK_MEME_COINS;
+    const fmtMcap = (v: number) => v >= 1e9 ? `$${(v / 1e9).toFixed(1)}B` : `$${(v / 1e6).toFixed(0)}M`;
+    mockService = liveData ?? {
+      service_type: "meme-coins",
+      result: `${mc.coins.length} meme coins · Total mcap ${fmtMcap(mc.total_market_cap_usd)} · Top gainer: ${mc.top_gainer} · Biggest drop: ${mc.top_loser}`,
+      meme_coins: mc,
       timestamp: new Date().toISOString(),
       delivered_to: "Demo1234...abcd",
     };
@@ -4934,6 +4971,70 @@ function ServiceResultTable({ service }: { service: ServiceResult }) {
         </table>
         <p style={{ marginTop: 8, fontSize: 12, color: "#888" }}>
           Top {da.aggregators.length} DEX aggregators by 24h routed volume · via DeFi Llama
+        </p>
+      </div>
+    );
+  }
+
+  if (service.service_type === "meme-coins" && service.meme_coins) {
+    const mc = service.meme_coins;
+    const fmtPrice = (v: number) => v < 0.000001 ? v.toExponential(2) : v < 0.01 ? v.toPrecision(4) : v >= 1000 ? `$${v.toLocaleString(undefined, { maximumFractionDigits: 0 })}` : `$${v.toPrecision(4)}`;
+    const fmtMcap = (v: number) => v >= 1e9 ? `$${(v / 1e9).toFixed(2)}B` : v >= 1e6 ? `$${(v / 1e6).toFixed(0)}M` : `$${v.toFixed(0)}`;
+    const maxMcap = mc.coins[0]?.market_cap_usd ?? 1;
+    return (
+      <div>
+        <div style={{ marginBottom: 12, padding: 12, background: "#fdf4ff", borderRadius: 8, border: "1px solid #e9d5ff", display: "flex", gap: 24, flexWrap: "wrap" }}>
+          <div>
+            <div style={{ fontSize: 11, color: "#aaa", marginBottom: 2 }}>Total Meme Mcap</div>
+            <div style={{ fontWeight: 700, fontSize: 18, color: "#7c3aed" }}>{fmtMcap(mc.total_market_cap_usd)}</div>
+          </div>
+          <div>
+            <div style={{ fontSize: 11, color: "#aaa", marginBottom: 2 }}>Top Gainer (24h)</div>
+            <div style={{ fontWeight: 700, fontSize: 18, color: "#16a34a" }}>{mc.top_gainer}</div>
+          </div>
+          <div>
+            <div style={{ fontSize: 11, color: "#aaa", marginBottom: 2 }}>Biggest Drop (24h)</div>
+            <div style={{ fontWeight: 700, fontSize: 18, color: "#dc2626" }}>{mc.top_loser}</div>
+          </div>
+        </div>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+          <thead>
+            <tr style={{ borderBottom: "1px solid #eee" }}>
+              <th style={{ textAlign: "left", padding: "4px 6px", color: "#aaa", fontWeight: 500 }}>#</th>
+              <th style={{ textAlign: "left", padding: "4px 6px", color: "#aaa", fontWeight: 500 }}>Coin</th>
+              <th style={{ textAlign: "right", padding: "4px 6px", color: "#aaa", fontWeight: 500 }}>Price</th>
+              <th style={{ textAlign: "right", padding: "4px 6px", color: "#aaa", fontWeight: 500 }}>24h</th>
+              <th style={{ textAlign: "right", padding: "4px 6px", color: "#aaa", fontWeight: 500 }}>Mkt Cap</th>
+            </tr>
+          </thead>
+          <tbody>
+            {mc.coins.map((c, i) => {
+              const isUp = (c.change_24h_pct ?? 0) >= 0;
+              const barWidth = Math.round((c.market_cap_usd / maxMcap) * 100);
+              return (
+                <tr key={i} style={{ borderBottom: "1px solid #f5f5f5" }}>
+                  <td style={{ padding: "5px 6px", color: "#aaa", fontSize: 12 }}>{i + 1}</td>
+                  <td style={{ padding: "5px 6px" }}>
+                    <div style={{ fontWeight: i === 0 ? 700 : 500, color: i === 0 ? "#111" : "#333" }}>
+                      {c.symbol} <span style={{ color: "#999", fontWeight: 400, fontSize: 11 }}>{c.name}</span>
+                    </div>
+                    <div style={{ height: 3, background: "#f0f0f0", borderRadius: 2, marginTop: 3, overflow: "hidden" }}>
+                      <div style={{ width: `${barWidth}%`, height: "100%", background: i === 0 ? "#7c3aed" : "#c4b5fd", borderRadius: 2 }} />
+                    </div>
+                  </td>
+                  <td style={{ padding: "5px 6px", textAlign: "right", fontFamily: "monospace", fontSize: 12, color: "#111" }}>{fmtPrice(c.price_usd)}</td>
+                  <td style={{ padding: "5px 6px", textAlign: "right", fontWeight: 600, fontSize: 12,
+                    color: c.change_24h_pct == null ? "#bbb" : isUp ? "#16a34a" : "#dc2626" }}>
+                    {c.change_24h_pct == null ? "—" : `${isUp ? "+" : ""}${c.change_24h_pct.toFixed(2)}%`}
+                  </td>
+                  <td style={{ padding: "5px 6px", textAlign: "right", fontFamily: "monospace", color: "#555", fontSize: 12 }}>{fmtMcap(c.market_cap_usd)}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+        <p style={{ marginTop: 8, fontSize: 12, color: "#888" }}>
+          Top {mc.coins.length} meme coins by market cap · via CoinGecko
         </p>
       </div>
     );
