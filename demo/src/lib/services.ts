@@ -3,10 +3,10 @@
  * All functions are read-only calls to public APIs — no auth required.
  */
 
-export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season" | "btc-mining" | "bridge-volume" | "tvl-movers" | "lightning-network" | "eth-lst" | "realized-vol" | "lending-rates" | "protocol-revenue" | "btc-onchain" | "nft-market" | "market-breadth" | "perp-oi" | "stablecoin-chains" | "stablecoin-pegs" | "mining-pools";
+export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season" | "btc-mining" | "bridge-volume" | "tvl-movers" | "lightning-network" | "eth-lst" | "realized-vol" | "lending-rates" | "protocol-revenue" | "btc-onchain" | "nft-market" | "market-breadth" | "perp-oi" | "stablecoin-chains" | "stablecoin-pegs" | "mining-pools" | "rwa-tvl";
 
 /** All valid service type strings — use this for runtime validation instead of duplicating the list. */
-export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season", "btc-mining", "bridge-volume", "tvl-movers", "lightning-network", "eth-lst", "realized-vol", "lending-rates", "protocol-revenue", "btc-onchain", "nft-market", "market-breadth", "perp-oi", "stablecoin-chains", "stablecoin-pegs", "mining-pools"];
+export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season", "btc-mining", "bridge-volume", "tvl-movers", "lightning-network", "eth-lst", "realized-vol", "lending-rates", "protocol-revenue", "btc-onchain", "nft-market", "market-breadth", "perp-oi", "stablecoin-chains", "stablecoin-pegs", "mining-pools", "rwa-tvl"];
 
 export interface MarketData {
   symbol: string;
@@ -521,6 +521,23 @@ export interface MiningPoolsData {
   window: string;
 }
 
+export interface RwaProtocolEntry {
+  name: string;
+  slug: string;
+  tvl_usd: number;
+  change_1d_pct: number | null;
+  change_7d_pct: number | null;
+  chains: string[];
+}
+
+export interface RwaTvlData {
+  protocols: RwaProtocolEntry[];
+  total_tvl_usd: number;
+  protocol_count: number;
+  top_chain: string;
+  week_change_pct: number | null;
+}
+
 export interface ServiceResult {
   service_type: ServiceType;
   result: string;
@@ -568,6 +585,7 @@ export interface ServiceResult {
   stablecoin_chains?: StablecoinChainsData;
   stablecoin_pegs?: StablecoinPegsData;
   mining_pools?: MiningPoolsData;
+  rwa_tvl?: RwaTvlData;
   timestamp: string;
   delivered_to: string;
 }
@@ -3078,6 +3096,7 @@ export async function deliverService(delivered_to: string, serviceType: ServiceT
   if (serviceType === "stablecoin-chains") return deliverStablecoinChains(delivered_to, timestamp);
   if (serviceType === "stablecoin-pegs") return deliverStablecoinPegs(delivered_to, timestamp);
   if (serviceType === "mining-pools") return deliverMiningPools(delivered_to, timestamp);
+  if (serviceType === "rwa-tvl") return deliverRwaTvl(delivered_to, timestamp);
   return deliverCryptoPrices(delivered_to, timestamp);
 }
 
@@ -3522,4 +3541,72 @@ export async function deliverMiningPools(delivered_to: string, timestamp: string
     : "Mining pool data temporarily unavailable";
 
   return { service_type: "mining-pools", result, mining_pools, timestamp, delivered_to };
+}
+
+export async function deliverRwaTvl(delivered_to: string, timestamp: string): Promise<ServiceResult> {
+  let rwa_tvl: RwaTvlData | undefined;
+
+  try {
+    const res = await fetch("https://api.llama.fi/protocols", {
+      headers: { Accept: "application/json" },
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!res.ok) throw new Error(`DeFi Llama HTTP ${res.status}`);
+
+    const data = await res.json() as Array<{
+      name: string;
+      slug: string;
+      category: string;
+      tvl: number;
+      change_1d: number | null;
+      change_7d: number | null;
+      chains: string[];
+    }>;
+
+    const rwaProtocols = data
+      .filter((p) => p.category === "RWA" && p.tvl > 0)
+      .sort((a, b) => b.tvl - a.tvl)
+      .slice(0, 10);
+
+    if (rwaProtocols.length === 0) throw new Error("No RWA protocols found");
+
+    const protocols: RwaProtocolEntry[] = rwaProtocols.map((p) => ({
+      name: p.name,
+      slug: p.slug,
+      tvl_usd: Math.round(p.tvl),
+      change_1d_pct: p.change_1d != null ? Math.round(p.change_1d * 10) / 10 : null,
+      change_7d_pct: p.change_7d != null ? Math.round(p.change_7d * 10) / 10 : null,
+      chains: p.chains ?? [],
+    }));
+
+    const total_tvl_usd = protocols.reduce((s, p) => s + p.tvl_usd, 0);
+
+    // Dominant chain across all RWA protocols
+    const chainCounts: Record<string, number> = {};
+    for (const p of protocols) {
+      for (const c of p.chains) {
+        chainCounts[c] = (chainCounts[c] ?? 0) + 1;
+      }
+    }
+    const top_chain = Object.entries(chainCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "Ethereum";
+
+    // Weighted average 7d change for total TVL
+    const validWeek = protocols.filter((p) => p.change_7d_pct != null);
+    const week_change_pct = validWeek.length > 0
+      ? Math.round(validWeek.reduce((s, p) => s + (p.change_7d_pct ?? 0) * p.tvl_usd, 0) / validWeek.reduce((s, p) => s + p.tvl_usd, 0) * 10) / 10
+      : null;
+
+    rwa_tvl = { protocols, total_tvl_usd, protocol_count: rwaProtocols.length, top_chain, week_change_pct };
+  } catch {
+    // Fall through with undefined
+  }
+
+  const fmtUsd = (v: number) =>
+    v >= 1e9 ? `$${(v / 1e9).toFixed(2)}B` : v >= 1e6 ? `$${(v / 1e6).toFixed(0)}M` : `$${v.toLocaleString()}`;
+
+  const result = rwa_tvl && rwa_tvl.protocols.length > 0
+    ? `Total RWA TVL: ${fmtUsd(rwa_tvl.total_tvl_usd)} · ${rwa_tvl.protocol_count} protocols · #1 ${rwa_tvl.protocols[0].name} ${fmtUsd(rwa_tvl.protocols[0].tvl_usd)}${rwa_tvl.week_change_pct != null ? ` · 7d: ${rwa_tvl.week_change_pct >= 0 ? "+" : ""}${rwa_tvl.week_change_pct}%` : ""}`
+    : "RWA TVL data temporarily unavailable";
+
+  return { service_type: "rwa-tvl", result, rwa_tvl, timestamp, delivered_to };
 }

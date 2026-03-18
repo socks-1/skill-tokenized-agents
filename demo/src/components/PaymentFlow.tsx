@@ -408,6 +408,13 @@ const SERVICE_OPTIONS: { id: ServiceType; label: string; description: string; pr
     price: "1 USDC",
     category: "Market Data",
   },
+  {
+    id: "rwa-tvl",
+    label: "RWA On-Chain Stats",
+    description: "Real World Asset tokenization metrics — total RWA TVL on-chain, top protocols by TVL (tokenized treasuries, credit, real estate), 7-day growth rates, and dominant chain. Covers Ondo Finance, Maple, Centrifuge, and more.",
+    price: "1 USDC",
+    category: "DeFi",
+  },
 ];
 
 /**
@@ -4191,6 +4198,69 @@ function ServiceResultTable({ service }: { service: ServiceResult }) {
         </table>
         <p style={{ marginTop: 8, fontSize: 12, color: "#888" }}>
           Nakamoto coefficient: {mp.nakamoto_coefficient} (pools needed for 51% attack) · {mp.window} window · via mempool.space
+        </p>
+      </div>
+    );
+  }
+
+  if (service.service_type === "rwa-tvl" && service.rwa_tvl) {
+    const rwa = service.rwa_tvl;
+    const fmtUsd = (v: number) =>
+      v >= 1e9 ? `$${(v / 1e9).toFixed(2)}B` : v >= 1e6 ? `$${(v / 1e6).toFixed(0)}M` : `$${v.toLocaleString()}`;
+    return (
+      <div>
+        <div style={{ marginBottom: 12, padding: 12, background: "#fafafa", borderRadius: 8, border: "1px solid #f0f0f0", display: "flex", gap: 28, flexWrap: "wrap" }}>
+          <div>
+            <div style={{ fontSize: 11, color: "#aaa", marginBottom: 2 }}>Total RWA TVL</div>
+            <div style={{ fontWeight: 700, fontSize: 18, color: "#222" }}>{fmtUsd(rwa.total_tvl_usd)}</div>
+          </div>
+          <div>
+            <div style={{ fontSize: 11, color: "#aaa", marginBottom: 2 }}>Protocols</div>
+            <div style={{ fontWeight: 700, fontSize: 18, color: "#222" }}>{rwa.protocol_count}</div>
+          </div>
+          <div>
+            <div style={{ fontSize: 11, color: "#aaa", marginBottom: 2 }}>Top Chain</div>
+            <div style={{ fontWeight: 600, fontSize: 15, color: "#555" }}>{rwa.top_chain}</div>
+          </div>
+          {rwa.week_change_pct != null && (
+            <div>
+              <div style={{ fontSize: 11, color: "#aaa", marginBottom: 2 }}>7d Change</div>
+              <div style={{ fontWeight: 600, fontSize: 15, color: rwa.week_change_pct >= 0 ? "#22c55e" : "#ef4444" }}>
+                {rwa.week_change_pct >= 0 ? "+" : ""}{rwa.week_change_pct}%
+              </div>
+            </div>
+          )}
+        </div>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+          <thead>
+            <tr style={{ borderBottom: "1px solid #eee" }}>
+              <th style={{ textAlign: "left", padding: "4px 6px", color: "#aaa", fontWeight: 500 }}>Protocol</th>
+              <th style={{ textAlign: "right", padding: "4px 6px", color: "#aaa", fontWeight: 500 }}>TVL</th>
+              <th style={{ textAlign: "right", padding: "4px 6px", color: "#aaa", fontWeight: 500 }}>1d</th>
+              <th style={{ textAlign: "right", padding: "4px 6px", color: "#aaa", fontWeight: 500 }}>7d</th>
+              <th style={{ textAlign: "left", padding: "4px 6px", color: "#aaa", fontWeight: 500 }}>Chains</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rwa.protocols.map((p) => {
+              const fmt1d = p.change_1d_pct != null ? `${p.change_1d_pct >= 0 ? "+" : ""}${p.change_1d_pct}%` : "—";
+              const fmt7d = p.change_7d_pct != null ? `${p.change_7d_pct >= 0 ? "+" : ""}${p.change_7d_pct}%` : "—";
+              const color1d = p.change_1d_pct == null ? "#aaa" : p.change_1d_pct >= 0 ? "#22c55e" : "#ef4444";
+              const color7d = p.change_7d_pct == null ? "#aaa" : p.change_7d_pct >= 0 ? "#22c55e" : "#ef4444";
+              return (
+                <tr key={p.slug} style={{ borderBottom: "1px solid #f5f5f5" }}>
+                  <td style={{ padding: "5px 6px", fontWeight: 600, color: "#222" }}>{p.name}</td>
+                  <td style={{ padding: "5px 6px", textAlign: "right", fontFamily: "monospace", color: "#333" }}>{fmtUsd(p.tvl_usd)}</td>
+                  <td style={{ padding: "5px 6px", textAlign: "right", color: color1d, fontFamily: "monospace", fontSize: 12 }}>{fmt1d}</td>
+                  <td style={{ padding: "5px 6px", textAlign: "right", color: color7d, fontFamily: "monospace", fontSize: 12 }}>{fmt7d}</td>
+                  <td style={{ padding: "5px 6px", color: "#888", fontSize: 11 }}>{p.chains.slice(0, 2).join(", ")}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+        <p style={{ marginTop: 8, fontSize: 12, color: "#888" }}>
+          Real World Assets (tokenized treasuries, credit, real estate) · via DeFi Llama
         </p>
       </div>
     );
