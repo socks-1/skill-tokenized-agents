@@ -54,6 +54,8 @@ import type {
   PerpExchangeEntry,
   StablecoinChainsData,
   StablecoinChainEntry,
+  StablecoinPegsData,
+  StablecoinPegEntry,
 } from "@/lib/services";
 
 interface InvoiceParams {
@@ -387,6 +389,13 @@ const SERVICE_OPTIONS: { id: ServiceType; label: string; description: string; pr
     id: "stablecoin-chains",
     label: "Stablecoin Chain Distribution",
     description: "Where stablecoins live — top blockchains ranked by total stablecoin TVL (USDT, USDC, DAI, etc.). Shows capital distribution across Ethereum, Tron, Solana, BSC, Base, and more.",
+    price: "1 USDC",
+    category: "Market Data",
+  },
+  {
+    id: "stablecoin-pegs",
+    label: "Stablecoin Peg Health Monitor",
+    description: "Live peg health for top USD stablecoins — price deviation from $1, circulating supply, and depeg status. Covers USDT, USDC, USDS, USDe, DAI, and more. Flags warnings and depegs in real-time.",
     price: "1 USDC",
     category: "Market Data",
   },
@@ -971,6 +980,26 @@ const MOCK_STABLECOIN_CHAINS: StablecoinChainsData = {
     { name: "Plasma", tvl_usd: 1_650_000_000, pct_of_total: 0.5 },
     { name: "Mantle", tvl_usd: 800_000_000, pct_of_total: 0.2 },
   ] as StablecoinChainEntry[],
+};
+
+const MOCK_STABLECOIN_PEGS: StablecoinPegsData = {
+  on_peg_count: 11,
+  warning_count: 1,
+  depegged_count: 0,
+  total_supply_usd: 295_000_000_000,
+  stablecoins: [
+    { symbol: "USDT",  name: "Tether",     price: 1.0001, dev_pct: +0.01, circ_usd: 184_000_000_000, peg_status: "on-peg",  peg_mechanism: "fiat-backed" },
+    { symbol: "USDC",  name: "USD Coin",   price: 0.9999, dev_pct: -0.01, circ_usd:  79_600_000_000, peg_status: "on-peg",  peg_mechanism: "fiat-backed" },
+    { symbol: "USDS",  name: "Sky Dollar", price: 0.9998, dev_pct: -0.02, circ_usd:   8_400_000_000, peg_status: "on-peg",  peg_mechanism: "crypto-backed" },
+    { symbol: "USDe",  name: "Ethena",     price: 0.9999, dev_pct: -0.01, circ_usd:   5_900_000_000, peg_status: "on-peg",  peg_mechanism: "crypto-backed" },
+    { symbol: "DAI",   name: "Dai",        price: 0.9999, dev_pct: -0.01, circ_usd:   4_500_000_000, peg_status: "on-peg",  peg_mechanism: "crypto-backed" },
+    { symbol: "USD1",  name: "World Liberty Financial USD", price: 0.9992, dev_pct: -0.08, circ_usd: 4_500_000_000, peg_status: "on-peg", peg_mechanism: "fiat-backed" },
+    { symbol: "PYUSD", name: "PayPal USD", price: 1.0002, dev_pct: +0.02, circ_usd:   4_100_000_000, peg_status: "on-peg",  peg_mechanism: "fiat-backed" },
+    { symbol: "USDf",  name: "Falcon USD", price: 0.9984, dev_pct: -0.16, circ_usd:   1_600_000_000, peg_status: "warning", peg_mechanism: "crypto-backed" },
+    { symbol: "RLUSD", name: "Ripple USD", price: 0.9999, dev_pct: -0.01, circ_usd:   1_500_000_000, peg_status: "on-peg",  peg_mechanism: "fiat-backed" },
+    { symbol: "USDD",  name: "USDD",       price: 1.0001, dev_pct: +0.01, circ_usd:   1_100_000_000, peg_status: "on-peg",  peg_mechanism: "crypto-backed" },
+    { symbol: "FDUSD", name: "First Digital USD", price: 1.0000, dev_pct: 0.00, circ_usd: 1_400_000_000, peg_status: "on-peg", peg_mechanism: "fiat-backed" },
+  ] as StablecoinPegEntry[],
 };
 
 const MOCK_SIGNATURE =
@@ -1986,6 +2015,15 @@ function buildTourSteps(serviceType: ServiceType, liveData?: ServiceResult): Pay
       service_type: "stablecoin-chains",
       result: `${sc.top_chain} ${fmtUsd(sc.chains[0].tvl_usd)} (${sc.top_chain_pct}%) · top-12 total ${fmtUsd(sc.total_usd)}`,
       stablecoin_chains: sc,
+      timestamp: new Date().toISOString(),
+      delivered_to: "Demo1234...abcd",
+    };
+  } else if (serviceType === "stablecoin-pegs") {
+    const sp = liveData?.stablecoin_pegs ?? MOCK_STABLECOIN_PEGS;
+    mockService = liveData ?? {
+      service_type: "stablecoin-pegs",
+      result: `${sp.on_peg_count} on-peg · ${sp.warning_count} warnings · ${sp.depegged_count} depegged · ${sp.stablecoins[0]?.symbol} ${(sp.stablecoins[0]?.dev_pct ?? 0) >= 0 ? "+" : ""}${sp.stablecoins[0]?.dev_pct}%`,
+      stablecoin_pegs: sp,
       timestamp: new Date().toISOString(),
       delivered_to: "Demo1234...abcd",
     };
@@ -3987,6 +4025,75 @@ function ServiceResultTable({ service }: { service: ServiceResult }) {
         </table>
         <p style={{ marginTop: 8, fontSize: 12, color: "#888" }}>
           Top {sc.chains.length} chains by stablecoin TVL · via DeFi Llama
+        </p>
+      </div>
+    );
+  }
+
+  if (service.service_type === "stablecoin-pegs" && service.stablecoin_pegs) {
+    const sp = service.stablecoin_pegs;
+    const fmtSupply = (v: number) =>
+      v >= 1e12 ? `$${(v / 1e12).toFixed(2)}T` :
+      v >= 1e9  ? `$${(v / 1e9).toFixed(1)}B` :
+      `$${(v / 1e6).toFixed(0)}M`;
+    const statusColor = (s: string) =>
+      s === "on-peg" ? "#22c55e" : s === "warning" ? "#f59e0b" : "#ef4444";
+    const statusBg = (s: string) =>
+      s === "on-peg" ? "#f0fdf4" : s === "warning" ? "#fffbeb" : "#fef2f2";
+    const devColor = (dev: number) =>
+      Math.abs(dev) <= 0.1 ? "#22c55e" : Math.abs(dev) <= 0.5 ? "#f59e0b" : "#ef4444";
+    return (
+      <div>
+        <div style={{ marginBottom: 12, padding: 12, background: "#fafafa", borderRadius: 8, border: "1px solid #f0f0f0", display: "flex", gap: 28, flexWrap: "wrap" }}>
+          <div>
+            <div style={{ fontSize: 11, color: "#aaa", marginBottom: 2 }}>On-Peg</div>
+            <div style={{ fontWeight: 700, fontSize: 20, color: "#22c55e" }}>{sp.on_peg_count}</div>
+          </div>
+          <div>
+            <div style={{ fontSize: 11, color: "#aaa", marginBottom: 2 }}>Warnings</div>
+            <div style={{ fontWeight: 700, fontSize: 20, color: sp.warning_count > 0 ? "#f59e0b" : "#888" }}>{sp.warning_count}</div>
+          </div>
+          <div>
+            <div style={{ fontSize: 11, color: "#aaa", marginBottom: 2 }}>Depegged</div>
+            <div style={{ fontWeight: 700, fontSize: 20, color: sp.depegged_count > 0 ? "#ef4444" : "#888" }}>{sp.depegged_count}</div>
+          </div>
+          <div>
+            <div style={{ fontSize: 11, color: "#aaa", marginBottom: 2 }}>Total Supply</div>
+            <div style={{ fontWeight: 600, fontSize: 15, color: "#555" }}>{fmtSupply(sp.total_supply_usd)}</div>
+          </div>
+        </div>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+          <thead>
+            <tr style={{ borderBottom: "1px solid #eee" }}>
+              <th style={{ textAlign: "left", padding: "4px 6px", color: "#aaa", fontWeight: 500 }}>Symbol</th>
+              <th style={{ textAlign: "right", padding: "4px 6px", color: "#aaa", fontWeight: 500 }}>Price</th>
+              <th style={{ textAlign: "right", padding: "4px 6px", color: "#aaa", fontWeight: 500 }}>Deviation</th>
+              <th style={{ textAlign: "right", padding: "4px 6px", color: "#aaa", fontWeight: 500 }}>Supply</th>
+              <th style={{ textAlign: "left", padding: "4px 6px", color: "#aaa", fontWeight: 500 }}>Status</th>
+              <th style={{ textAlign: "left", padding: "4px 6px", color: "#aaa", fontWeight: 500 }}>Backing</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sp.stablecoins.map((s) => (
+              <tr key={s.symbol} style={{ borderBottom: "1px solid #f5f5f5" }}>
+                <td style={{ padding: "5px 6px", fontWeight: 700, color: "#222" }}>{s.symbol}</td>
+                <td style={{ padding: "5px 6px", textAlign: "right", fontFamily: "monospace", color: "#222" }}>${s.price.toFixed(4)}</td>
+                <td style={{ padding: "5px 6px", textAlign: "right", fontWeight: 600, color: devColor(s.dev_pct) }}>
+                  {s.dev_pct >= 0 ? "+" : ""}{s.dev_pct.toFixed(2)}%
+                </td>
+                <td style={{ padding: "5px 6px", textAlign: "right", color: "#555" }}>{fmtSupply(s.circ_usd)}</td>
+                <td style={{ padding: "5px 6px" }}>
+                  <span style={{ background: statusBg(s.peg_status), color: statusColor(s.peg_status), padding: "2px 7px", borderRadius: 10, fontSize: 11, fontWeight: 600 }}>
+                    {s.peg_status === "on-peg" ? "✓ on-peg" : s.peg_status === "warning" ? "⚠ warning" : "✗ depegged"}
+                  </span>
+                </td>
+                <td style={{ padding: "5px 6px", color: "#888", fontSize: 11 }}>{s.peg_mechanism.replace("fiat-backed","fiat").replace("crypto-backed","crypto").replace("algorithmic","algo")}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <p style={{ marginTop: 8, fontSize: 12, color: "#888" }}>
+          {sp.stablecoins.length} USD-pegged stablecoins tracked · ±0.1% on-peg, ±0.5% warning · via DeFi Llama
         </p>
       </div>
     );

@@ -3,10 +3,10 @@
  * All functions are read-only calls to public APIs — no auth required.
  */
 
-export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season" | "btc-mining" | "bridge-volume" | "tvl-movers" | "lightning-network" | "eth-lst" | "realized-vol" | "lending-rates" | "protocol-revenue" | "btc-onchain" | "nft-market" | "market-breadth" | "perp-oi" | "stablecoin-chains";
+export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season" | "btc-mining" | "bridge-volume" | "tvl-movers" | "lightning-network" | "eth-lst" | "realized-vol" | "lending-rates" | "protocol-revenue" | "btc-onchain" | "nft-market" | "market-breadth" | "perp-oi" | "stablecoin-chains" | "stablecoin-pegs";
 
 /** All valid service type strings — use this for runtime validation instead of duplicating the list. */
-export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season", "btc-mining", "bridge-volume", "tvl-movers", "lightning-network", "eth-lst", "realized-vol", "lending-rates", "protocol-revenue", "btc-onchain", "nft-market", "market-breadth", "perp-oi", "stablecoin-chains"];
+export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season", "btc-mining", "bridge-volume", "tvl-movers", "lightning-network", "eth-lst", "realized-vol", "lending-rates", "protocol-revenue", "btc-onchain", "nft-market", "market-breadth", "perp-oi", "stablecoin-chains", "stablecoin-pegs"];
 
 export interface MarketData {
   symbol: string;
@@ -486,6 +486,24 @@ export interface StablecoinChainsData {
   top_chain_pct: number;
 }
 
+export interface StablecoinPegEntry {
+  symbol: string;
+  name: string;
+  price: number;
+  dev_pct: number;          // deviation from $1 peg in percent
+  circ_usd: number;         // circulating supply in USD
+  peg_status: "on-peg" | "warning" | "depegged";  // on-peg: ±0.1%, warning: ±0.5%, depegged: beyond
+  peg_mechanism: string;    // "fiat-backed" | "crypto-backed" | "algorithmic"
+}
+
+export interface StablecoinPegsData {
+  stablecoins: StablecoinPegEntry[];
+  on_peg_count: number;
+  warning_count: number;
+  depegged_count: number;
+  total_supply_usd: number;
+}
+
 export interface ServiceResult {
   service_type: ServiceType;
   result: string;
@@ -531,6 +549,7 @@ export interface ServiceResult {
   market_breadth?: MarketBreadthData;
   perp_oi?: PerpOIData;
   stablecoin_chains?: StablecoinChainsData;
+  stablecoin_pegs?: StablecoinPegsData;
   timestamp: string;
   delivered_to: string;
 }
@@ -3039,6 +3058,7 @@ export async function deliverService(delivered_to: string, serviceType: ServiceT
   if (serviceType === "market-breadth") return deliverMarketBreadth(delivered_to, timestamp);
   if (serviceType === "perp-oi") return deliverPerpOI(delivered_to, timestamp);
   if (serviceType === "stablecoin-chains") return deliverStablecoinChains(delivered_to, timestamp);
+  if (serviceType === "stablecoin-pegs") return deliverStablecoinPegs(delivered_to, timestamp);
   return deliverCryptoPrices(delivered_to, timestamp);
 }
 
@@ -3341,4 +3361,88 @@ export async function deliverStablecoinChains(delivered_to: string, timestamp: s
     : "Stablecoin chain distribution data temporarily unavailable";
 
   return { service_type: "stablecoin-chains", result, stablecoin_chains, timestamp, delivered_to };
+}
+
+/**
+ * Fetches stablecoin peg health for top USD-pegged stablecoins via DeFi Llama.
+ * Shows price deviation from $1, circulating supply, and depeg status.
+ * Yield-bearing stablecoins (price > 1.05) are excluded as they accrue value by design.
+ */
+export async function deliverStablecoinPegs(delivered_to: string, timestamp: string): Promise<ServiceResult> {
+  let stablecoin_pegs: StablecoinPegsData | undefined;
+
+  try {
+    const res = await fetch("https://stablecoins.llama.fi/stablecoins?includePrices=true", {
+      signal: AbortSignal.timeout(12000),
+      headers: { "User-Agent": "skill-tokenized-agents/1.0", Accept: "application/json" },
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+    const data = await res.json() as {
+      peggedAssets: Array<{
+        symbol: string;
+        name: string;
+        price: number | null;
+        pegType: string;
+        pegMechanism: string;
+        circulating: { peggedUSD?: number };
+      }>;
+    };
+
+    // Filter: USD-pegged, has price, large enough supply ($500M+), price within traditional range (not yield-bearing)
+    const filtered = data.peggedAssets
+      .filter((p) =>
+        p.pegType === "peggedUSD" &&
+        p.price != null &&
+        p.price > 0.85 && p.price < 1.05 &&   // exclude yield-bearing (e.g. USYC at 1.12)
+        (p.circulating?.peggedUSD ?? 0) >= 5e8  // $500M+ circulating
+      )
+      .sort((a, b) => (b.circulating?.peggedUSD ?? 0) - (a.circulating?.peggedUSD ?? 0))
+      .slice(0, 15);
+
+    if (filtered.length > 0) {
+      const pegStatus = (dev: number): "on-peg" | "warning" | "depegged" => {
+        const abs = Math.abs(dev);
+        if (abs <= 0.1) return "on-peg";
+        if (abs <= 0.5) return "warning";
+        return "depegged";
+      };
+
+      const mechLabel = (m: string) => {
+        if (m?.includes("fiat")) return "fiat-backed";
+        if (m?.includes("crypto")) return "crypto-backed";
+        if (m?.includes("algo")) return "algorithmic";
+        return m ?? "unknown";
+      };
+
+      const stablecoins: StablecoinPegEntry[] = filtered.map((p) => {
+        const price = p.price ?? 1;
+        const dev_pct = Math.round((price - 1) * 10000) / 100;  // 4 decimals → 2 decimal percent
+        return {
+          symbol: p.symbol,
+          name: p.name,
+          price: Math.round(price * 10000) / 10000,
+          dev_pct,
+          circ_usd: Math.round(p.circulating?.peggedUSD ?? 0),
+          peg_status: pegStatus(dev_pct),
+          peg_mechanism: mechLabel(p.pegMechanism),
+        };
+      });
+
+      const on_peg_count = stablecoins.filter((s) => s.peg_status === "on-peg").length;
+      const warning_count = stablecoins.filter((s) => s.peg_status === "warning").length;
+      const depegged_count = stablecoins.filter((s) => s.peg_status === "depegged").length;
+      const total_supply_usd = stablecoins.reduce((s, c) => s + c.circ_usd, 0);
+
+      stablecoin_pegs = { stablecoins, on_peg_count, warning_count, depegged_count, total_supply_usd };
+    }
+  } catch {
+    // Fall through with undefined stablecoin_pegs
+  }
+
+  const result = stablecoin_pegs && stablecoin_pegs.stablecoins.length > 0
+    ? `${stablecoin_pegs.on_peg_count} on-peg · ${stablecoin_pegs.warning_count} warnings · ${stablecoin_pegs.depegged_count} depegged · ${stablecoin_pegs.stablecoins[0]?.symbol} ${stablecoin_pegs.stablecoins[0]?.dev_pct >= 0 ? "+" : ""}${stablecoin_pegs.stablecoins[0]?.dev_pct}%`
+    : "Stablecoin peg data temporarily unavailable";
+
+  return { service_type: "stablecoin-pegs", result, stablecoin_pegs, timestamp, delivered_to };
 }
