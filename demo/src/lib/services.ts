@@ -3,10 +3,10 @@
  * All functions are read-only calls to public APIs — no auth required.
  */
 
-export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season" | "btc-mining" | "bridge-volume" | "tvl-movers" | "lightning-network" | "eth-lst" | "realized-vol" | "lending-rates" | "protocol-revenue" | "btc-onchain" | "nft-market" | "market-breadth" | "perp-oi" | "stablecoin-chains" | "stablecoin-pegs" | "mining-pools" | "rwa-tvl" | "crypto-funding" | "chain-fees" | "chain-tvl";
+export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season" | "btc-mining" | "bridge-volume" | "tvl-movers" | "lightning-network" | "eth-lst" | "realized-vol" | "lending-rates" | "protocol-revenue" | "btc-onchain" | "nft-market" | "market-breadth" | "perp-oi" | "stablecoin-chains" | "stablecoin-pegs" | "mining-pools" | "rwa-tvl" | "crypto-funding" | "chain-fees" | "chain-tvl" | "defi-exploits";
 
 /** All valid service type strings — use this for runtime validation instead of duplicating the list. */
-export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season", "btc-mining", "bridge-volume", "tvl-movers", "lightning-network", "eth-lst", "realized-vol", "lending-rates", "protocol-revenue", "btc-onchain", "nft-market", "market-breadth", "perp-oi", "stablecoin-chains", "stablecoin-pegs", "mining-pools", "rwa-tvl", "crypto-funding", "chain-fees", "chain-tvl"];
+export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season", "btc-mining", "bridge-volume", "tvl-movers", "lightning-network", "eth-lst", "realized-vol", "lending-rates", "protocol-revenue", "btc-onchain", "nft-market", "market-breadth", "perp-oi", "stablecoin-chains", "stablecoin-pegs", "mining-pools", "rwa-tvl", "crypto-funding", "chain-fees", "chain-tvl", "defi-exploits"];
 
 export interface MarketData {
   symbol: string;
@@ -580,6 +580,23 @@ export interface ChainTvlData {
   top_chain: string;         // highest-TVL chain name
 }
 
+export interface DefiExploitEntry {
+  name: string;
+  date: number;          // Unix timestamp
+  amount: number;        // USD amount stolen
+  chain: string[];       // chains affected
+  classification: string; // e.g. "Protocol Logic", "Rug Pull", "Access Control"
+  technique: string;
+}
+
+export interface DefiExploitsData {
+  incidents: DefiExploitEntry[]; // recent incidents sorted by amount descending
+  total_stolen_usd: number;
+  incident_count: number;
+  most_targeted_chain: string;
+  period_days: number;
+}
+
 export interface ServiceResult {
   service_type: ServiceType;
   result: string;
@@ -631,6 +648,7 @@ export interface ServiceResult {
   crypto_funding?: CryptoFundingData;
   chain_fees?: ChainFeesData;
   chain_tvl?: ChainTvlData;
+  defi_exploits?: DefiExploitsData;
   timestamp: string;
   delivered_to: string;
 }
@@ -3145,6 +3163,7 @@ export async function deliverService(delivered_to: string, serviceType: ServiceT
   if (serviceType === "crypto-funding") return deliverCryptoFunding(delivered_to, timestamp);
   if (serviceType === "chain-fees") return deliverChainFees(delivered_to, timestamp);
   if (serviceType === "chain-tvl") return deliverChainTvl(delivered_to, timestamp);
+  if (serviceType === "defi-exploits") return deliverDefiExploits(delivered_to, timestamp);
   return deliverCryptoPrices(delivered_to, timestamp);
 }
 
@@ -3862,4 +3881,83 @@ export async function deliverChainTvl(delivered_to: string, timestamp: string): 
     : "Chain TVL data temporarily unavailable";
 
   return { service_type: "chain-tvl", result, chain_tvl, timestamp, delivered_to };
+}
+
+// Server-side cache for DeFi exploits (30-min TTL — data doesn't change frequently)
+let _defiExploitsCache: { data: DefiExploitsData; expires: number } | null = null;
+
+/**
+ * Fetches recent DeFi exploit and hack incidents via DeFi Llama.
+ * Shows the last 90 days of security incidents: total funds lost, most targeted chains,
+ * and a ranked list of the largest exploits. A live feed of on-chain security risk.
+ * Cached 30 minutes.
+ */
+export async function deliverDefiExploits(delivered_to: string, timestamp: string): Promise<ServiceResult> {
+  if (_defiExploitsCache && Date.now() < _defiExploitsCache.expires) {
+    const de = _defiExploitsCache.data;
+    const fmtUsd = (v: number) => v >= 1e9 ? `$${(v / 1e9).toFixed(1)}B` : v >= 1e6 ? `$${(v / 1e6).toFixed(0)}M` : `$${v.toFixed(0)}K`;
+    const result = `${de.incident_count} exploits in ${de.period_days}d · $${(de.total_stolen_usd / 1e6).toFixed(0)}M stolen · Most targeted: ${de.most_targeted_chain} · Largest: ${de.incidents[0]?.name} ($${(de.incidents[0]?.amount / 1e6).toFixed(0)}M)`;
+    return { service_type: "defi-exploits", result, defi_exploits: de, timestamp, delivered_to };
+  }
+
+  let defi_exploits: DefiExploitsData | undefined;
+
+  try {
+    const res = await fetch("https://api.llama.fi/hacks", {
+      signal: AbortSignal.timeout(12000),
+      headers: { "User-Agent": "skill-tokenized-agents/1.0", Accept: "application/json" },
+    });
+    if (!res.ok) throw new Error(`DeFi Llama hacks HTTP ${res.status}`);
+
+    const raw = await res.json() as Array<{
+      date?: number;
+      name?: string;
+      amount?: number;
+      chain?: string[];
+      classification?: string;
+      technique?: string;
+    }>;
+
+    const PERIOD_DAYS = 90;
+    const cutoff = Date.now() / 1000 - PERIOD_DAYS * 86400;
+
+    const recent = raw
+      .filter((h) => typeof h.amount === "number" && h.amount > 0 && typeof h.date === "number" && h.date >= cutoff && h.name)
+      .sort((a, b) => (b.amount ?? 0) - (a.amount ?? 0));
+
+    if (recent.length === 0) throw new Error("No recent exploit data");
+
+    const incidents: DefiExploitEntry[] = recent.slice(0, 10).map((h) => ({
+      name: h.name ?? "Unknown",
+      date: h.date ?? 0,
+      amount: h.amount ?? 0,
+      chain: h.chain ?? ["Unknown"],
+      classification: h.classification ?? "Unknown",
+      technique: h.technique ?? "Unknown",
+    }));
+
+    const total_stolen_usd = recent.reduce((s, h) => s + (h.amount ?? 0), 0);
+
+    // Tally chain frequency across all recent incidents
+    const chainFreq: Record<string, number> = {};
+    for (const h of recent) {
+      for (const c of (h.chain ?? [])) {
+        chainFreq[c] = (chainFreq[c] ?? 0) + 1;
+      }
+    }
+    const most_targeted_chain = Object.entries(chainFreq).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "Unknown";
+
+    defi_exploits = { incidents, total_stolen_usd, incident_count: recent.length, most_targeted_chain, period_days: PERIOD_DAYS };
+    _defiExploitsCache = { data: defi_exploits, expires: Date.now() + 30 * 60 * 1000 };
+  } catch {
+    // Fall through with undefined
+  }
+
+  const fmtUsd = (v: number) => v >= 1e9 ? `$${(v / 1e9).toFixed(1)}B` : v >= 1e6 ? `$${(v / 1e6).toFixed(0)}M` : `$${v.toFixed(0)}K`;
+
+  const result = defi_exploits && defi_exploits.incidents.length > 0
+    ? `${defi_exploits.incident_count} exploits in ${defi_exploits.period_days}d · ${fmtUsd(defi_exploits.total_stolen_usd)} stolen · Most targeted: ${defi_exploits.most_targeted_chain} · Largest: ${defi_exploits.incidents[0].name} (${fmtUsd(defi_exploits.incidents[0].amount)})`
+    : "DeFi exploit data temporarily unavailable";
+
+  return { service_type: "defi-exploits", result, defi_exploits, timestamp, delivered_to };
 }

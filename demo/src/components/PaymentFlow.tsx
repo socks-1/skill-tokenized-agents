@@ -64,6 +64,8 @@ import type {
   ChainFeeEntry,
   ChainTvlData,
   ChainTvlEntry,
+  DefiExploitsData,
+  DefiExploitEntry,
 } from "@/lib/services";
 
 interface InvoiceParams {
@@ -439,6 +441,13 @@ const SERVICE_OPTIONS: { id: ServiceType; label: string; description: string; pr
     id: "chain-tvl",
     label: "Blockchain TVL Distribution",
     description: "Total value locked across top blockchains — Ethereum, Solana, BSC, Base, Tron, and more. Shows each chain's TVL in USD, percentage share of total DeFi capital, and Ethereum's dominance. A macro view of where DeFi is deployed. Via DeFi Llama.",
+    price: "1 USDC",
+    category: "DeFi",
+  },
+  {
+    id: "defi-exploits",
+    label: "DeFi Exploit Tracker",
+    description: "Recent DeFi hacks and exploits from the last 90 days — total funds stolen, most targeted chains, and the largest incidents ranked by size. A live feed of on-chain security incidents via DeFi Llama.",
     price: "1 USDC",
     category: "DeFi",
   },
@@ -1100,6 +1109,25 @@ const MOCK_CHAIN_TVL: ChainTvlData = {
     { name: "Near",     tvl:    430_000_000, share_pct:  0.5 },
     { name: "Aptos",    tvl:    390_000_000, share_pct:  0.5 },
   ] as ChainTvlEntry[],
+};
+
+const MOCK_DEFI_EXPLOITS: DefiExploitsData = {
+  incident_count: 12,
+  total_stolen_usd: 143_500_000,
+  most_targeted_chain: "Ethereum",
+  period_days: 90,
+  incidents: [
+    { name: "Orbit Bridge",    date: 1704844800, amount: 81_680_000, chain: ["Ethereum"], classification: "Access Control",   technique: "Validator Key Compromise" },
+    { name: "Radiant Capital", date: 1706745600, amount: 18_000_000, chain: ["Arbitrum"], classification: "Protocol Logic",   technique: "Flash Loan" },
+    { name: "WOOFi",           date: 1709251200, amount:  8_750_000, chain: ["Arbitrum"], classification: "Oracle Exploit",   technique: "Price Manipulation" },
+    { name: "Unizen",          date: 1711929600, amount:  2_150_000, chain: ["Ethereum"], classification: "Access Control",   technique: "Approval Exploit" },
+    { name: "Prisma Finance",  date: 1710288000, amount: 11_600_000, chain: ["Ethereum"], classification: "Protocol Logic",   technique: "Flash Loan" },
+    { name: "Pike Finance",    date: 1714521600, amount:  1_700_000, chain: ["Ethereum"], classification: "Protocol Logic",   technique: "CCTP Integration Bug" },
+    { name: "Grand Base",      date: 1713744000, amount:  2_000_000, chain: ["Base"],     classification: "Rug Pull",         technique: "Admin Key Compromise" },
+    { name: "Alex Lab",        date: 1715299200, amount: 13_700_000, chain: ["Bitcoin"],  classification: "Access Control",   technique: "Private Key Leak" },
+    { name: "Sonne Finance",   date: 1716336000, amount: 20_000_000, chain: ["Optimism"], classification: "Protocol Logic",   technique: "Donation Attack" },
+    { name: "DeFi Protocol X", date: 1717804800, amount:  3_920_000, chain: ["BSC"],      classification: "Protocol Logic",   technique: "Reentrancy" },
+  ] as DefiExploitEntry[],
 };
 
 const MOCK_SIGNATURE =
@@ -2153,6 +2181,16 @@ function buildTourSteps(serviceType: ServiceType, liveData?: ServiceResult): Pay
       service_type: "chain-tvl",
       result: `Total DeFi TVL: ${fmtUsd(ct.total_tvl)} · ETH dominance ${ct.eth_dominance_pct.toFixed(1)}% · Top: ${ct.chains[0]?.name} ${fmtUsd(ct.chains[0]?.tvl ?? 0)} (${ct.chains[0]?.share_pct.toFixed(1)}%)`,
       chain_tvl: ct,
+      timestamp: new Date().toISOString(),
+      delivered_to: "Demo1234...abcd",
+    };
+  } else if (serviceType === "defi-exploits") {
+    const de = liveData?.defi_exploits ?? MOCK_DEFI_EXPLOITS;
+    const fmtUsd = (v: number) => v >= 1e9 ? `$${(v / 1e9).toFixed(1)}B` : v >= 1e6 ? `$${(v / 1e6).toFixed(0)}M` : `$${(v / 1e3).toFixed(0)}K`;
+    mockService = liveData ?? {
+      service_type: "defi-exploits",
+      result: `${de.incident_count} exploits in ${de.period_days}d · ${fmtUsd(de.total_stolen_usd)} stolen · Most targeted: ${de.most_targeted_chain} · Largest: ${de.incidents[0]?.name} (${fmtUsd(de.incidents[0]?.amount ?? 0)})`,
+      defi_exploits: de,
       timestamp: new Date().toISOString(),
       delivered_to: "Demo1234...abcd",
     };
@@ -4530,6 +4568,73 @@ function ServiceResultTable({ service }: { service: ServiceResult }) {
         </table>
         <p style={{ marginTop: 8, fontSize: 12, color: "#888" }}>
           TVL by blockchain · {ct.chains.length} chains tracked · via DeFi Llama
+        </p>
+      </div>
+    );
+  }
+
+  if (service.service_type === "defi-exploits" && service.defi_exploits) {
+    const de = service.defi_exploits;
+    const fmtUsd = (v: number) => v >= 1e9 ? `$${(v / 1e9).toFixed(1)}B` : v >= 1e6 ? `$${(v / 1e6).toFixed(0)}M` : `$${(v / 1e3).toFixed(0)}K`;
+    const fmtDate = (ts: number) => new Date(ts * 1000).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    const maxAmount = de.incidents[0]?.amount ?? 1;
+    const classColor = (c: string) => {
+      if (c === "Rug Pull") return "#ef4444";
+      if (c === "Access Control") return "#f97316";
+      if (c === "Protocol Logic") return "#eab308";
+      if (c === "Oracle Exploit") return "#8b5cf6";
+      return "#6b7280";
+    };
+    return (
+      <div>
+        <div style={{ marginBottom: 12, padding: 12, background: "#fff5f5", borderRadius: 8, border: "1px solid #fecaca", display: "flex", gap: 24, flexWrap: "wrap" }}>
+          <div>
+            <div style={{ fontSize: 11, color: "#aaa", marginBottom: 2 }}>Incidents (90d)</div>
+            <div style={{ fontWeight: 700, fontSize: 18, color: "#ef4444" }}>{de.incident_count}</div>
+          </div>
+          <div>
+            <div style={{ fontSize: 11, color: "#aaa", marginBottom: 2 }}>Total Stolen</div>
+            <div style={{ fontWeight: 700, fontSize: 18, color: "#222" }}>{fmtUsd(de.total_stolen_usd)}</div>
+          </div>
+          <div>
+            <div style={{ fontSize: 11, color: "#aaa", marginBottom: 2 }}>Most Targeted</div>
+            <div style={{ fontWeight: 600, fontSize: 15, color: "#555" }}>{de.most_targeted_chain}</div>
+          </div>
+        </div>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+          <thead>
+            <tr style={{ borderBottom: "1px solid #eee" }}>
+              <th style={{ textAlign: "left", padding: "4px 6px", color: "#aaa", fontWeight: 500 }}>Protocol</th>
+              <th style={{ textAlign: "right", padding: "4px 6px", color: "#aaa", fontWeight: 500 }}>Stolen</th>
+              <th style={{ textAlign: "left", padding: "4px 6px", color: "#aaa", fontWeight: 500 }}>Type</th>
+              <th style={{ textAlign: "right", padding: "4px 6px", color: "#aaa", fontWeight: 500 }}>Date</th>
+            </tr>
+          </thead>
+          <tbody>
+            {de.incidents.map((inc, i) => {
+              const barWidth = Math.round((inc.amount / maxAmount) * 100);
+              return (
+                <tr key={i} style={{ borderBottom: "1px solid #f5f5f5" }}>
+                  <td style={{ padding: "5px 6px", fontWeight: i === 0 ? 700 : 500, color: i === 0 ? "#111" : "#333" }}>
+                    <div>{inc.name}</div>
+                    <div style={{ height: 3, background: "#f0f0f0", borderRadius: 2, marginTop: 3, overflow: "hidden" }}>
+                      <div style={{ width: `${barWidth}%`, height: "100%", background: i === 0 ? "#ef4444" : "#fca5a5", borderRadius: 2 }} />
+                    </div>
+                  </td>
+                  <td style={{ padding: "5px 6px", textAlign: "right", fontFamily: "monospace", fontWeight: 600, color: "#dc2626" }}>{fmtUsd(inc.amount)}</td>
+                  <td style={{ padding: "5px 6px" }}>
+                    <span style={{ fontSize: 11, padding: "2px 6px", borderRadius: 4, background: "#f5f5f5", color: classColor(inc.classification), fontWeight: 600 }}>
+                      {inc.classification}
+                    </span>
+                  </td>
+                  <td style={{ padding: "5px 6px", textAlign: "right", color: "#999", fontSize: 12 }}>{fmtDate(inc.date)}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+        <p style={{ marginTop: 8, fontSize: 12, color: "#888" }}>
+          Top {de.incidents.length} exploits by size · {de.incident_count} total incidents in {de.period_days}d · via DeFi Llama
         </p>
       </div>
     );
