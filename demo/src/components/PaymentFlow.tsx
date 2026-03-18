@@ -66,6 +66,8 @@ import type {
   ChainTvlEntry,
   DefiExploitsData,
   DefiExploitEntry,
+  GlobalDexData,
+  GlobalDexEntry,
 } from "@/lib/services";
 
 interface InvoiceParams {
@@ -448,6 +450,13 @@ const SERVICE_OPTIONS: { id: ServiceType; label: string; description: string; pr
     id: "defi-exploits",
     label: "DeFi Exploit Tracker",
     description: "Recent DeFi hacks and exploits from the last 90 days — total funds stolen, most targeted chains, and the largest incidents ranked by size. A live feed of on-chain security incidents via DeFi Llama.",
+    price: "1 USDC",
+    category: "DeFi",
+  },
+  {
+    id: "global-dex",
+    label: "Global DEX Volume Rankings",
+    description: "Top 12 decentralized exchanges across all chains by 24h trading volume — Uniswap, Raydium, PancakeSwap, Orca, GMX, and more. Total global DEX volume with 24h change. Via DeFi Llama.",
     price: "1 USDC",
     category: "DeFi",
   },
@@ -1128,6 +1137,24 @@ const MOCK_DEFI_EXPLOITS: DefiExploitsData = {
     { name: "Sonne Finance",   date: 1716336000, amount: 20_000_000, chain: ["Optimism"], classification: "Protocol Logic",   technique: "Donation Attack" },
     { name: "DeFi Protocol X", date: 1717804800, amount:  3_920_000, chain: ["BSC"],      classification: "Protocol Logic",   technique: "Reentrancy" },
   ] as DefiExploitEntry[],
+};
+
+const MOCK_GLOBAL_DEX: GlobalDexData = {
+  total_volume_24h: 8_420_000_000,
+  dexes: [
+    { name: "Uniswap",      chains: ["Ethereum", "Arbitrum", "Base"],  volume_24h: 1_850_000_000, change_pct:  4.2 },
+    { name: "Raydium",      chains: ["Solana"],                         volume_24h: 1_340_000_000, change_pct:  9.7 },
+    { name: "PancakeSwap",  chains: ["BSC", "Ethereum", "Arbitrum"],    volume_24h:   720_000_000, change_pct: -3.1 },
+    { name: "Orca",         chains: ["Solana"],                         volume_24h:   580_000_000, change_pct:  6.3 },
+    { name: "Jupiter",      chains: ["Solana"],                         volume_24h:   510_000_000, change_pct:  8.1 },
+    { name: "GMX",          chains: ["Arbitrum", "Avalanche"],          volume_24h:   420_000_000, change_pct:  1.8 },
+    { name: "Curve",        chains: ["Ethereum", "Arbitrum", "Base"],   volume_24h:   380_000_000, change_pct: -5.4 },
+    { name: "dYdX",         chains: ["Starknet"],                       volume_24h:   290_000_000, change_pct:  2.2 },
+    { name: "Aerodrome",    chains: ["Base"],                           volume_24h:   240_000_000, change_pct: 11.5 },
+    { name: "Balancer",     chains: ["Ethereum", "Arbitrum"],           volume_24h:   185_000_000, change_pct: -1.9 },
+    { name: "Hyperliquid",  chains: ["Hyperliquid"],                    volume_24h:   165_000_000, change_pct:  3.4 },
+    { name: "Velodrome",    chains: ["Optimism"],                       volume_24h:   140_000_000, change_pct:  0.6 },
+  ] as GlobalDexEntry[],
 };
 
 const MOCK_SIGNATURE =
@@ -2191,6 +2218,16 @@ function buildTourSteps(serviceType: ServiceType, liveData?: ServiceResult): Pay
       service_type: "defi-exploits",
       result: `${de.incident_count} exploits in ${de.period_days}d · ${fmtUsd(de.total_stolen_usd)} stolen · Most targeted: ${de.most_targeted_chain} · Largest: ${de.incidents[0]?.name} (${fmtUsd(de.incidents[0]?.amount ?? 0)})`,
       defi_exploits: de,
+      timestamp: new Date().toISOString(),
+      delivered_to: "Demo1234...abcd",
+    };
+  } else if (serviceType === "global-dex") {
+    const gd = liveData?.global_dex ?? MOCK_GLOBAL_DEX;
+    const fmtUsd = (v: number) => v >= 1e9 ? `$${(v / 1e9).toFixed(2)}B` : v >= 1e6 ? `$${(v / 1e6).toFixed(0)}M` : `$${v.toFixed(0)}`;
+    mockService = liveData ?? {
+      service_type: "global-dex",
+      result: `Total DEX Vol (24h): ${fmtUsd(gd.total_volume_24h)} · Top: ${gd.dexes[0]?.name} ${fmtUsd(gd.dexes[0]?.volume_24h ?? 0)} · ${gd.dexes.length} DEXes ranked`,
+      global_dex: gd,
       timestamp: new Date().toISOString(),
       delivered_to: "Demo1234...abcd",
     };
@@ -4635,6 +4672,65 @@ function ServiceResultTable({ service }: { service: ServiceResult }) {
         </table>
         <p style={{ marginTop: 8, fontSize: 12, color: "#888" }}>
           Top {de.incidents.length} exploits by size · {de.incident_count} total incidents in {de.period_days}d · via DeFi Llama
+        </p>
+      </div>
+    );
+  }
+
+  if (service.service_type === "global-dex" && service.global_dex) {
+    const gd = service.global_dex;
+    const fmtUsd = (v: number) => v >= 1e9 ? `$${(v / 1e9).toFixed(2)}B` : v >= 1e6 ? `$${(v / 1e6).toFixed(0)}M` : `$${v.toFixed(0)}`;
+    const maxVol = gd.dexes[0]?.volume_24h ?? 1;
+    return (
+      <div>
+        <div style={{ marginBottom: 12, padding: 12, background: "#f0f9ff", borderRadius: 8, border: "1px solid #bae6fd", display: "flex", gap: 24, flexWrap: "wrap" }}>
+          <div>
+            <div style={{ fontSize: 11, color: "#aaa", marginBottom: 2 }}>Total 24h DEX Volume</div>
+            <div style={{ fontWeight: 700, fontSize: 18, color: "#0369a1" }}>{fmtUsd(gd.total_volume_24h)}</div>
+          </div>
+          <div>
+            <div style={{ fontSize: 11, color: "#aaa", marginBottom: 2 }}>DEXes Ranked</div>
+            <div style={{ fontWeight: 700, fontSize: 18, color: "#222" }}>{gd.dexes.length}</div>
+          </div>
+          <div>
+            <div style={{ fontSize: 11, color: "#aaa", marginBottom: 2 }}>Top DEX</div>
+            <div style={{ fontWeight: 600, fontSize: 15, color: "#555" }}>{gd.dexes[0]?.name}</div>
+          </div>
+        </div>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+          <thead>
+            <tr style={{ borderBottom: "1px solid #eee" }}>
+              <th style={{ textAlign: "left", padding: "4px 6px", color: "#aaa", fontWeight: 500 }}>#</th>
+              <th style={{ textAlign: "left", padding: "4px 6px", color: "#aaa", fontWeight: 500 }}>DEX</th>
+              <th style={{ textAlign: "right", padding: "4px 6px", color: "#aaa", fontWeight: 500 }}>24h Vol</th>
+              <th style={{ textAlign: "right", padding: "4px 6px", color: "#aaa", fontWeight: 500 }}>24h Chg</th>
+            </tr>
+          </thead>
+          <tbody>
+            {gd.dexes.map((dex, i) => {
+              const barWidth = Math.round((dex.volume_24h / maxVol) * 100);
+              const isUp = dex.change_pct >= 0;
+              return (
+                <tr key={i} style={{ borderBottom: "1px solid #f5f5f5" }}>
+                  <td style={{ padding: "5px 6px", color: "#aaa", fontSize: 12 }}>{i + 1}</td>
+                  <td style={{ padding: "5px 6px" }}>
+                    <div style={{ fontWeight: i === 0 ? 700 : 500, color: i === 0 ? "#111" : "#333" }}>{dex.name}</div>
+                    <div style={{ fontSize: 11, color: "#999", marginTop: 1 }}>{dex.chains.join(" · ")}</div>
+                    <div style={{ height: 3, background: "#f0f0f0", borderRadius: 2, marginTop: 3, overflow: "hidden" }}>
+                      <div style={{ width: `${barWidth}%`, height: "100%", background: i === 0 ? "#0369a1" : "#93c5fd", borderRadius: 2 }} />
+                    </div>
+                  </td>
+                  <td style={{ padding: "5px 6px", textAlign: "right", fontFamily: "monospace", fontWeight: 600, color: "#111" }}>{fmtUsd(dex.volume_24h)}</td>
+                  <td style={{ padding: "5px 6px", textAlign: "right", fontWeight: 600, color: isUp ? "#16a34a" : "#dc2626", fontSize: 12 }}>
+                    {isUp ? "+" : ""}{dex.change_pct.toFixed(1)}%
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+        <p style={{ marginTop: 8, fontSize: 12, color: "#888" }}>
+          Top {gd.dexes.length} DEXes by 24h trading volume across all chains · via DeFi Llama
         </p>
       </div>
     );

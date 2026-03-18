@@ -3,10 +3,10 @@
  * All functions are read-only calls to public APIs — no auth required.
  */
 
-export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season" | "btc-mining" | "bridge-volume" | "tvl-movers" | "lightning-network" | "eth-lst" | "realized-vol" | "lending-rates" | "protocol-revenue" | "btc-onchain" | "nft-market" | "market-breadth" | "perp-oi" | "stablecoin-chains" | "stablecoin-pegs" | "mining-pools" | "rwa-tvl" | "crypto-funding" | "chain-fees" | "chain-tvl" | "defi-exploits";
+export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season" | "btc-mining" | "bridge-volume" | "tvl-movers" | "lightning-network" | "eth-lst" | "realized-vol" | "lending-rates" | "protocol-revenue" | "btc-onchain" | "nft-market" | "market-breadth" | "perp-oi" | "stablecoin-chains" | "stablecoin-pegs" | "mining-pools" | "rwa-tvl" | "crypto-funding" | "chain-fees" | "chain-tvl" | "defi-exploits" | "global-dex";
 
 /** All valid service type strings — use this for runtime validation instead of duplicating the list. */
-export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season", "btc-mining", "bridge-volume", "tvl-movers", "lightning-network", "eth-lst", "realized-vol", "lending-rates", "protocol-revenue", "btc-onchain", "nft-market", "market-breadth", "perp-oi", "stablecoin-chains", "stablecoin-pegs", "mining-pools", "rwa-tvl", "crypto-funding", "chain-fees", "chain-tvl", "defi-exploits"];
+export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season", "btc-mining", "bridge-volume", "tvl-movers", "lightning-network", "eth-lst", "realized-vol", "lending-rates", "protocol-revenue", "btc-onchain", "nft-market", "market-breadth", "perp-oi", "stablecoin-chains", "stablecoin-pegs", "mining-pools", "rwa-tvl", "crypto-funding", "chain-fees", "chain-tvl", "defi-exploits", "global-dex"];
 
 export interface MarketData {
   symbol: string;
@@ -597,6 +597,18 @@ export interface DefiExploitsData {
   period_days: number;
 }
 
+export interface GlobalDexEntry {
+  name: string;
+  chains: string[];       // chains the DEX operates on
+  volume_24h: number;     // USD 24h volume
+  change_pct: number;     // 24h volume change %
+}
+
+export interface GlobalDexData {
+  dexes: GlobalDexEntry[];
+  total_volume_24h: number;
+}
+
 export interface ServiceResult {
   service_type: ServiceType;
   result: string;
@@ -649,6 +661,7 @@ export interface ServiceResult {
   chain_fees?: ChainFeesData;
   chain_tvl?: ChainTvlData;
   defi_exploits?: DefiExploitsData;
+  global_dex?: GlobalDexData;
   timestamp: string;
   delivered_to: string;
 }
@@ -3164,6 +3177,7 @@ export async function deliverService(delivered_to: string, serviceType: ServiceT
   if (serviceType === "chain-fees") return deliverChainFees(delivered_to, timestamp);
   if (serviceType === "chain-tvl") return deliverChainTvl(delivered_to, timestamp);
   if (serviceType === "defi-exploits") return deliverDefiExploits(delivered_to, timestamp);
+  if (serviceType === "global-dex") return deliverGlobalDex(delivered_to, timestamp);
   return deliverCryptoPrices(delivered_to, timestamp);
 }
 
@@ -3960,4 +3974,74 @@ export async function deliverDefiExploits(delivered_to: string, timestamp: strin
     : "DeFi exploit data temporarily unavailable";
 
   return { service_type: "defi-exploits", result, defi_exploits, timestamp, delivered_to };
+}
+
+// Server-side cache for global DEX volume (10-min TTL)
+let _globalDexCache: { data: GlobalDexData; expires: number } | null = null;
+
+/**
+ * Fetches top DEX protocols across all chains by 24h volume via DeFi Llama.
+ * Covers Uniswap, Raydium, PancakeSwap, Orca, GMX, and more.
+ * Cached 10 minutes.
+ */
+export async function deliverGlobalDex(delivered_to: string, timestamp: string): Promise<ServiceResult> {
+  if (_globalDexCache && Date.now() < _globalDexCache.expires) {
+    const gd = _globalDexCache.data;
+    const fmtUsd = (v: number) => v >= 1e9 ? `$${(v / 1e9).toFixed(2)}B` : v >= 1e6 ? `$${(v / 1e6).toFixed(0)}M` : `$${v.toFixed(0)}`;
+    const result = `Total DEX Vol (24h): ${fmtUsd(gd.total_volume_24h)} · Top: ${gd.dexes[0]?.name} ${fmtUsd(gd.dexes[0]?.volume_24h ?? 0)} · ${gd.dexes.length} DEXes ranked`;
+    return { service_type: "global-dex", result, global_dex: gd, timestamp, delivered_to };
+  }
+
+  let global_dex: GlobalDexData | undefined;
+
+  try {
+    const res = await fetch(
+      "https://api.llama.fi/overview/dexs?excludeTotalDataChart=true&excludeTotalDataChartBreakdown=true",
+      {
+        signal: AbortSignal.timeout(12000),
+        headers: { "User-Agent": "skill-tokenized-agents/1.0", Accept: "application/json" },
+      }
+    );
+    if (!res.ok) throw new Error(`DeFi Llama DEX HTTP ${res.status}`);
+
+    const json = await res.json() as {
+      total24h?: number;
+      protocols?: Array<{
+        name?: string;
+        chains?: string[];
+        total24h?: number;
+        change_1d?: number;
+      }>;
+    };
+
+    const protocols = json.protocols ?? [];
+    const sorted = protocols
+      .filter((p) => typeof p.total24h === "number" && p.total24h > 0 && p.name)
+      .sort((a, b) => (b.total24h ?? 0) - (a.total24h ?? 0))
+      .slice(0, 12);
+
+    if (sorted.length === 0) throw new Error("No DEX volume data");
+
+    const total_volume_24h = json.total24h ?? sorted.reduce((s, p) => s + (p.total24h ?? 0), 0);
+
+    const dexes: GlobalDexEntry[] = sorted.map((p) => ({
+      name: p.name ?? "Unknown",
+      chains: (p.chains ?? []).slice(0, 3),
+      volume_24h: p.total24h ?? 0,
+      change_pct: typeof p.change_1d === "number" ? p.change_1d : 0,
+    }));
+
+    global_dex = { dexes, total_volume_24h };
+    _globalDexCache = { data: global_dex, expires: Date.now() + 10 * 60 * 1000 };
+  } catch {
+    // Fall through with undefined
+  }
+
+  const fmtUsd = (v: number) => v >= 1e9 ? `$${(v / 1e9).toFixed(2)}B` : v >= 1e6 ? `$${(v / 1e6).toFixed(0)}M` : `$${v.toFixed(0)}`;
+
+  const result = global_dex && global_dex.dexes.length > 0
+    ? `Total DEX Vol (24h): ${fmtUsd(global_dex.total_volume_24h)} · Top: ${global_dex.dexes[0].name} ${fmtUsd(global_dex.dexes[0].volume_24h)} · ${global_dex.dexes.length} DEXes ranked`
+    : "Global DEX volume data temporarily unavailable";
+
+  return { service_type: "global-dex", result, global_dex, timestamp, delivered_to };
 }
