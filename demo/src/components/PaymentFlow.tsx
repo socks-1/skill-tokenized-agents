@@ -52,6 +52,8 @@ import type {
   MarketBreadthEntry,
   PerpOIData,
   PerpExchangeEntry,
+  StablecoinChainsData,
+  StablecoinChainEntry,
 } from "@/lib/services";
 
 interface InvoiceParams {
@@ -378,6 +380,13 @@ const SERVICE_OPTIONS: { id: ServiceType; label: string; description: string; pr
     id: "perp-oi",
     label: "Perp Exchange Open Interest",
     description: "Top crypto derivatives exchanges ranked by open interest — BTC-equivalent OI converted to USD, 24h trading volume, and perpetual pair count. Covers Binance, Bybit, OKX, Hyperliquid, and more.",
+    price: "1 USDC",
+    category: "Market Data",
+  },
+  {
+    id: "stablecoin-chains",
+    label: "Stablecoin Chain Distribution",
+    description: "Where stablecoins live — top blockchains ranked by total stablecoin TVL (USDT, USDC, DAI, etc.). Shows capital distribution across Ethereum, Tron, Solana, BSC, Base, and more.",
     price: "1 USDC",
     category: "Market Data",
   },
@@ -942,6 +951,26 @@ const MOCK_PERP_OI: PerpOIData = {
     { name: "Bitmart Futures", oi_btc: 134965, oi_usd: 11_269_577_500, vol_24h_btc: 236580, vol_24h_usd: 19_754_430_000, perp_pairs: 280 },
     { name: "LBank (Futures)", oi_btc: 107589, oi_usd: 8_983_681_500, vol_24h_btc: 86498, vol_24h_usd: 7_222_583_000, perp_pairs: 234 },
   ] as PerpExchangeEntry[],
+};
+
+const MOCK_STABLECOIN_CHAINS: StablecoinChainsData = {
+  total_usd: 336_400_000_000,
+  top_chain: "Ethereum",
+  top_chain_pct: 49.4,
+  chains: [
+    { name: "Ethereum", tvl_usd: 166_150_000_000, pct_of_total: 49.4 },
+    { name: "Tron", tvl_usd: 84_840_000_000, pct_of_total: 25.2 },
+    { name: "BSC", tvl_usd: 17_080_000_000, pct_of_total: 5.1 },
+    { name: "Solana", tvl_usd: 15_780_000_000, pct_of_total: 4.7 },
+    { name: "Hyperliquid L1", tvl_usd: 5_010_000_000, pct_of_total: 1.5 },
+    { name: "Base", tvl_usd: 4_650_000_000, pct_of_total: 1.4 },
+    { name: "Arbitrum", tvl_usd: 4_010_000_000, pct_of_total: 1.2 },
+    { name: "Polygon", tvl_usd: 3_440_000_000, pct_of_total: 1.0 },
+    { name: "Aptos", tvl_usd: 1_740_000_000, pct_of_total: 0.5 },
+    { name: "Avalanche", tvl_usd: 1_720_000_000, pct_of_total: 0.5 },
+    { name: "Plasma", tvl_usd: 1_650_000_000, pct_of_total: 0.5 },
+    { name: "Mantle", tvl_usd: 800_000_000, pct_of_total: 0.2 },
+  ] as StablecoinChainEntry[],
 };
 
 const MOCK_SIGNATURE =
@@ -1947,6 +1976,16 @@ function buildTourSteps(serviceType: ServiceType, liveData?: ServiceResult): Pay
       service_type: "perp-oi",
       result: `${po.exchanges[0].name} ${fmtUsd(po.exchanges[0].oi_usd)} OI · ${po.exchanges[1]?.name ?? ""} ${fmtUsd(po.exchanges[1]?.oi_usd ?? 0)} · top-10 total ${fmtUsd(po.total_oi_usd)}`,
       perp_oi: po,
+      timestamp: new Date().toISOString(),
+      delivered_to: "Demo1234...abcd",
+    };
+  } else if (serviceType === "stablecoin-chains") {
+    const sc = liveData?.stablecoin_chains ?? MOCK_STABLECOIN_CHAINS;
+    const fmtUsd = (v: number) => v >= 1e9 ? `$${(v / 1e9).toFixed(1)}B` : `$${(v / 1e6).toFixed(0)}M`;
+    mockService = liveData ?? {
+      service_type: "stablecoin-chains",
+      result: `${sc.top_chain} ${fmtUsd(sc.chains[0].tvl_usd)} (${sc.top_chain_pct}%) · top-12 total ${fmtUsd(sc.total_usd)}`,
+      stablecoin_chains: sc,
       timestamp: new Date().toISOString(),
       delivered_to: "Demo1234...abcd",
     };
@@ -3892,6 +3931,62 @@ function ServiceResultTable({ service }: { service: ServiceResult }) {
         </table>
         <p style={{ marginTop: 8, fontSize: 12, color: "#888" }}>
           Top {po.exchanges.length} perp exchanges by open interest · via CoinGecko
+        </p>
+      </div>
+    );
+  }
+
+  if (service.service_type === "stablecoin-chains" && service.stablecoin_chains) {
+    const sc = service.stablecoin_chains;
+    const fmtUsd = (v: number) =>
+      v >= 1e12 ? `$${(v / 1e12).toFixed(2)}T` :
+      v >= 1e9 ? `$${(v / 1e9).toFixed(1)}B` :
+      v >= 1e6 ? `$${(v / 1e6).toFixed(0)}M` : `$${v.toLocaleString()}`;
+    const maxTvl = sc.chains[0]?.tvl_usd ?? 1;
+    return (
+      <div>
+        <div style={{ marginBottom: 12, padding: 12, background: "#fafafa", borderRadius: 8, border: "1px solid #f0f0f0", display: "flex", gap: 28, flexWrap: "wrap" }}>
+          <div>
+            <div style={{ fontSize: 11, color: "#aaa", marginBottom: 2 }}>Top-12 Total</div>
+            <div style={{ fontWeight: 700, fontSize: 20, color: "#222" }}>{fmtUsd(sc.total_usd)}</div>
+          </div>
+          <div>
+            <div style={{ fontSize: 11, color: "#aaa", marginBottom: 2 }}>Dominant Chain</div>
+            <div style={{ fontWeight: 600, fontSize: 15, color: "#555" }}>{sc.top_chain} ({sc.top_chain_pct}%)</div>
+          </div>
+          <div>
+            <div style={{ fontSize: 11, color: "#aaa", marginBottom: 2 }}>Chains Covered</div>
+            <div style={{ fontWeight: 600, fontSize: 15, color: "#555" }}>{sc.chains.length}</div>
+          </div>
+        </div>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+          <thead>
+            <tr style={{ borderBottom: "1px solid #eee" }}>
+              <th style={{ textAlign: "left", padding: "4px 6px", color: "#aaa", fontWeight: 500 }}>#</th>
+              <th style={{ textAlign: "left", padding: "4px 6px", color: "#aaa", fontWeight: 500 }}>Chain</th>
+              <th style={{ textAlign: "right", padding: "4px 6px", color: "#aaa", fontWeight: 500 }}>Stablecoin TVL</th>
+              <th style={{ textAlign: "right", padding: "4px 6px", color: "#aaa", fontWeight: 500 }}>Share</th>
+              <th style={{ textAlign: "left", padding: "4px 14px", color: "#aaa", fontWeight: 500 }}>Distribution</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sc.chains.map((c, i) => (
+              <tr key={c.name} style={{ borderBottom: "1px solid #f5f5f5" }}>
+                <td style={{ padding: "5px 6px", color: "#aaa", fontSize: 12 }}>{i + 1}</td>
+                <td style={{ padding: "5px 6px", fontWeight: 600, color: "#222" }}>{c.name}</td>
+                <td style={{ padding: "5px 6px", textAlign: "right", color: "#222", fontWeight: 500 }}>{fmtUsd(c.tvl_usd)}</td>
+                <td style={{ padding: "5px 6px", textAlign: "right", color: "#555" }}>{c.pct_of_total}%</td>
+                <td style={{ padding: "5px 14px" }}>
+                  <div style={{ background: "#f0f0f0", borderRadius: 3, height: 8, width: 100 }}>
+                    <div style={{ background: "#6366f1", borderRadius: 3, height: 8, width: `${Math.round((c.tvl_usd / maxTvl) * 100)}%` }} />
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <p style={{ marginTop: 8, fontSize: 12, color: "#888" }}>
+          Top {sc.chains.length} chains by stablecoin TVL · via DeFi Llama
         </p>
       </div>
     );

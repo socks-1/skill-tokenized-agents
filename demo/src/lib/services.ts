@@ -3,10 +3,10 @@
  * All functions are read-only calls to public APIs — no auth required.
  */
 
-export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season" | "btc-mining" | "bridge-volume" | "tvl-movers" | "lightning-network" | "eth-lst" | "realized-vol" | "lending-rates" | "protocol-revenue" | "btc-onchain" | "nft-market" | "market-breadth" | "perp-oi";
+export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season" | "btc-mining" | "bridge-volume" | "tvl-movers" | "lightning-network" | "eth-lst" | "realized-vol" | "lending-rates" | "protocol-revenue" | "btc-onchain" | "nft-market" | "market-breadth" | "perp-oi" | "stablecoin-chains";
 
 /** All valid service type strings — use this for runtime validation instead of duplicating the list. */
-export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season", "btc-mining", "bridge-volume", "tvl-movers", "lightning-network", "eth-lst", "realized-vol", "lending-rates", "protocol-revenue", "btc-onchain", "nft-market", "market-breadth", "perp-oi"];
+export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season", "btc-mining", "bridge-volume", "tvl-movers", "lightning-network", "eth-lst", "realized-vol", "lending-rates", "protocol-revenue", "btc-onchain", "nft-market", "market-breadth", "perp-oi", "stablecoin-chains"];
 
 export interface MarketData {
   symbol: string;
@@ -473,6 +473,19 @@ export interface PerpOIData {
   total_oi_usd: number;
 }
 
+export interface StablecoinChainEntry {
+  name: string;
+  tvl_usd: number;
+  pct_of_total: number;
+}
+
+export interface StablecoinChainsData {
+  chains: StablecoinChainEntry[];
+  total_usd: number;
+  top_chain: string;
+  top_chain_pct: number;
+}
+
 export interface ServiceResult {
   service_type: ServiceType;
   result: string;
@@ -517,6 +530,7 @@ export interface ServiceResult {
   nft_market?: NftMarketData;
   market_breadth?: MarketBreadthData;
   perp_oi?: PerpOIData;
+  stablecoin_chains?: StablecoinChainsData;
   timestamp: string;
   delivered_to: string;
 }
@@ -3024,6 +3038,7 @@ export async function deliverService(delivered_to: string, serviceType: ServiceT
   if (serviceType === "nft-market") return deliverNftMarket(delivered_to, timestamp);
   if (serviceType === "market-breadth") return deliverMarketBreadth(delivered_to, timestamp);
   if (serviceType === "perp-oi") return deliverPerpOI(delivered_to, timestamp);
+  if (serviceType === "stablecoin-chains") return deliverStablecoinChains(delivered_to, timestamp);
   return deliverCryptoPrices(delivered_to, timestamp);
 }
 
@@ -3270,4 +3285,60 @@ export async function deliverPerpOI(delivered_to: string, timestamp: string): Pr
     : "Perp exchange OI data temporarily unavailable";
 
   return { service_type: "perp-oi", result, perp_oi, timestamp, delivered_to };
+}
+
+/**
+ * Fetches stablecoin TVL distribution across blockchains via DeFi Llama.
+ * Shows which chains hold the most stablecoin liquidity (ETH, TRON, Solana, etc.).
+ */
+export async function deliverStablecoinChains(delivered_to: string, timestamp: string): Promise<ServiceResult> {
+  let stablecoin_chains: StablecoinChainsData | undefined;
+
+  try {
+    const res = await fetch("https://stablecoins.llama.fi/stablecoinchains", {
+      signal: AbortSignal.timeout(10000),
+      headers: { "User-Agent": "skill-tokenized-agents/1.0", Accept: "application/json" },
+    });
+
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+    const raw = await res.json() as Array<{
+      name: string;
+      totalCirculatingUSD: { peggedUSD?: number };
+    }>;
+
+    const sorted = raw
+      .map((c) => ({ name: c.name, tvl_usd: c.totalCirculatingUSD?.peggedUSD ?? 0 }))
+      .filter((c) => c.tvl_usd > 1e6)
+      .sort((a, b) => b.tvl_usd - a.tvl_usd)
+      .slice(0, 12);
+
+    if (sorted.length > 0) {
+      const total_usd = sorted.reduce((s, c) => s + c.tvl_usd, 0);
+      const chains: StablecoinChainEntry[] = sorted.map((c) => ({
+        name: c.name,
+        tvl_usd: Math.round(c.tvl_usd),
+        pct_of_total: Math.round((c.tvl_usd / total_usd) * 1000) / 10,
+      }));
+      stablecoin_chains = {
+        chains,
+        total_usd: Math.round(total_usd),
+        top_chain: chains[0].name,
+        top_chain_pct: chains[0].pct_of_total,
+      };
+    }
+  } catch {
+    // Fall through with undefined stablecoin_chains
+  }
+
+  const fmtUsd = (v: number) =>
+    v >= 1e12 ? `$${(v / 1e12).toFixed(2)}T` :
+    v >= 1e9 ? `$${(v / 1e9).toFixed(1)}B` :
+    v >= 1e6 ? `$${(v / 1e6).toFixed(0)}M` : `$${v.toLocaleString()}`;
+
+  const result = stablecoin_chains && stablecoin_chains.chains.length > 0
+    ? `${stablecoin_chains.top_chain} ${fmtUsd(stablecoin_chains.chains[0].tvl_usd)} (${stablecoin_chains.top_chain_pct}%) · top-12 total ${fmtUsd(stablecoin_chains.total_usd)}`
+    : "Stablecoin chain distribution data temporarily unavailable";
+
+  return { service_type: "stablecoin-chains", result, stablecoin_chains, timestamp, delivered_to };
 }
