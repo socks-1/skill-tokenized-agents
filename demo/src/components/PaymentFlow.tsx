@@ -74,6 +74,8 @@ import type {
   DexAggregatorsData,
   MemeCoinEntry,
   MemeCoinsData,
+  CrossChainGasEntry,
+  CrossChainGasData,
 } from "@/lib/services";
 
 interface InvoiceParams {
@@ -484,6 +486,13 @@ const SERVICE_OPTIONS: { id: ServiceType; label: string; description: string; pr
     id: "meme-coins",
     label: "Meme Coin Leaderboard",
     description: "Top 15 meme coins by market cap — DOGE, SHIB, PEPE, WIF, and more. Price, 24h change, market cap, volume. The heart of crypto retail sentiment in one table. Via CoinGecko.",
+    price: "1 USDC",
+    category: "Market Data",
+  },
+  {
+    id: "cross-chain-gas",
+    label: "Cross-Chain Gas Cost Comparison",
+    description: "Real-time simple transfer cost across 6 chains: Ethereum L1, Base, Arbitrum, Optimism, BNB Chain, and Solana. Shows gas price in Gwei and USD cost per transfer, ranked cheapest to most expensive. Essential for cost-conscious developers and traders.",
     price: "1 USDC",
     category: "Market Data",
   },
@@ -1240,6 +1249,19 @@ const MOCK_MEME_COINS: MemeCoinsData = {
     { name: "Mog Coin",           symbol: "MOG",   price_usd: 0.00000133, change_24h_pct: 1.24,   market_cap_usd:   213_780_000,  volume_24h_usd:    24_560_000 },
     { name: "Turbo",              symbol: "TURBO", price_usd: 0.00437,    change_24h_pct: -2.80,  market_cap_usd:   186_290_000,  volume_24h_usd:    31_120_000 },
   ] as MemeCoinEntry[],
+};
+
+const MOCK_CROSS_CHAIN_GAS: CrossChainGasData = {
+  cheapest: "Solana",
+  eth_base_fee_gwei: 8.4,
+  chains: [
+    { chain: "Solana",       symbol: "SOL", gas_price_gwei: null, transfer_cost_usd: 0.000750, relative_pct:  0 },
+    { chain: "Base",         symbol: "ETH", gas_price_gwei: 0.003, transfer_cost_usd: 0.0013,  relative_pct:  1 },
+    { chain: "Arbitrum",     symbol: "ETH", gas_price_gwei: 0.012, transfer_cost_usd: 0.0053,  relative_pct:  3 },
+    { chain: "Optimism",     symbol: "ETH", gas_price_gwei: 0.032, transfer_cost_usd: 0.014,   relative_pct:  8 },
+    { chain: "BNB Chain",    symbol: "BNB", gas_price_gwei: 1.1,   transfer_cost_usd: 0.063,   relative_pct: 38 },
+    { chain: "Ethereum L1",  symbol: "ETH", gas_price_gwei: 8.4,   transfer_cost_usd: 0.168,   relative_pct: 100 },
+  ] as CrossChainGasEntry[],
 };
 
 const MOCK_SIGNATURE =
@@ -2346,6 +2368,19 @@ function buildTourSteps(serviceType: ServiceType, liveData?: ServiceResult): Pay
       service_type: "meme-coins",
       result: `${mc.coins.length} meme coins · Total mcap ${fmtMcap(mc.total_market_cap_usd)} · Top gainer: ${mc.top_gainer} · Biggest drop: ${mc.top_loser}`,
       meme_coins: mc,
+      timestamp: new Date().toISOString(),
+      delivered_to: "Demo1234...abcd",
+    };
+  } else if (serviceType === "cross-chain-gas") {
+    const ccg = liveData?.cross_chain_gas ?? MOCK_CROSS_CHAIN_GAS;
+    const cheapEntry = ccg.chains[0];
+    const top3 = ccg.chains.slice(0, 3)
+      .map((c) => `${c.chain}: $${c.transfer_cost_usd < 0.01 ? c.transfer_cost_usd.toFixed(6) : c.transfer_cost_usd.toFixed(4)}`)
+      .join(" · ");
+    mockService = liveData ?? {
+      service_type: "cross-chain-gas",
+      result: `Cheapest: ${ccg.cheapest} · ETH L1: ${ccg.eth_base_fee_gwei} Gwei · ${top3}`,
+      cross_chain_gas: ccg,
       timestamp: new Date().toISOString(),
       delivered_to: "Demo1234...abcd",
     };
@@ -5035,6 +5070,85 @@ function ServiceResultTable({ service }: { service: ServiceResult }) {
         </table>
         <p style={{ marginTop: 8, fontSize: 12, color: "#888" }}>
           Top {mc.coins.length} meme coins by market cap · via CoinGecko
+        </p>
+      </div>
+    );
+  }
+
+  if (service.service_type === "cross-chain-gas" && service.cross_chain_gas) {
+    const ccg = service.cross_chain_gas;
+    const ethL1Cost = ccg.chains.find((c) => c.chain === "Ethereum L1")?.transfer_cost_usd ?? 1;
+    const maxCost = Math.max(...ccg.chains.map((c) => c.transfer_cost_usd));
+    const fmtCost = (v: number) => v < 0.0001 ? `$${v.toFixed(6)}` : v < 0.01 ? `$${v.toFixed(5)}` : `$${v.toFixed(4)}`;
+    const chainColors: Record<string, string> = {
+      "Ethereum L1": "#627EEA",
+      "Base":        "#0052FF",
+      "Arbitrum":    "#12AAFF",
+      "Optimism":    "#FF0420",
+      "BNB Chain":   "#F0B90B",
+      "Solana":      "#9945FF",
+    };
+    return (
+      <div>
+        <div style={{ marginBottom: 12, padding: 12, background: "#f0f9ff", borderRadius: 8, border: "1px solid #bae6fd", display: "flex", gap: 24, flexWrap: "wrap" }}>
+          <div>
+            <div style={{ fontSize: 11, color: "#aaa", marginBottom: 2 }}>Cheapest Chain</div>
+            <div style={{ fontWeight: 700, fontSize: 18, color: "#0369a1" }}>{ccg.cheapest}</div>
+          </div>
+          <div>
+            <div style={{ fontSize: 11, color: "#aaa", marginBottom: 2 }}>ETH L1 Gas</div>
+            <div style={{ fontWeight: 700, fontSize: 18, color: "#333" }}>{ccg.eth_base_fee_gwei} Gwei</div>
+          </div>
+          <div>
+            <div style={{ fontSize: 11, color: "#aaa", marginBottom: 2 }}>ETH L1 Transfer Cost</div>
+            <div style={{ fontWeight: 700, fontSize: 18, color: "#333" }}>{fmtCost(ethL1Cost)}</div>
+          </div>
+        </div>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+          <thead>
+            <tr style={{ borderBottom: "1px solid #eee" }}>
+              <th style={{ textAlign: "left", padding: "4px 6px", color: "#aaa", fontWeight: 500 }}>#</th>
+              <th style={{ textAlign: "left", padding: "4px 6px", color: "#aaa", fontWeight: 500 }}>Chain</th>
+              <th style={{ textAlign: "right", padding: "4px 6px", color: "#aaa", fontWeight: 500 }}>Gas (Gwei)</th>
+              <th style={{ textAlign: "right", padding: "4px 6px", color: "#aaa", fontWeight: 500 }}>Transfer Cost</th>
+              <th style={{ textAlign: "right", padding: "4px 6px", color: "#aaa", fontWeight: 500 }}>vs ETH L1</th>
+            </tr>
+          </thead>
+          <tbody>
+            {ccg.chains.map((c, i) => {
+              const barWidth = maxCost > 0 ? Math.max(2, Math.round((c.transfer_cost_usd / maxCost) * 100)) : 0;
+              const accent = chainColors[c.chain] ?? "#888";
+              return (
+                <tr key={i} style={{ borderBottom: "1px solid #f5f5f5" }}>
+                  <td style={{ padding: "5px 6px", color: "#aaa", fontSize: 12 }}>{i + 1}</td>
+                  <td style={{ padding: "5px 6px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <div style={{ width: 8, height: 8, borderRadius: "50%", background: accent, flexShrink: 0 }} />
+                      <div>
+                        <div style={{ fontWeight: i === 0 ? 700 : 500, color: i === 0 ? "#111" : "#333" }}>{c.chain}</div>
+                        <div style={{ height: 3, background: "#f0f0f0", borderRadius: 2, marginTop: 3, overflow: "hidden", width: 80 }}>
+                          <div style={{ width: `${barWidth}%`, height: "100%", background: accent, borderRadius: 2, opacity: 0.8 }} />
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                  <td style={{ padding: "5px 6px", textAlign: "right", fontFamily: "monospace", color: "#555", fontSize: 12 }}>
+                    {c.gas_price_gwei != null ? c.gas_price_gwei.toFixed(3) : <span style={{ color: "#aaa" }}>5k lam</span>}
+                  </td>
+                  <td style={{ padding: "5px 6px", textAlign: "right", fontFamily: "monospace", fontWeight: i === 0 ? 700 : 600, color: i === 0 ? "#16a34a" : "#111" }}>
+                    {fmtCost(c.transfer_cost_usd)}
+                  </td>
+                  <td style={{ padding: "5px 6px", textAlign: "right", fontSize: 12,
+                    color: c.chain === "Ethereum L1" ? "#888" : c.relative_pct <= 5 ? "#16a34a" : c.relative_pct <= 20 ? "#ca8a04" : "#dc2626" }}>
+                    {c.chain === "Ethereum L1" ? "baseline" : c.relative_pct < 1 ? `<1%` : `${c.relative_pct}%`}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+        <p style={{ marginTop: 8, fontSize: 12, color: "#888" }}>
+          Simple transfer (21k gas EVM / 5k lamports Solana) · live via public RPC endpoints
         </p>
       </div>
     );

@@ -3,10 +3,10 @@
  * All functions are read-only calls to public APIs — no auth required.
  */
 
-export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season" | "btc-mining" | "bridge-volume" | "tvl-movers" | "lightning-network" | "eth-lst" | "realized-vol" | "lending-rates" | "protocol-revenue" | "btc-onchain" | "nft-market" | "market-breadth" | "perp-oi" | "stablecoin-chains" | "stablecoin-pegs" | "mining-pools" | "rwa-tvl" | "crypto-funding" | "chain-fees" | "chain-tvl" | "defi-exploits" | "global-dex" | "futures-basis" | "dex-aggregators" | "meme-coins";
+export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season" | "btc-mining" | "bridge-volume" | "tvl-movers" | "lightning-network" | "eth-lst" | "realized-vol" | "lending-rates" | "protocol-revenue" | "btc-onchain" | "nft-market" | "market-breadth" | "perp-oi" | "stablecoin-chains" | "stablecoin-pegs" | "mining-pools" | "rwa-tvl" | "crypto-funding" | "chain-fees" | "chain-tvl" | "defi-exploits" | "global-dex" | "futures-basis" | "dex-aggregators" | "meme-coins" | "cross-chain-gas";
 
 /** All valid service type strings — use this for runtime validation instead of duplicating the list. */
-export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season", "btc-mining", "bridge-volume", "tvl-movers", "lightning-network", "eth-lst", "realized-vol", "lending-rates", "protocol-revenue", "btc-onchain", "nft-market", "market-breadth", "perp-oi", "stablecoin-chains", "stablecoin-pegs", "mining-pools", "rwa-tvl", "crypto-funding", "chain-fees", "chain-tvl", "defi-exploits", "global-dex", "futures-basis", "dex-aggregators", "meme-coins"];
+export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season", "btc-mining", "bridge-volume", "tvl-movers", "lightning-network", "eth-lst", "realized-vol", "lending-rates", "protocol-revenue", "btc-onchain", "nft-market", "market-breadth", "perp-oi", "stablecoin-chains", "stablecoin-pegs", "mining-pools", "rwa-tvl", "crypto-funding", "chain-fees", "chain-tvl", "defi-exploits", "global-dex", "futures-basis", "dex-aggregators", "meme-coins", "cross-chain-gas"];
 
 export interface MarketData {
   symbol: string;
@@ -713,6 +713,7 @@ export interface ServiceResult {
   futures_basis?: FuturesBasisData;
   dex_aggregators?: DexAggregatorsData;
   meme_coins?: MemeCoinsData;
+  cross_chain_gas?: CrossChainGasData;
   timestamp: string;
   delivered_to: string;
 }
@@ -755,6 +756,20 @@ export interface BtcOnchainData {
   blocks_mined_24h: number;    // blocks mined in past 24h (≈144 target)
   subsidy_revenue_usd: number; // block subsidy revenue 24h (blocks × 3.125 BTC × price)
   avg_tx_value_usd: number;    // average transaction value in USD
+}
+
+export interface CrossChainGasEntry {
+  chain: string;           // "Ethereum L1" | "Base" | "Arbitrum" | "Optimism" | "BNB Chain" | "Solana"
+  symbol: string;          // native token symbol (ETH, BNB, SOL)
+  gas_price_gwei: number | null;  // null for Solana (uses lamports)
+  transfer_cost_usd: number;      // simple transfer cost in USD
+  relative_pct: number;           // cost relative to Ethereum L1 (ETH L1 = 100%)
+}
+
+export interface CrossChainGasData {
+  chains: CrossChainGasEntry[];  // sorted cheapest first
+  cheapest: string;              // name of cheapest chain
+  eth_base_fee_gwei: number;     // current ETH L1 gas price in gwei
 }
 
 /**
@@ -3232,6 +3247,7 @@ export async function deliverService(delivered_to: string, serviceType: ServiceT
   if (serviceType === "futures-basis") return deliverFuturesBasis(delivered_to, timestamp);
   if (serviceType === "dex-aggregators") return deliverDexAggregators(delivered_to, timestamp);
   if (serviceType === "meme-coins") return deliverMemeCoins(delivered_to, timestamp);
+  if (serviceType === "cross-chain-gas") return deliverCrossChainGas(delivered_to, timestamp);
   return deliverCryptoPrices(delivered_to, timestamp);
 }
 
@@ -4296,6 +4312,148 @@ export async function deliverDexAggregators(delivered_to: string, timestamp: str
     : "DEX aggregator volume data temporarily unavailable";
 
   return { service_type: "dex-aggregators", result, dex_aggregators, timestamp, delivered_to };
+}
+
+let _crossChainGasCache: { data: CrossChainGasData; expires: number } | null = null;
+
+/**
+ * Fetches real-time gas costs for a simple token transfer across 6 major chains:
+ * Ethereum L1, Base, Arbitrum, Optimism, BNB Chain, and Solana.
+ * Uses free public JSON-RPC endpoints for EVM chains and a fixed 5000-lamport
+ * Solana fee. Token prices from CoinGecko. Cached 2 minutes.
+ */
+export async function deliverCrossChainGas(delivered_to: string, timestamp: string): Promise<ServiceResult> {
+  if (_crossChainGasCache && Date.now() < _crossChainGasCache.expires) {
+    const ccg = _crossChainGasCache.data;
+    const result = cheapest_summary(ccg);
+    return { service_type: "cross-chain-gas", result, cross_chain_gas: ccg, timestamp, delivered_to };
+  }
+
+  // Fetch token prices and all chain gas prices in parallel
+  const chainDefs = [
+    { name: "Ethereum L1", symbol: "ETH",  rpc: "https://1rpc.io/eth",               tokenKey: "eth" },
+    { name: "Base",        symbol: "ETH",  rpc: "https://mainnet.base.org",           tokenKey: "eth" },
+    { name: "Arbitrum",    symbol: "ETH",  rpc: "https://arb1.arbitrum.io/rpc",       tokenKey: "eth" },
+    { name: "Optimism",    symbol: "ETH",  rpc: "https://mainnet.optimism.io",        tokenKey: "eth" },
+    { name: "BNB Chain",   symbol: "BNB",  rpc: "https://bsc-dataseed.binance.org",   tokenKey: "bnb" },
+  ] as const;
+
+  const GAS_LIMIT = 21_000;
+
+  let ethPrice = 2000, bnbPrice = 400, solPrice = 150;
+
+  try {
+    const priceRes = await fetch(
+      "https://api.coingecko.com/api/v3/simple/price?ids=ethereum,binancecoin,solana&vs_currencies=usd",
+      { signal: AbortSignal.timeout(8000), headers: { "User-Agent": "skill-tokenized-agents/1.0" } }
+    );
+    if (priceRes.ok) {
+      const pd = await priceRes.json() as {
+        ethereum?: { usd: number };
+        binancecoin?: { usd: number };
+        solana?: { usd: number };
+      };
+      ethPrice = pd.ethereum?.usd ?? ethPrice;
+      bnbPrice = pd.binancecoin?.usd ?? bnbPrice;
+      solPrice  = pd.solana?.usd  ?? solPrice;
+    }
+  } catch {
+    // Use fallback prices
+  }
+
+  const tokenPrices: Record<string, number> = { eth: ethPrice, bnb: bnbPrice };
+
+  const gasResults = await Promise.allSettled(
+    chainDefs.map((c) =>
+      fetch(c.rpc, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jsonrpc: "2.0", method: "eth_gasPrice", params: [], id: 1 }),
+        signal: AbortSignal.timeout(6000),
+      }).then((r) => r.json() as Promise<{ result?: string }>)
+    )
+  );
+
+  const chains: CrossChainGasEntry[] = [];
+  let ethL1CostUsd = 0;
+
+  for (let i = 0; i < chainDefs.length; i++) {
+    const def = chainDefs[i];
+    const res = gasResults[i];
+    let gas_price_gwei: number | null = null;
+    let transfer_cost_usd = 0;
+
+    if (res.status === "fulfilled" && res.value?.result) {
+      const weiHex = res.value.result;
+      const wei = parseInt(weiHex, 16);
+      if (!isNaN(wei) && wei > 0) {
+        gas_price_gwei = Math.round((wei / 1e9) * 1000) / 1000;
+        const costNative = (wei / 1e18) * GAS_LIMIT;
+        transfer_cost_usd = costNative * tokenPrices[def.tokenKey];
+      }
+    }
+
+    chains.push({
+      chain: def.name,
+      symbol: def.symbol,
+      gas_price_gwei,
+      transfer_cost_usd: Math.round(transfer_cost_usd * 100000) / 100000,
+      relative_pct: 0, // recalculated below
+    });
+  }
+
+  // Solana: 5000 lamports per simple transfer (base fee; priority fee not included)
+  const solCostUsd = 5_000 * 1e-9 * solPrice;
+  chains.push({
+    chain: "Solana",
+    symbol: "SOL",
+    gas_price_gwei: null,
+    transfer_cost_usd: Math.round(solCostUsd * 1_000_000) / 1_000_000,
+    relative_pct: 0, // recalculated below
+  });
+
+  // Sort cheapest first (exclude failed chains with 0 cost)
+  chains.sort((a, b) => {
+    if (a.transfer_cost_usd === 0 && b.transfer_cost_usd > 0) return 1;
+    if (b.transfer_cost_usd === 0 && a.transfer_cost_usd > 0) return -1;
+    return a.transfer_cost_usd - b.transfer_cost_usd;
+  });
+
+  // Calculate relative_pct using ETH L1 cost as baseline
+  const ethEntry = chains.find((c) => c.chain === "Ethereum L1");
+  ethL1CostUsd = ethEntry?.transfer_cost_usd ?? 0;
+  for (const c of chains) {
+    if (c.chain === "Ethereum L1") {
+      c.relative_pct = 100;
+    } else if (ethL1CostUsd > 0 && c.transfer_cost_usd > 0) {
+      c.relative_pct = Math.round((c.transfer_cost_usd / ethL1CostUsd) * 100);
+    } else {
+      c.relative_pct = 0;
+    }
+  }
+
+  // Filter out chains that failed (0 cost due to RPC error) but keep at least something
+  const validChains = chains.filter((c) => c.transfer_cost_usd > 0);
+  const finalChains = validChains.length > 0 ? validChains : chains;
+
+  const cross_chain_gas: CrossChainGasData = {
+    chains: finalChains,
+    cheapest: finalChains[0]?.chain ?? "Unknown",
+    eth_base_fee_gwei: ethEntry?.gas_price_gwei ?? 0,
+  };
+
+  _crossChainGasCache = { data: cross_chain_gas, expires: Date.now() + 2 * 60 * 1000 };
+
+  const result = cheapest_summary(cross_chain_gas);
+  return { service_type: "cross-chain-gas", result, cross_chain_gas, timestamp, delivered_to };
+}
+
+function cheapest_summary(ccg: CrossChainGasData): string {
+  if (!ccg.chains.length) return "Cross-chain gas data temporarily unavailable";
+  const top3 = ccg.chains.slice(0, 3)
+    .map((c) => `${c.chain}: $${c.transfer_cost_usd < 0.01 ? c.transfer_cost_usd.toFixed(6) : c.transfer_cost_usd.toFixed(4)}`)
+    .join(" · ");
+  return `Cheapest: ${ccg.cheapest} · ETH L1: ${ccg.eth_base_fee_gwei} Gwei · ${top3}`;
 }
 
 let _memeCoinsCache: { data: MemeCoinsData; expires: number } | null = null;
