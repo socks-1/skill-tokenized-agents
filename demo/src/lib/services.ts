@@ -3,10 +3,10 @@
  * All functions are read-only calls to public APIs — no auth required.
  */
 
-export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season" | "btc-mining" | "bridge-volume" | "tvl-movers" | "lightning-network" | "eth-lst" | "realized-vol" | "lending-rates" | "protocol-revenue" | "btc-onchain";
+export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season" | "btc-mining" | "bridge-volume" | "tvl-movers" | "lightning-network" | "eth-lst" | "realized-vol" | "lending-rates" | "protocol-revenue" | "btc-onchain" | "nft-market";
 
 /** All valid service type strings — use this for runtime validation instead of duplicating the list. */
-export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season", "btc-mining", "bridge-volume", "tvl-movers", "lightning-network", "eth-lst", "realized-vol", "lending-rates", "protocol-revenue", "btc-onchain"];
+export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season", "btc-mining", "bridge-volume", "tvl-movers", "lightning-network", "eth-lst", "realized-vol", "lending-rates", "protocol-revenue", "btc-onchain", "nft-market"];
 
 export interface MarketData {
   symbol: string;
@@ -425,6 +425,22 @@ export interface LightningNetworkData {
   capacity_change_btc: number;  // capacity change from previous week in BTC
 }
 
+export interface NftCollectionEntry {
+  name: string;
+  symbol: string;
+  floor_price_usd: number;
+  floor_price_eth: number;
+  volume_24h_usd: number;
+  volume_24h_eth: number;
+  market_cap_usd: number;
+  change_24h_pct: number;
+  market_cap_rank: number;
+}
+
+export interface NftMarketData {
+  collections: NftCollectionEntry[];
+}
+
 export interface ServiceResult {
   service_type: ServiceType;
   result: string;
@@ -466,6 +482,7 @@ export interface ServiceResult {
   lending_rates?: LendingRatesData;
   protocol_revenue?: ProtocolRevenueData;
   btc_onchain?: BtcOnchainData;
+  nft_market?: NftMarketData;
   timestamp: string;
   delivered_to: string;
 }
@@ -2970,6 +2987,7 @@ export async function deliverService(delivered_to: string, serviceType: ServiceT
   if (serviceType === "lending-rates") return deliverLendingRates(delivered_to, timestamp);
   if (serviceType === "protocol-revenue") return deliverProtocolRevenue(delivered_to, timestamp);
   if (serviceType === "btc-onchain") return deliverBtcOnchain(delivered_to, timestamp);
+  if (serviceType === "nft-market") return deliverNftMarket(delivered_to, timestamp);
   return deliverCryptoPrices(delivered_to, timestamp);
 }
 
@@ -3022,4 +3040,83 @@ export async function deliverBtcOnchain(delivered_to: string, timestamp: string)
     : "BTC on-chain data temporarily unavailable";
 
   return { service_type: "btc-onchain", result, btc_onchain, timestamp, delivered_to };
+}
+
+/**
+ * Fetches NFT market snapshot for top blue-chip collections via CoinGecko free API.
+ * Covers Ethereum-native NFTs (Pudgy Penguins, BAYC, CryptoPunks, Azuki, Milady, MAYC).
+ * Shows floor price in ETH and USD, 24h volume, and 24h price change.
+ */
+export async function deliverNftMarket(delivered_to: string, timestamp: string): Promise<ServiceResult> {
+  const NFT_IDS = [
+    { id: "pudgy-penguins", symbol: "PPG" },
+    { id: "bored-ape-yacht-club", symbol: "BAYC" },
+    { id: "cryptopunks", symbol: "PUNK" },
+    { id: "azuki", symbol: "AZUKI" },
+    { id: "milady", symbol: "MILADY" },
+    { id: "mutant-ape-yacht-club", symbol: "MAYC" },
+  ];
+
+  let nft_market: NftMarketData | undefined;
+
+  try {
+    const results = await Promise.allSettled(
+      NFT_IDS.map(({ id }) =>
+        fetch(`https://api.coingecko.com/api/v3/nfts/${id}`, {
+          signal: AbortSignal.timeout(10000),
+          headers: { "User-Agent": "skill-tokenized-agents/1.0", Accept: "application/json" },
+        }).then((r) => {
+          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          return r.json() as Promise<{
+            name: string;
+            market_cap_rank: number;
+            floor_price: { native_currency: number; usd: number };
+            market_cap: { native_currency: number; usd: number };
+            volume_24h: { native_currency: number; usd: number };
+            floor_price_in_usd_24h_percentage_change: number;
+          }>;
+        })
+      )
+    );
+
+    const collections: NftCollectionEntry[] = [];
+    results.forEach((r, i) => {
+      if (r.status === "fulfilled") {
+        const d = r.value;
+        const sym = NFT_IDS[i].symbol;
+        collections.push({
+          name: d.name,
+          symbol: sym,
+          floor_price_usd: d.floor_price?.usd ?? 0,
+          floor_price_eth: d.floor_price?.native_currency ?? 0,
+          volume_24h_usd: d.volume_24h?.usd ?? 0,
+          volume_24h_eth: d.volume_24h?.native_currency ?? 0,
+          market_cap_usd: d.market_cap?.usd ?? 0,
+          change_24h_pct: d.floor_price_in_usd_24h_percentage_change ?? 0,
+          market_cap_rank: d.market_cap_rank ?? 999,
+        });
+      }
+    });
+
+    // Sort by 24h volume descending
+    collections.sort((a, b) => b.volume_24h_usd - a.volume_24h_usd);
+
+    if (collections.length > 0) {
+      nft_market = { collections };
+    }
+  } catch {
+    // Fall through with undefined nft_market
+  }
+
+  const fmtUsd = (v: number) =>
+    v >= 1e6 ? `$${(v / 1e6).toFixed(1)}M` : v >= 1e3 ? `$${(v / 1e3).toFixed(1)}K` : `$${v.toLocaleString()}`;
+
+  const result = nft_market && nft_market.collections.length > 0
+    ? nft_market.collections
+        .slice(0, 3)
+        .map((c) => `${c.symbol} floor ${fmtUsd(c.floor_price_usd)} (${c.change_24h_pct >= 0 ? "+" : ""}${c.change_24h_pct.toFixed(1)}%)`)
+        .join(" · ")
+    : "NFT market data temporarily unavailable";
+
+  return { service_type: "nft-market", result, nft_market, timestamp, delivered_to };
 }

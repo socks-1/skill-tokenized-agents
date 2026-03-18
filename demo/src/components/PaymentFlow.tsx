@@ -46,6 +46,8 @@ import type {
   LendingRatesData,
   ProtocolRevenueData,
   BtcOnchainData,
+  NftMarketData,
+  NftCollectionEntry,
 } from "@/lib/services";
 
 interface InvoiceParams {
@@ -351,6 +353,13 @@ const SERVICE_OPTIONS: { id: ServiceType; label: string; description: string; pr
     id: "btc-onchain",
     label: "Bitcoin On-Chain Activity",
     description: "24h Bitcoin transaction count, USD transfer volume, blocks mined, and miner revenue — fundamental network health metrics from blockchain.com",
+    price: "1 USDC",
+    category: "Market Data",
+  },
+  {
+    id: "nft-market",
+    label: "NFT Market Snapshot",
+    description: "Top blue-chip NFT collections ranked by 24h volume — floor price in ETH and USD, 24h volume, and price change for Pudgy Penguins, BAYC, CryptoPunks, Azuki, Milady, and MAYC.",
     price: "1 USDC",
     category: "Market Data",
   },
@@ -864,6 +873,17 @@ const MOCK_BTC_ONCHAIN: BtcOnchainData = {
   blocks_mined_24h: 144,
   subsidy_revenue_usd: 33_600_000,
   avg_tx_value_usd: 76_100,
+};
+
+const MOCK_NFT_MARKET: NftMarketData = {
+  collections: [
+    { name: "Pudgy Penguins", symbol: "PPG", floor_price_usd: 9800, floor_price_eth: 4.2, volume_24h_usd: 82000, volume_24h_eth: 35.1, market_cap_usd: 87_000_000, change_24h_pct: 1.2, market_cap_rank: 3 },
+    { name: "Bored Ape Yacht Club", symbol: "BAYC", floor_price_usd: 62000, floor_price_eth: 26.5, volume_24h_usd: 68000, volume_24h_eth: 29.0, market_cap_usd: 551_000_000, change_24h_pct: -2.1, market_cap_rank: 1 },
+    { name: "CryptoPunks", symbol: "PUNK", floor_price_usd: 89000, floor_price_eth: 38.0, volume_24h_usd: 54000, volume_24h_eth: 23.0, market_cap_usd: 890_000_000, change_24h_pct: 0.5, market_cap_rank: 2 },
+    { name: "Azuki", symbol: "AZUKI", floor_price_usd: 4300, floor_price_eth: 1.84, volume_24h_usd: 41000, volume_24h_eth: 17.5, market_cap_usd: 43_000_000, change_24h_pct: -3.4, market_cap_rank: 6 },
+    { name: "Milady Maker", symbol: "MILADY", floor_price_usd: 3200, floor_price_eth: 1.37, volume_24h_usd: 28000, volume_24h_eth: 12.0, market_cap_usd: 32_000_000, change_24h_pct: 4.7, market_cap_rank: 9 },
+    { name: "Mutant Ape Yacht Club", symbol: "MAYC", floor_price_usd: 13500, floor_price_eth: 5.8, volume_24h_usd: 22000, volume_24h_eth: 9.4, market_cap_usd: 270_000_000, change_24h_pct: -1.5, market_cap_rank: 4 },
+  ] as NftCollectionEntry[],
 };
 
 const MOCK_SIGNATURE =
@@ -1840,6 +1860,16 @@ function buildTourSteps(serviceType: ServiceType, liveData?: ServiceResult): Pay
       service_type: "btc-onchain",
       result: `${bo.tx_count_24h.toLocaleString()} txs · ${fmtUsd(bo.tx_volume_usd)} transferred · ${bo.blocks_mined_24h} blocks · subsidy ${fmtUsd(bo.subsidy_revenue_usd)}`,
       btc_onchain: bo,
+      timestamp: new Date().toISOString(),
+      delivered_to: "Demo1234...abcd",
+    };
+  } else if (serviceType === "nft-market") {
+    const nm = liveData?.nft_market ?? MOCK_NFT_MARKET;
+    const fmtUsd = (v: number) => v >= 1e6 ? `$${(v / 1e6).toFixed(1)}M` : v >= 1e3 ? `$${(v / 1e3).toFixed(1)}K` : `$${v.toLocaleString()}`;
+    mockService = liveData ?? {
+      service_type: "nft-market",
+      result: nm.collections.slice(0, 3).map((c) => `${c.symbol} floor ${fmtUsd(c.floor_price_usd)} (${c.change_24h_pct >= 0 ? "+" : ""}${c.change_24h_pct.toFixed(1)}%)`).join(" · "),
+      nft_market: nm,
       timestamp: new Date().toISOString(),
       delivered_to: "Demo1234...abcd",
     };
@@ -3634,6 +3664,44 @@ function ServiceResultTable({ service }: { service: ServiceResult }) {
         </div>
         <p style={{ marginTop: 4, fontSize: 12, color: "#888" }}>
           On-chain activity · via blockchain.com
+        </p>
+      </div>
+    );
+  }
+
+  if (service.service_type === "nft-market" && service.nft_market) {
+    const nm = service.nft_market;
+    const fmtUsd = (v: number) =>
+      v >= 1e6 ? `$${(v / 1e6).toFixed(1)}M` : v >= 1e3 ? `$${(v / 1e3).toFixed(1)}K` : `$${v.toLocaleString()}`;
+    const changeColor = (pct: number) => (pct >= 0 ? "#1a7a3a" : "#c0392b");
+    return (
+      <div>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+          <thead>
+            <tr style={{ borderBottom: "1px solid #eee" }}>
+              <th style={{ textAlign: "left", padding: "4px 8px", color: "#aaa", fontWeight: 500 }}>Collection</th>
+              <th style={{ textAlign: "right", padding: "4px 8px", color: "#aaa", fontWeight: 500 }}>Floor (ETH)</th>
+              <th style={{ textAlign: "right", padding: "4px 8px", color: "#aaa", fontWeight: 500 }}>Floor (USD)</th>
+              <th style={{ textAlign: "right", padding: "4px 8px", color: "#aaa", fontWeight: 500 }}>24h Change</th>
+              <th style={{ textAlign: "right", padding: "4px 8px", color: "#aaa", fontWeight: 500 }}>24h Vol</th>
+            </tr>
+          </thead>
+          <tbody>
+            {nm.collections.map((c) => (
+              <tr key={c.symbol} style={{ borderBottom: "1px solid #f5f5f5" }}>
+                <td style={{ padding: "6px 8px", fontWeight: 600, color: "#222" }}>{c.name}</td>
+                <td style={{ padding: "6px 8px", textAlign: "right", color: "#555" }}>{c.floor_price_eth.toFixed(2)} ETH</td>
+                <td style={{ padding: "6px 8px", textAlign: "right", color: "#222", fontWeight: 500 }}>{fmtUsd(c.floor_price_usd)}</td>
+                <td style={{ padding: "6px 8px", textAlign: "right", fontWeight: 600, color: changeColor(c.change_24h_pct) }}>
+                  {c.change_24h_pct >= 0 ? "+" : ""}{c.change_24h_pct.toFixed(1)}%
+                </td>
+                <td style={{ padding: "6px 8px", textAlign: "right", color: "#555" }}>{fmtUsd(c.volume_24h_usd)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <p style={{ marginTop: 8, fontSize: 12, color: "#888" }}>
+          {nm.collections.length} collections · sorted by 24h volume · via CoinGecko
         </p>
       </div>
     );
