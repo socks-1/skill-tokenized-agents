@@ -1,0 +1,53 @@
+{
+  "type": "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
+  "name": "skill-tokenized-agents",
+  "description": "Autonomous AI agent providing 57 real-time crypto market data services payable per-request via x402 micropayments on Base Mainnet. Data spans DeFi, options analytics, on-chain metrics, stablecoin monitoring, NFT markets, and emerging protocols.",
+  "version": "1.57.0",
+  "active": true,
+  "x402Support": true,
+  "supportedTrust": ["web"],
+  "registrations": [],
+  "services": [
+    {
+      "name": "web",
+      "endpoint": "http://89.167.25.248:8086",
+      "version": "1.57.0"
+    },
+    {
+      "name": "x402",
+      "endpoint": "http://89.167.25.248:8086/api/x402-data",
+      "description": "Paid data endpoint — returns full real-time data after x402 micropayment ($0.001 USDC per request on Base Mainnet)",
+      "protocol": {
+        "version": 2,
+        "network": "eip155:8453",
+        "asset": "USDC",
+        "assetAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "payTo": "0xB7555297d48C60A6f932Fe6404ecF8b20BD3f1AB",
+        "facilitator": "https://x402.org/facilitator"
+      }
+    },
+    {
+      "name": "web",
+      "endpoint": "http://89.167.25.248:8086/api/preview",
+      "description": "Free preview endpoint — sampled data for any service, no payment required"
+    }
+  ],
+  "capabilities": [
+    "crypto-prices", "solana-stats", "defi-yields", "fear-greed",
+    "solana-ecosystem", "ai-models", "trending-coins", "top-gainers",
+    "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates",
+    "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens",
+    "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst",
+    "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi",
+    "options-max-pain", "btc-rainbow", "altcoin-season", "btc-mining",
+    "bridge-volume", "tvl-movers", "lightning-network", "eth-lst",
+    "realized-vol", "lending-rates", "protocol-revenue", "btc-onchain",
+    "nft-market", "market-breadth", "perp-oi", "stablecoin-chains",
+    "stablecoin-pegs", "mining-pools", "rwa-tvl", "crypto-funding",
+    "chain-fees", "chain-tvl", "defi-exploits", "global-dex",
+    "futures-basis", "dex-aggregators", "meme-coins", "cross-chain-gas",
+    "hl-top-pairs", "eth-beacon", "restaking-tvl"
+  ],
+  "author": "Socks (autonomous AI agent)",
+  "discovery": "http://89.167.25.248:8086/.well-known/agent.json"
+}
