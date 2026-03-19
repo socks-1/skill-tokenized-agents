@@ -79,6 +79,8 @@ import type {
   HlPairEntry,
   HlTopPairsData,
   EthBeaconData,
+  RestakingProtocolEntry,
+  RestakingData,
 } from "@/lib/services";
 
 interface InvoiceParams {
@@ -512,6 +514,13 @@ const SERVICE_OPTIONS: { id: ServiceType; label: string; description: string; pr
     description: "Live Ethereum proof-of-stake network health: active validator count, total ETH staked, global participation rate, and entry/exit queue depth. Essential metrics for understanding network security and staking demand. Via beaconcha.in public API.",
     price: "1 USDC",
     category: "Market Data",
+  },
+  {
+    id: "restaking-tvl",
+    label: "Restaking Protocol TVL Rankings",
+    description: "Total TVL locked across restaking and liquid restaking protocols: EigenLayer, Symbiotic, Kelp, Puffer, and more. Shows the size of the restaking economy, dominant protocol share, and 1d/7d TVL changes. Via DeFi Llama public API.",
+    price: "1 USDC",
+    category: "DeFi",
   },
 ];
 
@@ -1308,6 +1317,19 @@ const MOCK_ETH_BEACON: EthBeaconData = {
   block_number: 24_688_254,
   base_fee_gwei: 0.0995,
   gas_util_pct: 47.2,
+};
+
+const MOCK_RESTAKING_TVL: RestakingData = {
+  protocols: [
+    { name: "EigenLayer", tvl: 11_200_000_000, change_1d_pct: 0.4, change_7d_pct: -2.1, chains: ["Ethereum"], category: "Restaking" },
+    { name: "Symbiotic", tvl: 2_800_000_000, change_1d_pct: 1.2, change_7d_pct: 4.5, chains: ["Ethereum"], category: "Restaking" },
+    { name: "Kelp DAO", tvl: 1_650_000_000, change_1d_pct: -0.3, change_7d_pct: 1.8, chains: ["Ethereum", "Arbitrum"], category: "Liquid Restaking" },
+    { name: "Puffer Finance", tvl: 980_000_000, change_1d_pct: 0.7, change_7d_pct: -0.9, chains: ["Ethereum"], category: "Liquid Restaking" },
+    { name: "ether.fi", tvl: 820_000_000, change_1d_pct: 0.2, change_7d_pct: 3.1, chains: ["Ethereum"], category: "Liquid Restaking" },
+  ],
+  total_tvl: 17_450_000_000,
+  top_protocol: "EigenLayer",
+  dominant_pct: 64.2,
 };
 
 const MOCK_SIGNATURE =
@@ -2446,6 +2468,16 @@ function buildTourSteps(serviceType: ServiceType, liveData?: ServiceResult): Pay
       service_type: "eth-beacon",
       result: `Epoch ${eb.epoch.toLocaleString()} · Block #${eb.block_number.toLocaleString()} · ${eb.gas_util_pct.toFixed(1)}% gas · Base fee ${eb.base_fee_gwei.toFixed(4)} Gwei`,
       eth_beacon: eb,
+      timestamp: new Date().toISOString(),
+      delivered_to: "Demo1234...abcd",
+    };
+  } else if (serviceType === "restaking-tvl") {
+    const rd = liveData?.restaking_tvl ?? MOCK_RESTAKING_TVL;
+    const fmtTvl = (v: number) => v >= 1e9 ? `$${(v / 1e9).toFixed(2)}B` : `$${(v / 1e6).toFixed(0)}M`;
+    mockService = liveData ?? {
+      service_type: "restaking-tvl",
+      result: `Total restaking: ${fmtTvl(rd.total_tvl)} · #1: ${rd.top_protocol} (${rd.dominant_pct.toFixed(1)}%) · ${rd.protocols.length} protocols`,
+      restaking_tvl: rd,
       timestamp: new Date().toISOString(),
       delivered_to: "Demo1234...abcd",
     };
@@ -5350,6 +5382,40 @@ function ServiceResultTable({ service }: { service: ServiceResult }) {
         <p style={{ marginTop: 6, fontSize: 12, color: "#888" }}>
           Ethereum network health · CL via publicnode.com Beacon API · EL via Ethereum JSON-RPC
         </p>
+      </div>
+    );
+  }
+
+  if (service.service_type === "restaking-tvl" && service.restaking_tvl) {
+    const rd = service.restaking_tvl;
+    const fmtTvl = (v: number) => v >= 1e9 ? `$${(v / 1e9).toFixed(2)}B` : `$${(v / 1e6).toFixed(0)}M`;
+    const fmtChg = (v: number | null) => v == null ? "—" : `${v >= 0 ? "+" : ""}${v.toFixed(1)}%`;
+    const chgColor = (v: number | null) => v == null ? "#999" : v >= 0 ? "#15803d" : "#dc2626";
+    return (
+      <div>
+        <div style={{ marginBottom: 10, padding: "6px 10px", background: "#f0f9ff", borderRadius: 6, border: "1px solid #bae6fd" }}>
+          <span style={{ fontWeight: 700, fontSize: 14, color: "#0369a1" }}>Total Restaking TVL: {fmtTvl(rd.total_tvl)}</span>
+          <span style={{ fontSize: 12, color: "#666", marginLeft: 8 }}>· {rd.top_protocol} dominates ({rd.dominant_pct.toFixed(1)}%)</span>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          {rd.protocols.slice(0, 8).map((p, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 10px", background: i === 0 ? "#f8faff" : "#fafafa", borderRadius: 6, border: "1px solid #e5e7eb" }}>
+              <div>
+                <span style={{ fontWeight: 600, fontSize: 13, color: "#111" }}>{p.name}</span>
+                <span style={{ fontSize: 11, color: "#888", marginLeft: 6 }}>{p.category}</span>
+              </div>
+              <div style={{ textAlign: "right" }}>
+                <div style={{ fontWeight: 700, fontSize: 14, color: "#111" }}>{fmtTvl(p.tvl)}</div>
+                <div style={{ fontSize: 11 }}>
+                  <span style={{ color: chgColor(p.change_1d_pct) }}>{fmtChg(p.change_1d_pct)} 1d</span>
+                  <span style={{ color: "#ccc", margin: "0 3px" }}>·</span>
+                  <span style={{ color: chgColor(p.change_7d_pct) }}>{fmtChg(p.change_7d_pct)} 7d</span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+        <p style={{ marginTop: 8, fontSize: 12, color: "#888" }}>Restaking economy · Via DeFi Llama</p>
       </div>
     );
   }

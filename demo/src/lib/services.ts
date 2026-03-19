@@ -3,10 +3,10 @@
  * All functions are read-only calls to public APIs — no auth required.
  */
 
-export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season" | "btc-mining" | "bridge-volume" | "tvl-movers" | "lightning-network" | "eth-lst" | "realized-vol" | "lending-rates" | "protocol-revenue" | "btc-onchain" | "nft-market" | "market-breadth" | "perp-oi" | "stablecoin-chains" | "stablecoin-pegs" | "mining-pools" | "rwa-tvl" | "crypto-funding" | "chain-fees" | "chain-tvl" | "defi-exploits" | "global-dex" | "futures-basis" | "dex-aggregators" | "meme-coins" | "cross-chain-gas" | "hl-top-pairs" | "eth-beacon";
+export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season" | "btc-mining" | "bridge-volume" | "tvl-movers" | "lightning-network" | "eth-lst" | "realized-vol" | "lending-rates" | "protocol-revenue" | "btc-onchain" | "nft-market" | "market-breadth" | "perp-oi" | "stablecoin-chains" | "stablecoin-pegs" | "mining-pools" | "rwa-tvl" | "crypto-funding" | "chain-fees" | "chain-tvl" | "defi-exploits" | "global-dex" | "futures-basis" | "dex-aggregators" | "meme-coins" | "cross-chain-gas" | "hl-top-pairs" | "eth-beacon" | "restaking-tvl";
 
 /** All valid service type strings — use this for runtime validation instead of duplicating the list. */
-export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season", "btc-mining", "bridge-volume", "tvl-movers", "lightning-network", "eth-lst", "realized-vol", "lending-rates", "protocol-revenue", "btc-onchain", "nft-market", "market-breadth", "perp-oi", "stablecoin-chains", "stablecoin-pegs", "mining-pools", "rwa-tvl", "crypto-funding", "chain-fees", "chain-tvl", "defi-exploits", "global-dex", "futures-basis", "dex-aggregators", "meme-coins", "cross-chain-gas", "hl-top-pairs", "eth-beacon"];
+export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season", "btc-mining", "bridge-volume", "tvl-movers", "lightning-network", "eth-lst", "realized-vol", "lending-rates", "protocol-revenue", "btc-onchain", "nft-market", "market-breadth", "perp-oi", "stablecoin-chains", "stablecoin-pegs", "mining-pools", "rwa-tvl", "crypto-funding", "chain-fees", "chain-tvl", "defi-exploits", "global-dex", "futures-basis", "dex-aggregators", "meme-coins", "cross-chain-gas", "hl-top-pairs", "eth-beacon", "restaking-tvl"];
 
 export interface MarketData {
   symbol: string;
@@ -716,6 +716,7 @@ export interface ServiceResult {
   cross_chain_gas?: CrossChainGasData;
   hl_top_pairs?: HlTopPairsData;
   eth_beacon?: EthBeaconData;
+  restaking_tvl?: RestakingData;
   timestamp: string;
   delivered_to: string;
 }
@@ -801,6 +802,22 @@ export interface EthBeaconData {
   block_number: number;
   base_fee_gwei: number;
   gas_util_pct: number;          // gas used / gas limit * 100
+}
+
+export interface RestakingProtocolEntry {
+  name: string;
+  tvl: number;             // USD
+  change_1d_pct: number | null;
+  change_7d_pct: number | null;
+  chains: string[];        // top chains (up to 3)
+  category: string;        // e.g. "Restaking", "Liquid Restaking"
+}
+
+export interface RestakingData {
+  protocols: RestakingProtocolEntry[];  // sorted by TVL descending
+  total_tvl: number;                    // total restaking TVL in USD
+  top_protocol: string;                 // name of largest protocol
+  dominant_pct: number;                 // top protocol % of total TVL
 }
 
 /**
@@ -3281,6 +3298,7 @@ export async function deliverService(delivered_to: string, serviceType: ServiceT
   if (serviceType === "cross-chain-gas") return deliverCrossChainGas(delivered_to, timestamp);
   if (serviceType === "hl-top-pairs") return deliverHlTopPairs(delivered_to, timestamp);
   if (serviceType === "eth-beacon") return deliverEthBeacon(delivered_to, timestamp);
+  if (serviceType === "restaking-tvl") return deliverRestakingTvl(delivered_to, timestamp);
   return deliverCryptoPrices(delivered_to, timestamp);
 }
 
@@ -4718,4 +4736,74 @@ export async function deliverEthBeacon(delivered_to: string, timestamp: string):
     : "ETH beacon chain data temporarily unavailable";
 
   return { service_type: "eth-beacon", result, eth_beacon, timestamp, delivered_to };
+}
+
+let _restakingCache: { data: RestakingData; expires: number } | null = null;
+
+/**
+ * Fetches restaking protocol TVL rankings via DeFi Llama /protocols.
+ * Filters for Restaking and Liquid Restaking categories.
+ * EigenLayer, Symbiotic, Kelp, Puffer, and similar protocols.
+ * Uses a 10-minute server-side cache.
+ */
+export async function deliverRestakingTvl(delivered_to: string, timestamp: string): Promise<ServiceResult> {
+  if (_restakingCache && Date.now() < _restakingCache.expires) {
+    const rd = _restakingCache.data;
+    const fmtTvl = (v: number) => v >= 1e9 ? `$${(v / 1e9).toFixed(2)}B` : `$${(v / 1e6).toFixed(0)}M`;
+    const result = `Total restaking: ${fmtTvl(rd.total_tvl)} · #1: ${rd.top_protocol} (${rd.dominant_pct.toFixed(1)}%) · ${rd.protocols.length} protocols`;
+    return { service_type: "restaking-tvl", result, restaking_tvl: rd, timestamp, delivered_to };
+  }
+
+  let restaking_tvl: RestakingData | undefined;
+
+  try {
+    const res = await fetch("https://api.llama.fi/protocols", {
+      signal: AbortSignal.timeout(12000),
+      headers: { "User-Agent": "skill-tokenized-agents/1.0", Accept: "application/json" },
+    });
+    if (!res.ok) throw new Error(`DeFi Llama HTTP ${res.status}`);
+
+    const protocols = await res.json() as Array<{
+      name: string;
+      tvl: number | null;
+      change_1d: number | null;
+      change_7d: number | null;
+      chains: string[];
+      category: string | null;
+    }>;
+
+    const RESTAKING_CATEGORIES = new Set(["Restaking", "Liquid Restaking"]);
+
+    const entries = protocols
+      .filter((p) => RESTAKING_CATEGORIES.has(p.category ?? "") && (p.tvl ?? 0) > 0)
+      .sort((a, b) => (b.tvl ?? 0) - (a.tvl ?? 0))
+      .slice(0, 12)
+      .map((p): RestakingProtocolEntry => ({
+        name: p.name,
+        tvl: p.tvl ?? 0,
+        change_1d_pct: p.change_1d ?? null,
+        change_7d_pct: p.change_7d ?? null,
+        chains: (p.chains ?? []).slice(0, 3),
+        category: p.category ?? "Restaking",
+      }));
+
+    if (entries.length === 0) throw new Error("No restaking protocols found");
+
+    const total_tvl = entries.reduce((s, p) => s + p.tvl, 0);
+    const top_protocol = entries[0].name;
+    const dominant_pct = Math.round((entries[0].tvl / total_tvl) * 1000) / 10;
+
+    restaking_tvl = { protocols: entries, total_tvl, top_protocol, dominant_pct };
+    _restakingCache = { data: restaking_tvl, expires: Date.now() + 10 * 60 * 1000 };
+  } catch {
+    // Fall through with undefined
+  }
+
+  const fmtTvl = (v: number) => v >= 1e9 ? `$${(v / 1e9).toFixed(2)}B` : `$${(v / 1e6).toFixed(0)}M`;
+
+  const result = restaking_tvl && restaking_tvl.protocols.length > 0
+    ? `Total restaking: ${fmtTvl(restaking_tvl.total_tvl)} · #1: ${restaking_tvl.top_protocol} (${restaking_tvl.dominant_pct.toFixed(1)}%) · ${restaking_tvl.protocols.length} protocols`
+    : "Restaking TVL data temporarily unavailable";
+
+  return { service_type: "restaking-tvl", result, restaking_tvl, timestamp, delivered_to };
 }

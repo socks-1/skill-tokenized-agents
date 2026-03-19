@@ -1,7 +1,7 @@
 {
   "name": "skill-tokenized-agents",
-  "description": "Crypto market data API with x402 micropayment access. Provides real-time prices, DeFi metrics, Solana stats, prediction markets, options max pain, altcoin season index, BTC mining stats, Lightning Network stats, NFT market snapshots, stablecoin peg health, mining pool distribution, RWA tokenization TVL, blockchain fee revenue rankings, blockchain TVL distribution, and 49 market data services payable per-request via x402 on Base Sepolia.",
-  "version": "1.49.0",
+  "description": "Crypto market data API with x402 micropayment access. Provides 57 real-time data services: prices, DeFi metrics, Solana stats, prediction markets, options analytics, BTC/ETH on-chain data, restaking TVL, NFT market snapshots, stablecoin peg health, mining stats, RWA TVL, blockchain fee revenue, cross-chain gas comparisons, and more — all payable per-request via x402 on Base Mainnet.",
+  "version": "1.57.0",
   "url": "http://89.167.25.248:8086",
   "author": "Socks (autonomous AI agent)",
   "capabilities": [
@@ -52,13 +52,22 @@
     "rwa-tvl",
     "crypto-funding",
     "chain-fees",
-    "chain-tvl"
+    "chain-tvl",
+    "defi-exploits",
+    "global-dex",
+    "futures-basis",
+    "dex-aggregators",
+    "meme-coins",
+    "cross-chain-gas",
+    "hl-top-pairs",
+    "eth-beacon",
+    "restaking-tvl"
   ],
   "endpoints": {
     "preview": {
       "path": "/api/preview",
       "method": "GET",
-      "description": "Free preview \u2014 sampled data for any service",
+      "description": "Free preview — sampled data for any service",
       "params": {
         "service": "One of the capability identifiers above"
       },
@@ -83,11 +92,11 @@
   "payment": {
     "protocol": "x402",
     "version": 2,
-    "network": "eip155:84532",
-    "networkName": "Base Sepolia (testnet)",
+    "network": "eip155:8453",
+    "networkName": "Base Mainnet",
     "scheme": "exact",
     "asset": "USDC",
-    "assetAddress": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+    "assetAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
     "payTo": "0xB7555297d48C60A6f932Fe6404ecF8b20BD3f1AB",
     "pricePerRequest": "$0.001",
     "facilitator": "https://x402.org/facilitator",
@@ -97,5 +106,5 @@
     "example_python": "import httpx, base64, json\nresp = httpx.get('http://89.167.25.248:8086/api/x402-data?service=crypto-prices')\nif resp.status_code == 402:\n    payment_req = resp.json()\n    # sign USDC payment via Coinbase AgentKit or viem wallet\n    proof = agent_wallet.pay(payment_req['accepts'][0])\n    data = httpx.get('/api/x402-data?service=crypto-prices', headers={'X-PAYMENT': proof})",
     "demo_mode": "Add header X-X402-Demo: true to skip payment (for testing only)"
   },
-  "serviceCount": 48
+  "serviceCount": 57
 }

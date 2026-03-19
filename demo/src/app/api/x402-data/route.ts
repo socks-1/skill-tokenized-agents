@@ -5,10 +5,10 @@
  *
  * HOW IT WORKS:
  * 1. Request without payment → HTTP 402 with machine-readable payment requirements
- * 2. Agent reads the 402 body, creates a USDC payment on Base Sepolia, submits proof
+ * 2. Agent reads the 402 body, creates a USDC payment on Base Mainnet, submits proof
  * 3. Request with X-PAYMENT header → verified against x402.org/facilitator → data delivered
  *
- * NETWORK: Base Sepolia (eip155:84532) — testnet USDC
+ * NETWORK: Base Mainnet (eip155:8453) — real USDC
  * FACILITATOR: https://x402.org/facilitator (Coinbase-hosted)
  * RECEIVER: 0xB7555297d48C60A6f932Fe6404ecF8b20BD3f1AB
  * PRICE: $0.001 USDC per request
@@ -30,8 +30,8 @@ import { deliverService, ALL_SERVICE_TYPES, type ServiceType } from "@/lib/servi
 
 const VALID_SERVICES = ALL_SERVICE_TYPES;
 
-// Base Sepolia USDC contract address (testnet)
-const USDC_BASE_SEPOLIA = "0x036CbD53842c5426634e7929541eC2318f3dCF7e";
+// Base Mainnet USDC contract address
+const USDC_BASE_MAINNET = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
 
 // Receiver address on Base Sepolia
 const RECEIVER_ADDRESS =
@@ -72,14 +72,14 @@ function buildPaymentRequired(url: string): { x402Version: number; accepts: Clie
     accepts: [
       {
         scheme: "exact",
-        network: "eip155:84532", // Base Sepolia
+        network: "eip155:8453", // Base Mainnet
         maxAmountRequired: PRICE_MICRO_USDC,
         resource: url,
-        description: "One data query from skill-tokenized-agents ($0.001 USDC on Base Sepolia)",
+        description: "One data query from skill-tokenized-agents ($0.001 USDC on Base Mainnet)",
         mimeType: "application/json",
         payTo: RECEIVER_ADDRESS,
         maxTimeoutSeconds: 300,
-        asset: USDC_BASE_SEPOLIA,
+        asset: USDC_BASE_MAINNET,
         extra: {
           name: "USDC",
           version: "2",
@@ -180,7 +180,7 @@ export async function GET(req: NextRequest) {
         {
           error: "Invalid or rejected payment.",
           reason,
-          hint: "Ensure payment is on eip155:84532 (Base Sepolia) with USDC at 0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+          hint: "Ensure payment is on eip155:8453 (Base Mainnet) with USDC at 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
         },
         { status: 402 }
       );
