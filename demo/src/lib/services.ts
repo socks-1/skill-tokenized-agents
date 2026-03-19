@@ -3,10 +3,10 @@
  * All functions are read-only calls to public APIs — no auth required.
  */
 
-export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season" | "btc-mining" | "bridge-volume" | "tvl-movers" | "lightning-network" | "eth-lst" | "realized-vol" | "lending-rates" | "protocol-revenue" | "btc-onchain" | "nft-market" | "market-breadth" | "perp-oi" | "stablecoin-chains" | "stablecoin-pegs" | "mining-pools" | "rwa-tvl" | "crypto-funding" | "chain-fees" | "chain-tvl" | "defi-exploits" | "global-dex" | "futures-basis" | "dex-aggregators" | "meme-coins" | "cross-chain-gas" | "hl-top-pairs" | "eth-beacon" | "restaking-tvl" | "btc-halving" | "sol-validators" | "stable-yields" | "btc-treasury" | "eth-blob";
+export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season" | "btc-mining" | "bridge-volume" | "tvl-movers" | "lightning-network" | "eth-lst" | "realized-vol" | "lending-rates" | "protocol-revenue" | "btc-onchain" | "nft-market" | "market-breadth" | "perp-oi" | "stablecoin-chains" | "stablecoin-pegs" | "mining-pools" | "rwa-tvl" | "crypto-funding" | "chain-fees" | "chain-tvl" | "defi-exploits" | "global-dex" | "futures-basis" | "dex-aggregators" | "meme-coins" | "cross-chain-gas" | "hl-top-pairs" | "eth-beacon" | "restaking-tvl" | "btc-halving" | "sol-validators" | "stable-yields" | "btc-treasury" | "eth-blob" | "eth-supply";
 
 /** All valid service type strings — use this for runtime validation instead of duplicating the list. */
-export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season", "btc-mining", "bridge-volume", "tvl-movers", "lightning-network", "eth-lst", "realized-vol", "lending-rates", "protocol-revenue", "btc-onchain", "nft-market", "market-breadth", "perp-oi", "stablecoin-chains", "stablecoin-pegs", "mining-pools", "rwa-tvl", "crypto-funding", "chain-fees", "chain-tvl", "defi-exploits", "global-dex", "futures-basis", "dex-aggregators", "meme-coins", "cross-chain-gas", "hl-top-pairs", "eth-beacon", "restaking-tvl", "btc-halving", "sol-validators", "stable-yields", "btc-treasury", "eth-blob"];
+export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season", "btc-mining", "bridge-volume", "tvl-movers", "lightning-network", "eth-lst", "realized-vol", "lending-rates", "protocol-revenue", "btc-onchain", "nft-market", "market-breadth", "perp-oi", "stablecoin-chains", "stablecoin-pegs", "mining-pools", "rwa-tvl", "crypto-funding", "chain-fees", "chain-tvl", "defi-exploits", "global-dex", "futures-basis", "dex-aggregators", "meme-coins", "cross-chain-gas", "hl-top-pairs", "eth-beacon", "restaking-tvl", "btc-halving", "sol-validators", "stable-yields", "btc-treasury", "eth-blob", "eth-supply"];
 
 export interface MarketData {
   symbol: string;
@@ -704,6 +704,17 @@ export interface EthBlobData {
   blob_cost_eth: number;           // cost in ETH to submit one blob (131072 bytes)
 }
 
+export interface EthSupplyData {
+  burn_per_hour: number;              // ETH burned per hour via EIP-1559 base fee
+  issuance_per_hour: number;          // ETH issued to validators per hour (~1700 ETH/day)
+  net_per_hour: number;               // burn - issuance (positive = deflationary)
+  is_deflationary: boolean;           // true when burn > issuance
+  base_fee_gwei: number;              // current base fee in gwei (avg over sampled blocks)
+  deflation_threshold_gwei: number;   // base fee needed for ETH to be deflationary
+  blocks_sampled: number;             // number of blocks used in calculation
+  supply_change_pct_annual: number;   // annualized net supply change %
+}
+
 export interface ServiceResult {
   service_type: ServiceType;
   result: string;
@@ -769,6 +780,7 @@ export interface ServiceResult {
   stable_yields?: StableYieldsData;
   btc_treasury?: BtcTreasuryData;
   eth_blob?: EthBlobData;
+  eth_supply?: EthSupplyData;
   timestamp: string;
   delivered_to: string;
 }
@@ -3398,6 +3410,7 @@ export async function deliverService(delivered_to: string, serviceType: ServiceT
   if (serviceType === "stable-yields") return deliverStableYields(delivered_to, timestamp);
   if (serviceType === "btc-treasury") return deliverBtcTreasury(delivered_to, timestamp);
   if (serviceType === "eth-blob") return deliverEthBlob(delivered_to, timestamp);
+  if (serviceType === "eth-supply") return deliverEthSupply(delivered_to, timestamp);
   return deliverCryptoPrices(delivered_to, timestamp);
 }
 
@@ -5334,4 +5347,119 @@ export async function deliverEthBlob(delivered_to: string, timestamp: string): P
     : "Ethereum blob fee data temporarily unavailable";
 
   return { service_type: "eth-blob", result, eth_blob, timestamp, delivered_to };
+}
+
+// EIP-1559 ETH supply dynamics: burn rate vs validator issuance
+// Uses batch JSON-RPC to sample 20 recent blocks and compute average burn
+const ETH_SUPPLY_TTL = 30 * 1000; // 30 seconds
+let _ethSupplyCache: { data: EthSupplyData; expires: number } | null = null;
+
+// ETH PoS issuance is approximately 1700 ETH/day with ~1M active validators
+// Formula: base_rewards * 64 * slots/day ≈ 1700 ETH/day
+const ETH_ISSUANCE_PER_DAY = 1700;
+const BLOCKS_PER_HOUR = 300; // ~12s block time
+
+export async function deliverEthSupply(delivered_to: string, timestamp: string): Promise<ServiceResult> {
+  if (_ethSupplyCache && Date.now() < _ethSupplyCache.expires) {
+    const es = _ethSupplyCache.data;
+    const sign = es.net_per_hour >= 0 ? "+" : "";
+    const status = es.is_deflationary ? "🔥 Deflationary" : "Inflationary";
+    const result = `${status} · Burn: ${es.burn_per_hour.toFixed(2)} ETH/hr · Issue: ${es.issuance_per_hour.toFixed(2)} ETH/hr · Net: ${sign}${es.net_per_hour.toFixed(2)} ETH/hr`;
+    return { service_type: "eth-supply", result, eth_supply: es, timestamp, delivered_to };
+  }
+
+  let eth_supply: EthSupplyData | undefined;
+
+  try {
+    const EL_URL = "https://ethereum.publicnode.com";
+    const headers = { "Content-Type": "application/json", "User-Agent": "skill-tokenized-agents/1.0" };
+
+    // Get latest block number
+    const latestRes = await fetch(EL_URL, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ jsonrpc: "2.0", method: "eth_blockNumber", params: [], id: 0 }),
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!latestRes.ok) throw new Error(`HTTP ${latestRes.status}`);
+    const latestJson = await latestRes.json() as { result: string };
+    const latestBlock = parseInt(latestJson.result, 16);
+
+    // Batch fetch last 20 blocks
+    const SAMPLES = 20;
+    const batch = Array.from({ length: SAMPLES }, (_, i) => ({
+      jsonrpc: "2.0",
+      id: i + 1,
+      method: "eth_getBlockByNumber",
+      params: [("0x" + (latestBlock - SAMPLES + i + 1).toString(16)), false],
+    }));
+
+    const batchRes = await fetch(EL_URL, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(batch),
+      signal: AbortSignal.timeout(15000),
+    });
+    if (!batchRes.ok) throw new Error(`Batch HTTP ${batchRes.status}`);
+    const blocks = await batchRes.json() as Array<{ result: { baseFeePerGas: string; gasUsed: string } }>;
+
+    let totalBurnEth = 0;
+    let totalBaseFeeWei = BigInt(0);
+    let totalGasUsed = BigInt(0);
+    let validBlocks = 0;
+
+    for (const b of blocks) {
+      if (!b.result) continue;
+      const baseFeeWei = BigInt(b.result.baseFeePerGas);
+      const gasUsed = BigInt(b.result.gasUsed);
+      const burnWei = baseFeeWei * gasUsed;
+      totalBurnEth += Number(burnWei) / 1e18;
+      totalBaseFeeWei += baseFeeWei;
+      totalGasUsed += gasUsed;
+      validBlocks++;
+    }
+
+    if (validBlocks === 0) throw new Error("No valid blocks");
+
+    const avgBurnPerBlock = totalBurnEth / validBlocks;
+    const burnPerHour = avgBurnPerBlock * BLOCKS_PER_HOUR;
+    const issuancePerHour = ETH_ISSUANCE_PER_DAY / 24;
+    const netPerHour = burnPerHour - issuancePerHour;
+    const avgBaseFeeGwei = Number(totalBaseFeeWei / BigInt(validBlocks)) / 1e9;
+    const avgGasUsed = Number(totalGasUsed) / validBlocks;
+
+    // Threshold: what base fee makes burn == issuance per block?
+    // issuance_per_block = ETH_ISSUANCE_PER_DAY / 24 / BLOCKS_PER_HOUR ETH
+    // threshold_wei = issuance_per_block * 1e18 / avg_gas_used
+    const issuancePerBlockEth = issuancePerHour / BLOCKS_PER_HOUR;
+    const deflationThresholdGwei = avgGasUsed > 0
+      ? (issuancePerBlockEth * 1e18) / avgGasUsed / 1e9
+      : 0;
+
+    // Annualized supply change (ETH supply ~120M)
+    const netPerYear = netPerHour * 8760;
+    const supplyChangePctAnnual = (netPerYear / 120_000_000) * 100;
+
+    eth_supply = {
+      burn_per_hour: parseFloat(burnPerHour.toFixed(3)),
+      issuance_per_hour: parseFloat(issuancePerHour.toFixed(3)),
+      net_per_hour: parseFloat(netPerHour.toFixed(3)),
+      is_deflationary: netPerHour > 0,
+      base_fee_gwei: parseFloat(avgBaseFeeGwei.toFixed(4)),
+      deflation_threshold_gwei: parseFloat(deflationThresholdGwei.toFixed(2)),
+      blocks_sampled: validBlocks,
+      supply_change_pct_annual: parseFloat(supplyChangePctAnnual.toFixed(4)),
+    };
+
+    _ethSupplyCache = { data: eth_supply, expires: Date.now() + ETH_SUPPLY_TTL };
+  } catch {
+    // Fall through with undefined eth_supply
+  }
+
+  const sign = eth_supply && eth_supply.net_per_hour >= 0 ? "+" : "";
+  const result = eth_supply
+    ? `${eth_supply.is_deflationary ? "Deflationary" : "Inflationary"} · Burn: ${eth_supply.burn_per_hour.toFixed(2)} ETH/hr · Issue: ${eth_supply.issuance_per_hour.toFixed(2)} ETH/hr · Net: ${sign}${eth_supply.net_per_hour.toFixed(2)} ETH/hr`
+    : "ETH supply dynamics data temporarily unavailable";
+
+  return { service_type: "eth-supply", result, eth_supply, timestamp, delivered_to };
 }

@@ -90,6 +90,7 @@ import type {
   BtcTreasuryCompany,
   BtcTreasuryData,
   EthBlobData,
+  EthSupplyData,
 } from "@/lib/services";
 
 interface InvoiceParams {
@@ -563,6 +564,13 @@ const SERVICE_OPTIONS: { id: ServiceType; label: string; description: string; pr
     id: "eth-blob",
     label: "Ethereum Blob Fee Market",
     description: "Post-EIP-4844 blobspace snapshot — current blob base fee in gwei, latest block blob utilization (0–6 blobs), fee tier signal, and cost in ETH to submit one 128 KB blob. Essential for L2 rollups managing data-availability costs. Via Ethereum JSON-RPC.",
+    price: "1 USDC",
+    category: "Market Data",
+  },
+  {
+    id: "eth-supply",
+    label: "ETH Supply Dynamics",
+    description: "Is ETH deflationary right now? Real-time burn rate from EIP-1559 base fees vs validator issuance (~1700 ETH/day), net supply change per hour, annualized supply change %, and the base fee threshold needed to tip ETH into deflation. Sampled from 20 recent blocks. Via Ethereum JSON-RPC.",
     price: "1 USDC",
     category: "Market Data",
   },
@@ -1470,6 +1478,17 @@ const MOCK_ETH_BLOB: EthBlobData = {
   block_number: 22_000_000,
   fee_tier: "Cheap",
   blob_cost_eth: 0.000472,
+};
+
+const MOCK_ETH_SUPPLY: EthSupplyData = {
+  burn_per_hour: 0.59,
+  issuance_per_hour: 70.83,
+  net_per_hour: -70.24,
+  is_deflationary: false,
+  base_fee_gwei: 0.07,
+  deflation_threshold_gwei: 15.74,
+  blocks_sampled: 20,
+  supply_change_pct_annual: -0.513,
 };
 
 const MOCK_SIGNATURE =
@@ -2665,6 +2684,16 @@ function buildTourSteps(serviceType: ServiceType, liveData?: ServiceResult): Pay
       service_type: "btc-treasury",
       result: `${fmtBtc(bt.total_holdings)} BTC ($${(bt.total_value_usd / 1e9).toFixed(1)}B) · ${bt.company_count} companies · #1: ${bt.top_holder} (${fmtBtc(bt.top_holder_btc)} BTC, ${bt.top_holder_pct.toFixed(1)}% of corp holdings)`,
       btc_treasury: bt,
+      timestamp: new Date().toISOString(),
+      delivered_to: "Demo1234...abcd",
+    };
+  } else if (serviceType === "eth-supply") {
+    const es = liveData?.eth_supply ?? MOCK_ETH_SUPPLY;
+    const sign = es.net_per_hour >= 0 ? "+" : "";
+    mockService = liveData ?? {
+      service_type: "eth-supply",
+      result: `${es.is_deflationary ? "Deflationary" : "Inflationary"} · Burn: ${es.burn_per_hour.toFixed(2)} ETH/hr · Issue: ${es.issuance_per_hour.toFixed(2)} ETH/hr · Net: ${sign}${es.net_per_hour.toFixed(2)} ETH/hr`,
+      eth_supply: es,
       timestamp: new Date().toISOString(),
       delivered_to: "Demo1234...abcd",
     };
@@ -5876,6 +5905,78 @@ function ServiceResultTable({ service }: { service: ServiceResult }) {
           <span>Max: {eb.max_blobs_per_block} blobs/block</span>
         </div>
         <p style={{ marginTop: 8, fontSize: 12, color: "#888" }}>EIP-4844 blobspace · Via Ethereum JSON-RPC (publicnode.com)</p>
+      </div>
+    );
+  }
+
+  if (service.service_type === "eth-supply" && service.eth_supply) {
+    const es = service.eth_supply;
+    const isDefl = es.is_deflationary;
+    const statusColor = isDefl ? "#16a34a" : "#dc2626";
+    const statusBg = isDefl ? "#f0fdf4" : "#fef2f2";
+    const statusBorder = isDefl ? "#86efac" : "#fecaca";
+    const netSign = es.net_per_hour >= 0 ? "+" : "";
+    const netColor = es.net_per_hour >= 0 ? "#16a34a" : "#dc2626";
+    // Supply bar: show burn vs issuance as proportion
+    const total = es.burn_per_hour + es.issuance_per_hour;
+    const burnPct = total > 0 ? (es.burn_per_hour / total) * 100 : 0;
+    return (
+      <div>
+        {/* Status + key metrics */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8, marginBottom: 12 }}>
+          <div style={{ padding: "8px 10px", background: statusBg, borderRadius: 6, border: `1px solid ${statusBorder}`, textAlign: "center" }}>
+            <div style={{ fontSize: 11, color: "#888" }}>Status</div>
+            <div style={{ fontWeight: 700, fontSize: 13, color: statusColor }}>{isDefl ? "🔥 Deflating" : "📈 Inflating"}</div>
+            <div style={{ fontSize: 10, color: "#888" }}>net supply</div>
+          </div>
+          <div style={{ padding: "8px 10px", background: "#fef3c7", borderRadius: 6, border: "1px solid #fde68a", textAlign: "center" }}>
+            <div style={{ fontSize: 11, color: "#888" }}>Burn Rate</div>
+            <div style={{ fontWeight: 700, fontSize: 15, color: "#b45309" }}>{es.burn_per_hour.toFixed(2)}</div>
+            <div style={{ fontSize: 10, color: "#888" }}>ETH/hr</div>
+          </div>
+          <div style={{ padding: "8px 10px", background: "#eff6ff", borderRadius: 6, border: "1px solid #bfdbfe", textAlign: "center" }}>
+            <div style={{ fontSize: 11, color: "#888" }}>Issuance</div>
+            <div style={{ fontWeight: 700, fontSize: 15, color: "#2563eb" }}>{es.issuance_per_hour.toFixed(2)}</div>
+            <div style={{ fontSize: 10, color: "#888" }}>ETH/hr</div>
+          </div>
+          <div style={{ padding: "8px 10px", background: "#fafafa", borderRadius: 6, border: "1px solid #e5e7eb", textAlign: "center" }}>
+            <div style={{ fontSize: 11, color: "#888" }}>Net/hr</div>
+            <div style={{ fontWeight: 700, fontSize: 15, color: netColor }}>{netSign}{es.net_per_hour.toFixed(2)}</div>
+            <div style={{ fontSize: 10, color: "#888" }}>ETH/hr</div>
+          </div>
+        </div>
+
+        {/* Burn vs issuance bar */}
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: "#555", marginBottom: 6 }}>
+            Burn vs Issuance (last {es.blocks_sampled} blocks)
+          </div>
+          <div style={{ height: 20, borderRadius: 4, background: "#e5e7eb", overflow: "hidden", position: "relative" }}>
+            <div style={{ height: "100%", width: `${burnPct.toFixed(1)}%`, background: "#f59e0b", transition: "width 0.5s" }} />
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4, fontSize: 10, color: "#9ca3af" }}>
+            <span>■ <span style={{ color: "#f59e0b" }}>burn ({burnPct.toFixed(1)}%)</span></span>
+            <span>■ <span style={{ color: "#93c5fd" }}>issuance ({(100 - burnPct).toFixed(1)}%)</span></span>
+          </div>
+        </div>
+
+        {/* Secondary stats */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 8 }}>
+          <div style={{ padding: "6px 8px", background: "#f8fafc", borderRadius: 6, border: "1px solid #e2e8f0" }}>
+            <div style={{ fontSize: 10, color: "#888" }}>Base Fee</div>
+            <div style={{ fontWeight: 600, fontSize: 13, color: "#111" }}>{es.base_fee_gwei.toFixed(3)} gwei</div>
+          </div>
+          <div style={{ padding: "6px 8px", background: "#f8fafc", borderRadius: 6, border: "1px solid #e2e8f0" }}>
+            <div style={{ fontSize: 10, color: "#888" }}>Deflation Threshold</div>
+            <div style={{ fontWeight: 600, fontSize: 13, color: "#111" }}>{es.deflation_threshold_gwei.toFixed(1)} gwei</div>
+          </div>
+          <div style={{ padding: "6px 8px", background: "#f8fafc", borderRadius: 6, border: "1px solid #e2e8f0" }}>
+            <div style={{ fontSize: 10, color: "#888" }}>Supply Change (ann.)</div>
+            <div style={{ fontWeight: 600, fontSize: 13, color: netColor }}>{es.supply_change_pct_annual >= 0 ? "+" : ""}{es.supply_change_pct_annual.toFixed(3)}%</div>
+          </div>
+        </div>
+
+        <p style={{ marginTop: 8, fontSize: 12, color: "#888" }}>EIP-1559 burn · PoS issuance ~1700 ETH/day · Via Ethereum JSON-RPC (publicnode.com)</p>
       </div>
     );
   }
