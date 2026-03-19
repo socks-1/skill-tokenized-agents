@@ -1,6 +1,6 @@
 {
   "name": "skill-tokenized-agents",
-  "description": "Crypto market data API with x402 micropayment access. Provides 57 real-time data services: prices, DeFi metrics, Solana stats, prediction markets, options analytics, BTC/ETH on-chain data, restaking TVL, NFT market snapshots, stablecoin peg health, mining stats, RWA TVL, blockchain fee revenue, cross-chain gas comparisons, and more — all payable per-request via x402 on Base Mainnet.",
+  "description": "Crypto market data API with x402 micropayment access. Provides 57 real-time data services: prices, DeFi metrics, Solana stats, prediction markets, options analytics, BTC/ETH on-chain data, restaking TVL, NFT market snapshots, stablecoin peg health, mining stats, RWA TVL, blockchain fee revenue, cross-chain gas comparisons, and more \u2014 all payable per-request via x402 on Base Mainnet.",
   "version": "1.58.0",
   "url": "http://89.167.25.248:8086",
   "author": "Socks (autonomous AI agent)",
@@ -63,13 +63,15 @@
     "eth-beacon",
     "restaking-tvl",
     "btc-halving",
-    "sol-validators"
+    "sol-validators",
+    "stable-yields",
+    "btc-treasury"
   ],
   "endpoints": {
     "preview": {
       "path": "/api/preview",
       "method": "GET",
-      "description": "Free preview — sampled data for any service",
+      "description": "Free preview \u2014 sampled data for any service",
       "params": {
         "service": "One of the capability identifiers above"
       },

@@ -87,6 +87,8 @@ import type {
   SolValidatorsData,
   StableYieldEntry,
   StableYieldsData,
+  BtcTreasuryCompany,
+  BtcTreasuryData,
 } from "@/lib/services";
 
 interface InvoiceParams {
@@ -548,6 +550,13 @@ const SERVICE_OPTIONS: { id: ServiceType; label: string; description: string; pr
     description: "Top 15 stablecoin yield opportunities across DeFi — USDC, USDT, DAI pools ranked by APY with TVL context. Covers lending protocols, liquidity pools, and yield aggregators. Filters out micro pools and APY outliers. Via DeFi Llama yields API.",
     price: "1 USDC",
     category: "DeFi",
+  },
+  {
+    id: "btc-treasury",
+    label: "Public Company Bitcoin Treasury",
+    description: "Bitcoin holdings by publicly-traded companies — Strategy (MSTR), MARA Holdings, and 149+ others. Total BTC held, USD value, top 10 holders with share of corporate holdings. Via CoinGecko public treasury API.",
+    price: "1 USDC",
+    category: "Market Data",
   },
 ];
 
@@ -1420,6 +1429,28 @@ const MOCK_STABLE_YIELDS: StableYieldsData = {
   highest_protocol: "Morpho",
   highest_apy: 9.81,
   total_shown_tvl: 11_290_000_000,
+};
+
+const MOCK_BTC_TREASURY: BtcTreasuryData = {
+  total_holdings: 1_184_917,
+  total_value_usd: 83_448_321_809,
+  market_cap_dominance: 6.009,
+  company_count: 151,
+  top_companies: [
+    { name: "Strategy", symbol: "MSTR.US", country: "US", total_btc: 761_068, value_usd: 53_586_406_000, pct_of_supply: 3.624 },
+    { name: "MARA Holdings", symbol: "MARA.US", country: "US", total_btc: 53_822, value_usd: 3_789_000_000, pct_of_supply: 0.256 },
+    { name: "XXI", symbol: "XXI.US", country: "US", total_btc: 43_514, value_usd: 3_063_000_000, pct_of_supply: 0.207 },
+    { name: "Riot Platforms", symbol: "RIOT.US", country: "US", total_btc: 19_223, value_usd: 1_353_000_000, pct_of_supply: 0.092 },
+    { name: "Metaplanet", symbol: "3350.T", country: "JP", total_btc: 4_206, value_usd: 296_000_000, pct_of_supply: 0.020 },
+    { name: "CleanSpark", symbol: "CLSK.US", country: "US", total_btc: 11_177, value_usd: 787_000_000, pct_of_supply: 0.053 },
+    { name: "Cipher Mining", symbol: "CIFR.US", country: "US", total_btc: 2_311, value_usd: 162_700_000, pct_of_supply: 0.011 },
+    { name: "Hive Digital", symbol: "HIVE.US", country: "CA", total_btc: 2_201, value_usd: 154_900_000, pct_of_supply: 0.010 },
+    { name: "Core Scientific", symbol: "CORZ.US", country: "US", total_btc: 1_474, value_usd: 103_700_000, pct_of_supply: 0.007 },
+    { name: "Coinbase", symbol: "COIN.US", country: "US", total_btc: 9_480, value_usd: 667_600_000, pct_of_supply: 0.045 },
+  ],
+  top_holder: "Strategy",
+  top_holder_btc: 761_068,
+  top_holder_pct: 64.2,
 };
 
 const MOCK_SIGNATURE =
@@ -2595,6 +2626,16 @@ function buildTourSteps(serviceType: ServiceType, liveData?: ServiceResult): Pay
       service_type: "stable-yields",
       result: `Best: ${sy.highest_apy.toFixed(1)}% APY (${sy.highest_protocol}) · Avg: ${sy.avg_stablecoin_apy.toFixed(1)}% · ${sy.pools.length} pools · $${(sy.total_shown_tvl / 1e9).toFixed(1)}B TVL`,
       stable_yields: sy,
+      timestamp: new Date().toISOString(),
+      delivered_to: "Demo1234...abcd",
+    };
+  } else if (serviceType === "btc-treasury") {
+    const bt = liveData?.btc_treasury ?? MOCK_BTC_TREASURY;
+    const fmtBtc = (n: number) => n >= 1000 ? `${(n / 1000).toFixed(0)}K` : `${n.toFixed(0)}`;
+    mockService = liveData ?? {
+      service_type: "btc-treasury",
+      result: `${fmtBtc(bt.total_holdings)} BTC ($${(bt.total_value_usd / 1e9).toFixed(1)}B) · ${bt.company_count} companies · #1: ${bt.top_holder} (${fmtBtc(bt.top_holder_btc)} BTC, ${bt.top_holder_pct.toFixed(1)}% of corp holdings)`,
+      btc_treasury: bt,
       timestamp: new Date().toISOString(),
       delivered_to: "Demo1234...abcd",
     };
@@ -5689,6 +5730,50 @@ function ServiceResultTable({ service }: { service: ServiceResult }) {
           ))}
         </div>
         <p style={{ marginTop: 8, fontSize: 12, color: "#888" }}>APY ≤30% · TVL ≥$5M · Via DeFi Llama yields API</p>
+      </div>
+    );
+  }
+
+  if (service.service_type === "btc-treasury" && service.btc_treasury) {
+    const bt = service.btc_treasury;
+    const fmtBtc = (n: number) => n >= 1_000_000 ? `${(n / 1_000_000).toFixed(2)}M` : n >= 1000 ? `${(n / 1000).toFixed(0)}K` : `${n.toFixed(0)}`;
+    const fmtUsd = (n: number) => n >= 1e9 ? `$${(n / 1e9).toFixed(1)}B` : `$${(n / 1e6).toFixed(0)}M`;
+    return (
+      <div>
+        {/* Summary stats */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 12 }}>
+          <div style={{ padding: "8px 10px", background: "#fffbeb", borderRadius: 6, border: "1px solid #fde68a", textAlign: "center" }}>
+            <div style={{ fontSize: 11, color: "#888" }}>Total Holdings</div>
+            <div style={{ fontWeight: 700, fontSize: 15, color: "#b45309" }}>{fmtBtc(bt.total_holdings)} BTC</div>
+            <div style={{ fontSize: 10, color: "#888" }}>{fmtUsd(bt.total_value_usd)}</div>
+          </div>
+          <div style={{ padding: "8px 10px", background: "#fafafa", borderRadius: 6, border: "1px solid #e5e7eb", textAlign: "center" }}>
+            <div style={{ fontSize: 11, color: "#888" }}>Companies</div>
+            <div style={{ fontWeight: 700, fontSize: 15, color: "#111" }}>{bt.company_count}</div>
+            <div style={{ fontSize: 10, color: "#888" }}>public holders</div>
+          </div>
+          <div style={{ padding: "8px 10px", background: "#eff6ff", borderRadius: 6, border: "1px solid #bfdbfe", textAlign: "center" }}>
+            <div style={{ fontSize: 11, color: "#888" }}>Mcap Dominance</div>
+            <div style={{ fontWeight: 700, fontSize: 15, color: "#2563eb" }}>{bt.market_cap_dominance.toFixed(2)}%</div>
+            <div style={{ fontSize: 10, color: "#888" }}>of crypto market</div>
+          </div>
+        </div>
+
+        {/* Top holders table */}
+        <div style={{ fontSize: 12, fontWeight: 600, color: "#555", marginBottom: 6 }}>Top 10 Corporate Holders (by BTC)</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+          {bt.top_companies.map((c, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "center", padding: "5px 10px", background: i === 0 ? "#fffbeb" : "#fafafa", borderRadius: 5, border: `1px solid ${i === 0 ? "#fde68a" : "#e5e7eb"}`, gap: 8 }}>
+              <div style={{ fontWeight: 700, fontSize: 12, color: "#9ca3af", width: 18, textAlign: "right", flexShrink: 0 }}>#{i + 1}</div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: "#111", flex: 1 }}>{c.name}</div>
+              <div style={{ fontSize: 11, color: "#6b7280", minWidth: 56 }}>{c.symbol}</div>
+              <div style={{ fontSize: 11, color: "#9ca3af", minWidth: 22 }}>{c.country}</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "#b45309", minWidth: 60, textAlign: "right" }}>{fmtBtc(c.total_btc)}</div>
+              <div style={{ fontSize: 11, color: "#9ca3af", minWidth: 54, textAlign: "right" }}>{fmtUsd(c.value_usd)}</div>
+            </div>
+          ))}
+        </div>
+        <p style={{ marginTop: 8, fontSize: 12, color: "#888" }}>Public companies only · Via CoinGecko public treasury API</p>
       </div>
     );
   }

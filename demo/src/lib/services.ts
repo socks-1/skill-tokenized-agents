@@ -3,10 +3,10 @@
  * All functions are read-only calls to public APIs — no auth required.
  */
 
-export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season" | "btc-mining" | "bridge-volume" | "tvl-movers" | "lightning-network" | "eth-lst" | "realized-vol" | "lending-rates" | "protocol-revenue" | "btc-onchain" | "nft-market" | "market-breadth" | "perp-oi" | "stablecoin-chains" | "stablecoin-pegs" | "mining-pools" | "rwa-tvl" | "crypto-funding" | "chain-fees" | "chain-tvl" | "defi-exploits" | "global-dex" | "futures-basis" | "dex-aggregators" | "meme-coins" | "cross-chain-gas" | "hl-top-pairs" | "eth-beacon" | "restaking-tvl" | "btc-halving" | "sol-validators" | "stable-yields";
+export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season" | "btc-mining" | "bridge-volume" | "tvl-movers" | "lightning-network" | "eth-lst" | "realized-vol" | "lending-rates" | "protocol-revenue" | "btc-onchain" | "nft-market" | "market-breadth" | "perp-oi" | "stablecoin-chains" | "stablecoin-pegs" | "mining-pools" | "rwa-tvl" | "crypto-funding" | "chain-fees" | "chain-tvl" | "defi-exploits" | "global-dex" | "futures-basis" | "dex-aggregators" | "meme-coins" | "cross-chain-gas" | "hl-top-pairs" | "eth-beacon" | "restaking-tvl" | "btc-halving" | "sol-validators" | "stable-yields" | "btc-treasury";
 
 /** All valid service type strings — use this for runtime validation instead of duplicating the list. */
-export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season", "btc-mining", "bridge-volume", "tvl-movers", "lightning-network", "eth-lst", "realized-vol", "lending-rates", "protocol-revenue", "btc-onchain", "nft-market", "market-breadth", "perp-oi", "stablecoin-chains", "stablecoin-pegs", "mining-pools", "rwa-tvl", "crypto-funding", "chain-fees", "chain-tvl", "defi-exploits", "global-dex", "futures-basis", "dex-aggregators", "meme-coins", "cross-chain-gas", "hl-top-pairs", "eth-beacon", "restaking-tvl", "btc-halving", "sol-validators", "stable-yields"];
+export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season", "btc-mining", "bridge-volume", "tvl-movers", "lightning-network", "eth-lst", "realized-vol", "lending-rates", "protocol-revenue", "btc-onchain", "nft-market", "market-breadth", "perp-oi", "stablecoin-chains", "stablecoin-pegs", "mining-pools", "rwa-tvl", "crypto-funding", "chain-fees", "chain-tvl", "defi-exploits", "global-dex", "futures-basis", "dex-aggregators", "meme-coins", "cross-chain-gas", "hl-top-pairs", "eth-beacon", "restaking-tvl", "btc-halving", "sol-validators", "stable-yields", "btc-treasury"];
 
 export interface MarketData {
   symbol: string;
@@ -673,6 +673,26 @@ export interface StableYieldsData {
   total_shown_tvl: number;          // sum of TVL across shown pools
 }
 
+export interface BtcTreasuryCompany {
+  name: string;           // e.g. "Strategy"
+  symbol: string;         // e.g. "MSTR.US"
+  country: string;        // e.g. "US"
+  total_btc: number;      // BTC held
+  value_usd: number;      // current USD value
+  pct_of_supply: number;  // % of total BTC supply (21M)
+}
+
+export interface BtcTreasuryData {
+  total_holdings: number;          // total BTC held by all public companies
+  total_value_usd: number;         // USD value of all holdings
+  market_cap_dominance: number;    // % of total crypto market cap
+  company_count: number;           // number of companies holding BTC
+  top_companies: BtcTreasuryCompany[];  // top 10 by BTC held
+  top_holder: string;              // name of #1 holder
+  top_holder_btc: number;          // BTC held by #1
+  top_holder_pct: number;          // % of all corporate holdings held by #1
+}
+
 export interface ServiceResult {
   service_type: ServiceType;
   result: string;
@@ -736,6 +756,7 @@ export interface ServiceResult {
   btc_halving?: BtcHalvingData;
   sol_validators?: SolValidatorsData;
   stable_yields?: StableYieldsData;
+  btc_treasury?: BtcTreasuryData;
   timestamp: string;
   delivered_to: string;
 }
@@ -3363,6 +3384,7 @@ export async function deliverService(delivered_to: string, serviceType: ServiceT
   if (serviceType === "btc-halving") return deliverBtcHalving(delivered_to, timestamp);
   if (serviceType === "sol-validators") return deliverSolValidators(delivered_to, timestamp);
   if (serviceType === "stable-yields") return deliverStableYields(delivered_to, timestamp);
+  if (serviceType === "btc-treasury") return deliverBtcTreasury(delivered_to, timestamp);
   return deliverCryptoPrices(delivered_to, timestamp);
 }
 
@@ -5142,4 +5164,82 @@ export async function deliverStableYields(delivered_to: string, timestamp: strin
     : "Stablecoin yield data temporarily unavailable";
 
   return { service_type: "stable-yields", result, stable_yields, timestamp, delivered_to };
+}
+
+let _btcTreasuryCache: { data: BtcTreasuryData; expires: number } | null = null;
+const BTC_TREASURY_TTL = 10 * 60 * 1000; // 10 minutes (data changes infrequently)
+
+/**
+ * Fetches public company Bitcoin treasury holdings via CoinGecko.
+ * Shows total BTC held by publicly-traded companies (Strategy/MicroStrategy, MARA, etc.),
+ * with top 10 holders ranked by BTC amount.
+ */
+export async function deliverBtcTreasury(delivered_to: string, timestamp: string): Promise<ServiceResult> {
+  if (_btcTreasuryCache && Date.now() < _btcTreasuryCache.expires) {
+    const bt = _btcTreasuryCache.data;
+    const fmtBtc = (n: number) => n >= 1000 ? `${(n / 1000).toFixed(0)}K` : `${n.toFixed(0)}`;
+    const result = `${fmtBtc(bt.total_holdings)} BTC ($${(bt.total_value_usd / 1e9).toFixed(1)}B) · ${bt.company_count} companies · #1: ${bt.top_holder} (${fmtBtc(bt.top_holder_btc)} BTC, ${bt.top_holder_pct.toFixed(1)}% of corp holdings)`;
+    return { service_type: "btc-treasury", result, btc_treasury: bt, timestamp, delivered_to };
+  }
+
+  let btc_treasury: BtcTreasuryData | undefined;
+
+  try {
+    const res = await fetch("https://api.coingecko.com/api/v3/companies/public_treasury/bitcoin", {
+      headers: { Accept: "application/json", "User-Agent": "skill-tokenized-agents/1.0" },
+      signal: AbortSignal.timeout(10000),
+    });
+
+    if (res.ok) {
+      const json = (await res.json()) as {
+        total_holdings: number;
+        total_value_usd: number;
+        market_cap_dominance: number;
+        companies: Array<{
+          name: string;
+          symbol: string;
+          country: string;
+          total_holdings: number;
+          total_current_value_usd: number;
+          percentage_of_total_supply: number;
+        }>;
+      };
+
+      if (json.companies && json.companies.length > 0) {
+        const top10 = json.companies.slice(0, 10).map((c) => ({
+          name: c.name,
+          symbol: c.symbol,
+          country: c.country ?? "—",
+          total_btc: c.total_holdings,
+          value_usd: c.total_current_value_usd,
+          pct_of_supply: parseFloat((c.percentage_of_total_supply ?? 0).toFixed(3)),
+        }));
+
+        const topHolder = top10[0];
+        const topHolderPct = (topHolder.total_btc / json.total_holdings) * 100;
+
+        btc_treasury = {
+          total_holdings: json.total_holdings,
+          total_value_usd: json.total_value_usd,
+          market_cap_dominance: json.market_cap_dominance ?? 0,
+          company_count: json.companies.length,
+          top_companies: top10,
+          top_holder: topHolder.name,
+          top_holder_btc: topHolder.total_btc,
+          top_holder_pct: parseFloat(topHolderPct.toFixed(1)),
+        };
+
+        _btcTreasuryCache = { data: btc_treasury, expires: Date.now() + BTC_TREASURY_TTL };
+      }
+    }
+  } catch {
+    // Fall through with undefined btc_treasury
+  }
+
+  const fmtBtc = (n: number) => n >= 1000 ? `${(n / 1000).toFixed(0)}K` : `${n.toFixed(0)}`;
+  const result = btc_treasury
+    ? `${fmtBtc(btc_treasury.total_holdings)} BTC ($${(btc_treasury.total_value_usd / 1e9).toFixed(1)}B) · ${btc_treasury.company_count} companies · #1: ${btc_treasury.top_holder} (${fmtBtc(btc_treasury.top_holder_btc)} BTC, ${btc_treasury.top_holder_pct.toFixed(1)}% of corp holdings)`
+    : "Bitcoin treasury data temporarily unavailable";
+
+  return { service_type: "btc-treasury", result, btc_treasury, timestamp, delivered_to };
 }
