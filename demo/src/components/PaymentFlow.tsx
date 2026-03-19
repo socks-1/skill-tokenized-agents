@@ -85,6 +85,8 @@ import type {
   BtcHalvingData,
   SolValidatorEntry,
   SolValidatorsData,
+  StableYieldEntry,
+  StableYieldsData,
 } from "@/lib/services";
 
 interface InvoiceParams {
@@ -539,6 +541,13 @@ const SERVICE_OPTIONS: { id: ServiceType; label: string; description: string; pr
     description: "Top 10 Solana validators by activated stake — stake amount, % of network, commission rate, and last vote slot. Total validator count, delinquent count, and network stake summary. Via Solana mainnet-beta RPC.",
     price: "1 USDC",
     category: "Solana",
+  },
+  {
+    id: "stable-yields",
+    label: "Stablecoin Yield Scanner",
+    description: "Top 15 stablecoin yield opportunities across DeFi — USDC, USDT, DAI pools ranked by APY with TVL context. Covers lending protocols, liquidity pools, and yield aggregators. Filters out micro pools and APY outliers. Via DeFi Llama yields API.",
+    price: "1 USDC",
+    category: "DeFi",
   },
 ];
 
@@ -1387,6 +1396,30 @@ const MOCK_SOL_VALIDATORS: SolValidatorsData = {
   delinquent_count: 14,
   avg_commission: 4.3,
   slot_height: 318_456_789,
+};
+
+const MOCK_STABLE_YIELDS: StableYieldsData = {
+  pools: [
+    { protocol: "Morpho", chain: "Ethereum", symbol: "USDC", apy_pct: 9.81, tvl_usd: 1_240_000_000 },
+    { protocol: "Fluid", chain: "Ethereum", symbol: "USDC", apy_pct: 8.34, tvl_usd: 620_000_000 },
+    { protocol: "Compound V3", chain: "Arbitrum", symbol: "USDC", apy_pct: 7.12, tvl_usd: 480_000_000 },
+    { protocol: "Aave V3", chain: "Polygon", symbol: "USDC", apy_pct: 6.88, tvl_usd: 890_000_000 },
+    { protocol: "Spark", chain: "Ethereum", symbol: "DAI", apy_pct: 6.50, tvl_usd: 1_850_000_000 },
+    { protocol: "Maple Finance", chain: "Ethereum", symbol: "USDC", apy_pct: 6.22, tvl_usd: 210_000_000 },
+    { protocol: "Aave V3", chain: "Base", symbol: "USDC", apy_pct: 5.95, tvl_usd: 340_000_000 },
+    { protocol: "Compound V3", chain: "Ethereum", symbol: "USDT", apy_pct: 5.60, tvl_usd: 520_000_000 },
+    { protocol: "Euler", chain: "Ethereum", symbol: "USDC", apy_pct: 5.41, tvl_usd: 190_000_000 },
+    { protocol: "Aave V3", chain: "Arbitrum", symbol: "USDT", apy_pct: 5.10, tvl_usd: 430_000_000 },
+    { protocol: "Morpho", chain: "Base", symbol: "USDC", apy_pct: 4.88, tvl_usd: 280_000_000 },
+    { protocol: "Aave V3", chain: "Ethereum", symbol: "USDC", apy_pct: 4.72, tvl_usd: 3_200_000_000 },
+    { protocol: "Curve", chain: "Ethereum", symbol: "USDC", apy_pct: 4.35, tvl_usd: 670_000_000 },
+    { protocol: "Compound V3", chain: "Base", symbol: "USDC", apy_pct: 4.10, tvl_usd: 160_000_000 },
+    { protocol: "Aave V3", chain: "Optimism", symbol: "USDC", apy_pct: 3.87, tvl_usd: 210_000_000 },
+  ],
+  avg_stablecoin_apy: 5.92,
+  highest_protocol: "Morpho",
+  highest_apy: 9.81,
+  total_shown_tvl: 11_290_000_000,
 };
 
 const MOCK_SIGNATURE =
@@ -2553,6 +2586,15 @@ function buildTourSteps(serviceType: ServiceType, liveData?: ServiceResult): Pay
       service_type: "sol-validators",
       result: `${sv.total_validators} validators · Top stake: ${sv.validators[0]?.activated_stake_sol.toFixed(0)}K SOL (${sv.validators[0]?.stake_pct.toFixed(2)}%) · Avg commission: ${sv.avg_commission.toFixed(1)}%`,
       sol_validators: sv,
+      timestamp: new Date().toISOString(),
+      delivered_to: "Demo1234...abcd",
+    };
+  } else if (serviceType === "stable-yields") {
+    const sy = liveData?.stable_yields ?? MOCK_STABLE_YIELDS;
+    mockService = liveData ?? {
+      service_type: "stable-yields",
+      result: `Best: ${sy.highest_apy.toFixed(1)}% APY (${sy.highest_protocol}) · Avg: ${sy.avg_stablecoin_apy.toFixed(1)}% · ${sy.pools.length} pools · $${(sy.total_shown_tvl / 1e9).toFixed(1)}B TVL`,
+      stable_yields: sy,
       timestamp: new Date().toISOString(),
       delivered_to: "Demo1234...abcd",
     };
@@ -5601,6 +5643,52 @@ function ServiceResultTable({ service }: { service: ServiceResult }) {
           ))}
         </div>
         <p style={{ marginTop: 8, fontSize: 12, color: "#888" }}>Solana mainnet-beta · Via Solana RPC</p>
+      </div>
+    );
+  }
+
+  if (service.service_type === "stable-yields" && service.stable_yields) {
+    const sy = service.stable_yields;
+    const fmtTvl = (v: number) =>
+      v >= 1e9 ? `$${(v / 1e9).toFixed(1)}B` : `$${(v / 1e6).toFixed(0)}M`;
+    const apyColor = (apy: number) =>
+      apy >= 8 ? "#16a34a" : apy >= 5 ? "#2563eb" : "#374151";
+    return (
+      <div>
+        {/* Summary stats */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 12 }}>
+          <div style={{ padding: "8px 10px", background: "#f0fdf4", borderRadius: 6, border: "1px solid #86efac", textAlign: "center" }}>
+            <div style={{ fontSize: 11, color: "#888" }}>Best APY</div>
+            <div style={{ fontWeight: 700, fontSize: 15, color: "#16a34a" }}>{sy.highest_apy.toFixed(1)}%</div>
+            <div style={{ fontSize: 10, color: "#888" }}>{sy.highest_protocol}</div>
+          </div>
+          <div style={{ padding: "8px 10px", background: "#eff6ff", borderRadius: 6, border: "1px solid #bfdbfe", textAlign: "center" }}>
+            <div style={{ fontSize: 11, color: "#888" }}>Avg APY</div>
+            <div style={{ fontWeight: 700, fontSize: 15, color: "#2563eb" }}>{sy.avg_stablecoin_apy.toFixed(1)}%</div>
+            <div style={{ fontSize: 10, color: "#888" }}>{sy.pools.length} pools</div>
+          </div>
+          <div style={{ padding: "8px 10px", background: "#fafafa", borderRadius: 6, border: "1px solid #e5e7eb", textAlign: "center" }}>
+            <div style={{ fontSize: 11, color: "#888" }}>Total TVL</div>
+            <div style={{ fontWeight: 700, fontSize: 15, color: "#111" }}>{fmtTvl(sy.total_shown_tvl)}</div>
+            <div style={{ fontSize: 10, color: "#888" }}>shown pools</div>
+          </div>
+        </div>
+
+        {/* Pool table */}
+        <div style={{ fontSize: 12, fontWeight: 600, color: "#555", marginBottom: 6 }}>Top Stablecoin Yield Pools (sorted by APY)</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+          {sy.pools.map((p, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "center", padding: "5px 10px", background: "#fafafa", borderRadius: 5, border: "1px solid #e5e7eb", gap: 8 }}>
+              <div style={{ fontWeight: 700, fontSize: 12, color: "#9ca3af", width: 18, textAlign: "right", flexShrink: 0 }}>#{i + 1}</div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: "#111", flex: 1 }}>{p.protocol}</div>
+              <div style={{ fontSize: 11, color: "#6b7280", minWidth: 60 }}>{p.chain}</div>
+              <div style={{ fontSize: 11, color: "#374151", minWidth: 36, textAlign: "right" }}>{p.symbol}</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: apyColor(p.apy_pct), minWidth: 52, textAlign: "right" }}>{p.apy_pct.toFixed(2)}%</div>
+              <div style={{ fontSize: 11, color: "#9ca3af", minWidth: 54, textAlign: "right" }}>{fmtTvl(p.tvl_usd)}</div>
+            </div>
+          ))}
+        </div>
+        <p style={{ marginTop: 8, fontSize: 12, color: "#888" }}>APY ≤30% · TVL ≥$5M · Via DeFi Llama yields API</p>
       </div>
     );
   }

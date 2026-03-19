@@ -3,10 +3,10 @@
  * All functions are read-only calls to public APIs — no auth required.
  */
 
-export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season" | "btc-mining" | "bridge-volume" | "tvl-movers" | "lightning-network" | "eth-lst" | "realized-vol" | "lending-rates" | "protocol-revenue" | "btc-onchain" | "nft-market" | "market-breadth" | "perp-oi" | "stablecoin-chains" | "stablecoin-pegs" | "mining-pools" | "rwa-tvl" | "crypto-funding" | "chain-fees" | "chain-tvl" | "defi-exploits" | "global-dex" | "futures-basis" | "dex-aggregators" | "meme-coins" | "cross-chain-gas" | "hl-top-pairs" | "eth-beacon" | "restaking-tvl" | "btc-halving" | "sol-validators";
+export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season" | "btc-mining" | "bridge-volume" | "tvl-movers" | "lightning-network" | "eth-lst" | "realized-vol" | "lending-rates" | "protocol-revenue" | "btc-onchain" | "nft-market" | "market-breadth" | "perp-oi" | "stablecoin-chains" | "stablecoin-pegs" | "mining-pools" | "rwa-tvl" | "crypto-funding" | "chain-fees" | "chain-tvl" | "defi-exploits" | "global-dex" | "futures-basis" | "dex-aggregators" | "meme-coins" | "cross-chain-gas" | "hl-top-pairs" | "eth-beacon" | "restaking-tvl" | "btc-halving" | "sol-validators" | "stable-yields";
 
 /** All valid service type strings — use this for runtime validation instead of duplicating the list. */
-export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season", "btc-mining", "bridge-volume", "tvl-movers", "lightning-network", "eth-lst", "realized-vol", "lending-rates", "protocol-revenue", "btc-onchain", "nft-market", "market-breadth", "perp-oi", "stablecoin-chains", "stablecoin-pegs", "mining-pools", "rwa-tvl", "crypto-funding", "chain-fees", "chain-tvl", "defi-exploits", "global-dex", "futures-basis", "dex-aggregators", "meme-coins", "cross-chain-gas", "hl-top-pairs", "eth-beacon", "restaking-tvl", "btc-halving", "sol-validators"];
+export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season", "btc-mining", "bridge-volume", "tvl-movers", "lightning-network", "eth-lst", "realized-vol", "lending-rates", "protocol-revenue", "btc-onchain", "nft-market", "market-breadth", "perp-oi", "stablecoin-chains", "stablecoin-pegs", "mining-pools", "rwa-tvl", "crypto-funding", "chain-fees", "chain-tvl", "defi-exploits", "global-dex", "futures-basis", "dex-aggregators", "meme-coins", "cross-chain-gas", "hl-top-pairs", "eth-beacon", "restaking-tvl", "btc-halving", "sol-validators", "stable-yields"];
 
 export interface MarketData {
   symbol: string;
@@ -657,6 +657,22 @@ export interface MemeCoinsData {
   top_loser: string;        // symbol of top 24h loser
 }
 
+export interface StableYieldEntry {
+  protocol: string;     // e.g. "Aave V3"
+  chain: string;        // e.g. "Ethereum"
+  symbol: string;       // stablecoin symbol, e.g. "USDC"
+  apy_pct: number;      // annualized yield %
+  tvl_usd: number;      // pool TVL in USD
+}
+
+export interface StableYieldsData {
+  pools: StableYieldEntry[];        // top pools sorted by APY
+  avg_stablecoin_apy: number;       // average APY across all shown pools
+  highest_protocol: string;         // name of highest-yield pool's protocol
+  highest_apy: number;              // highest individual APY
+  total_shown_tvl: number;          // sum of TVL across shown pools
+}
+
 export interface ServiceResult {
   service_type: ServiceType;
   result: string;
@@ -719,6 +735,7 @@ export interface ServiceResult {
   restaking_tvl?: RestakingData;
   btc_halving?: BtcHalvingData;
   sol_validators?: SolValidatorsData;
+  stable_yields?: StableYieldsData;
   timestamp: string;
   delivered_to: string;
 }
@@ -3345,6 +3362,7 @@ export async function deliverService(delivered_to: string, serviceType: ServiceT
   if (serviceType === "restaking-tvl") return deliverRestakingTvl(delivered_to, timestamp);
   if (serviceType === "btc-halving") return deliverBtcHalving(delivered_to, timestamp);
   if (serviceType === "sol-validators") return deliverSolValidators(delivered_to, timestamp);
+  if (serviceType === "stable-yields") return deliverStableYields(delivered_to, timestamp);
   return deliverCryptoPrices(delivered_to, timestamp);
 }
 
@@ -5029,4 +5047,99 @@ export async function deliverSolValidators(delivered_to: string, timestamp: stri
     : "Solana validator data temporarily unavailable";
 
   return { service_type: "sol-validators", result, sol_validators, timestamp, delivered_to };
+}
+
+let _stableYieldsCache: { data: StableYieldsData; expires: number } | null = null;
+const STABLE_YIELDS_TTL = 5 * 60 * 1000; // 5 minutes
+
+/**
+ * Fetches top stablecoin yield opportunities across DeFi protocols via DeFi Llama.
+ * Shows highest-APY pools for stablecoins (USDC, USDT, DAI, etc.) with TVL context.
+ * Sorted by APY descending; filters out tiny pools and extreme outliers.
+ */
+export async function deliverStableYields(delivered_to: string, timestamp: string): Promise<ServiceResult> {
+  if (_stableYieldsCache && Date.now() < _stableYieldsCache.expires) {
+    const sy = _stableYieldsCache.data;
+    const result = `Best: ${sy.highest_apy.toFixed(1)}% APY (${sy.highest_protocol}) · Avg: ${sy.avg_stablecoin_apy.toFixed(1)}% · ${sy.pools.length} pools · $${(sy.total_shown_tvl / 1e9).toFixed(1)}B TVL`;
+    return { service_type: "stable-yields", result, stable_yields: sy, timestamp, delivered_to };
+  }
+
+  let stable_yields: StableYieldsData | undefined;
+
+  try {
+    const res = await fetch("https://yields.llama.fi/pools", {
+      headers: { Accept: "application/json", "User-Agent": "skill-tokenized-agents/1.0" },
+      signal: AbortSignal.timeout(10000),
+    });
+
+    if (res.ok) {
+      const json = (await res.json()) as {
+        data: Array<{
+          pool: string;
+          project: string;
+          chain: string;
+          symbol: string;
+          apy: number;
+          tvlUsd: number;
+          stablecoin: boolean;
+        }>;
+      };
+
+      // Only show well-known major stablecoins (filter exotic/pegged assets)
+      const MAJOR_STABLECOINS = new Set([
+        "USDC", "USDT", "DAI", "FRAX", "PYUSD", "GUSD", "TUSD",
+        "USDP", "LUSD", "EUSD", "USDS", "BUSD", "FDUSD", "CRVUSD",
+        "USDC.E", "USDC-E", "USDC.EXG", "USDT.E",
+      ]);
+      const baseSymbol = (s: string) => s.split("-")[0].split(".")[0].toUpperCase();
+
+      // Filter: major stablecoin pools only, meaningful TVL, sane APY range
+      const eligible = (json.data ?? []).filter(
+        (p) =>
+          p.stablecoin === true &&
+          MAJOR_STABLECOINS.has(baseSymbol(p.symbol)) &&
+          typeof p.apy === "number" &&
+          p.apy > 0.5 &&
+          p.apy <= 20 &&          // exclude high-incentive outliers
+          (p.tvlUsd ?? 0) >= 10_000_000,  // $10M+ TVL for quality
+      );
+
+      // Sort by APY descending, take top 15
+      eligible.sort((a, b) => b.apy - a.apy);
+      const top = eligible.slice(0, 15);
+
+      if (top.length > 0) {
+        const pools: StableYieldEntry[] = top.map((p) => ({
+          protocol: p.project
+            .replace(/-/g, " ")
+            .replace(/\b\w/g, (c) => c.toUpperCase()),
+          chain: p.chain,
+          symbol: p.symbol.split("-")[0].toUpperCase(), // normalize "USDC-A" → "USDC"
+          apy_pct: parseFloat(p.apy.toFixed(2)),
+          tvl_usd: p.tvlUsd,
+        }));
+
+        const avg = pools.reduce((s, p) => s + p.apy_pct, 0) / pools.length;
+        const best = pools[0];
+
+        stable_yields = {
+          pools,
+          avg_stablecoin_apy: parseFloat(avg.toFixed(2)),
+          highest_protocol: best.protocol,
+          highest_apy: best.apy_pct,
+          total_shown_tvl: pools.reduce((s, p) => s + p.tvl_usd, 0),
+        };
+
+        _stableYieldsCache = { data: stable_yields, expires: Date.now() + STABLE_YIELDS_TTL };
+      }
+    }
+  } catch {
+    // Fall through with undefined stable_yields
+  }
+
+  const result = stable_yields
+    ? `Best: ${stable_yields.highest_apy.toFixed(1)}% APY (${stable_yields.highest_protocol}) · Avg: ${stable_yields.avg_stablecoin_apy.toFixed(1)}% · ${stable_yields.pools.length} pools · $${(stable_yields.total_shown_tvl / 1e9).toFixed(1)}B TVL`
+    : "Stablecoin yield data temporarily unavailable";
+
+  return { service_type: "stable-yields", result, stable_yields, timestamp, delivered_to };
 }
