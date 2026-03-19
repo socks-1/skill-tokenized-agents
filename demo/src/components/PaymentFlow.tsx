@@ -78,6 +78,7 @@ import type {
   CrossChainGasData,
   HlPairEntry,
   HlTopPairsData,
+  EthBeaconData,
 } from "@/lib/services";
 
 interface InvoiceParams {
@@ -502,6 +503,13 @@ const SERVICE_OPTIONS: { id: ServiceType; label: string; description: string; pr
     id: "hl-top-pairs",
     label: "Hyperliquid Top Pairs by Volume",
     description: "Top 10 perpetual pairs on Hyperliquid ranked by 24h trading volume — with price, 24h change, open interest, and funding rate for each. See which assets are hottest in perp markets right now. Total Hyperliquid volume included. Via Hyperliquid public API.",
+    price: "1 USDC",
+    category: "Market Data",
+  },
+  {
+    id: "eth-beacon",
+    label: "ETH Beacon Chain Stats",
+    description: "Live Ethereum proof-of-stake network health: active validator count, total ETH staked, global participation rate, and entry/exit queue depth. Essential metrics for understanding network security and staking demand. Via beaconcha.in public API.",
     price: "1 USDC",
     category: "Market Data",
   },
@@ -1288,6 +1296,18 @@ const MOCK_HL_TOP_PAIRS: HlTopPairsData = {
     { symbol: "ASTER",    volume_24h_usd:    26_000_000, mark_price: 0.6923, price_change_pct: -1.83, open_interest_usd:    69_200_000, funding_rate: -0.0000180 },
     { symbol: "SUI",      volume_24h_usd:    19_300_000, mark_price: 0.9837, price_change_pct: -8.07, open_interest_usd:    27_900_000, funding_rate:  0.0000000 },
   ] as HlPairEntry[],
+};
+
+const MOCK_ETH_BEACON: EthBeaconData = {
+  epoch: 435_051,
+  slot: 13_921_640,
+  slot_in_epoch: 8,
+  finalized_epoch: 435_049,
+  finality_lag: 2,
+  is_finalizing: true,
+  block_number: 24_688_254,
+  base_fee_gwei: 0.0995,
+  gas_util_pct: 47.2,
 };
 
 const MOCK_SIGNATURE =
@@ -2417,6 +2437,15 @@ function buildTourSteps(serviceType: ServiceType, liveData?: ServiceResult): Pay
       service_type: "hl-top-pairs",
       result: `#1: ${ht.top_pair} ${fmtVol(ht.pairs[0]?.volume_24h_usd ?? 0)} · Total HL vol ${fmtVol(ht.total_volume_24h_usd)} · Top 10 pairs`,
       hl_top_pairs: ht,
+      timestamp: new Date().toISOString(),
+      delivered_to: "Demo1234...abcd",
+    };
+  } else if (serviceType === "eth-beacon") {
+    const eb = liveData?.eth_beacon ?? MOCK_ETH_BEACON;
+    mockService = liveData ?? {
+      service_type: "eth-beacon",
+      result: `Epoch ${eb.epoch.toLocaleString()} · Block #${eb.block_number.toLocaleString()} · ${eb.gas_util_pct.toFixed(1)}% gas · Base fee ${eb.base_fee_gwei.toFixed(4)} Gwei`,
+      eth_beacon: eb,
       timestamp: new Date().toISOString(),
       delivered_to: "Demo1234...abcd",
     };
@@ -5261,6 +5290,65 @@ function ServiceResultTable({ service }: { service: ServiceResult }) {
         </table>
         <p style={{ marginTop: 8, fontSize: 12, color: "#888" }}>
           Top 10 perps by 24h notional volume · Funding rate is hourly · via Hyperliquid public API
+        </p>
+      </div>
+    );
+  }
+
+  if (service.service_type === "eth-beacon" && service.eth_beacon) {
+    const eb = service.eth_beacon;
+    const finalityColor = eb.is_finalizing ? "#15803d" : eb.finality_lag <= 5 ? "#ca8a04" : "#dc2626";
+    const finalityLabel = eb.is_finalizing ? "Finalizing" : eb.finality_lag <= 5 ? "Slow" : "At Risk";
+    const gasColor = eb.gas_util_pct > 80 ? "#dc2626" : eb.gas_util_pct > 50 ? "#ca8a04" : "#15803d";
+    const baseFeeStr = eb.base_fee_gwei < 1
+      ? eb.base_fee_gwei.toFixed(4) + " Gwei"
+      : eb.base_fee_gwei.toFixed(2) + " Gwei";
+    const slotProgress = Math.round((eb.slot_in_epoch / 32) * 100);
+    const clStats = [
+      { label: "Current Epoch", value: eb.epoch.toLocaleString(), sub: `Slot ${eb.slot.toLocaleString()} (${eb.slot_in_epoch}/32)` },
+      { label: "Finalized Epoch", value: eb.finalized_epoch.toLocaleString(), sub: `${eb.finality_lag} epochs behind head`, color: finalityColor },
+    ];
+    const elStats = [
+      { label: "Block Height", value: `#${eb.block_number.toLocaleString()}`, sub: "latest execution block" },
+      { label: "Base Fee", value: baseFeeStr, sub: `${eb.gas_util_pct.toFixed(1)}% gas utilization`, color: gasColor },
+    ];
+    return (
+      <div>
+        <div style={{ marginBottom: 8, padding: "6px 10px", background: eb.is_finalizing ? "#f0fdf4" : "#fef9c3", borderRadius: 6, border: `1px solid ${eb.is_finalizing ? "#bbf7d0" : "#fde68a"}`, display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ width: 8, height: 8, borderRadius: "50%", background: finalityColor, display: "inline-block", flexShrink: 0 }} />
+          <span style={{ fontSize: 13, fontWeight: 600, color: finalityColor }}>{finalityLabel}</span>
+          <span style={{ fontSize: 12, color: "#888" }}>· {eb.is_finalizing ? "Chain is finalizing normally" : `Finality lagging by ${eb.finality_lag} epochs`}</span>
+        </div>
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: 11, color: "#aaa", marginBottom: 3 }}>Epoch Progress ({eb.slot_in_epoch}/32 slots)</div>
+          <div style={{ height: 6, background: "#f0f0f0", borderRadius: 3, overflow: "hidden" }}>
+            <div style={{ width: `${slotProgress}%`, height: "100%", background: "#818cf8", borderRadius: 3, transition: "width 0.3s" }} />
+          </div>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 }}>
+          <div style={{ padding: "6px 0", borderBottom: "1px solid #f0f0f0" }}>
+            <div style={{ fontSize: 11, color: "#999", marginBottom: 1 }}>Consensus Layer</div>
+          </div>
+          <div style={{ padding: "6px 0", borderBottom: "1px solid #f0f0f0" }}>
+            <div style={{ fontSize: 11, color: "#999", marginBottom: 1 }}>Execution Layer</div>
+          </div>
+          {clStats.map((s, i) => (
+            <div key={i} style={{ padding: 10, background: "#f8f9fa", borderRadius: 8, border: "1px solid #e5e7eb" }}>
+              <div style={{ fontSize: 11, color: "#aaa", marginBottom: 2 }}>{s.label}</div>
+              <div style={{ fontWeight: 700, fontSize: 16, color: s.color ?? "#111" }}>{s.value}</div>
+              <div style={{ fontSize: 11, color: "#999", marginTop: 1 }}>{s.sub}</div>
+            </div>
+          ))}
+          {elStats.map((s, i) => (
+            <div key={i} style={{ padding: 10, background: "#f8f9fa", borderRadius: 8, border: "1px solid #e5e7eb" }}>
+              <div style={{ fontSize: 11, color: "#aaa", marginBottom: 2 }}>{s.label}</div>
+              <div style={{ fontWeight: 700, fontSize: 16, color: s.color ?? "#111" }}>{s.value}</div>
+              <div style={{ fontSize: 11, color: "#999", marginTop: 1 }}>{s.sub}</div>
+            </div>
+          ))}
+        </div>
+        <p style={{ marginTop: 6, fontSize: 12, color: "#888" }}>
+          Ethereum network health · CL via publicnode.com Beacon API · EL via Ethereum JSON-RPC
         </p>
       </div>
     );

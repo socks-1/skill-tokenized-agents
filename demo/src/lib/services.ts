@@ -3,10 +3,10 @@
  * All functions are read-only calls to public APIs — no auth required.
  */
 
-export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season" | "btc-mining" | "bridge-volume" | "tvl-movers" | "lightning-network" | "eth-lst" | "realized-vol" | "lending-rates" | "protocol-revenue" | "btc-onchain" | "nft-market" | "market-breadth" | "perp-oi" | "stablecoin-chains" | "stablecoin-pegs" | "mining-pools" | "rwa-tvl" | "crypto-funding" | "chain-fees" | "chain-tvl" | "defi-exploits" | "global-dex" | "futures-basis" | "dex-aggregators" | "meme-coins" | "cross-chain-gas" | "hl-top-pairs";
+export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season" | "btc-mining" | "bridge-volume" | "tvl-movers" | "lightning-network" | "eth-lst" | "realized-vol" | "lending-rates" | "protocol-revenue" | "btc-onchain" | "nft-market" | "market-breadth" | "perp-oi" | "stablecoin-chains" | "stablecoin-pegs" | "mining-pools" | "rwa-tvl" | "crypto-funding" | "chain-fees" | "chain-tvl" | "defi-exploits" | "global-dex" | "futures-basis" | "dex-aggregators" | "meme-coins" | "cross-chain-gas" | "hl-top-pairs" | "eth-beacon";
 
 /** All valid service type strings — use this for runtime validation instead of duplicating the list. */
-export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season", "btc-mining", "bridge-volume", "tvl-movers", "lightning-network", "eth-lst", "realized-vol", "lending-rates", "protocol-revenue", "btc-onchain", "nft-market", "market-breadth", "perp-oi", "stablecoin-chains", "stablecoin-pegs", "mining-pools", "rwa-tvl", "crypto-funding", "chain-fees", "chain-tvl", "defi-exploits", "global-dex", "futures-basis", "dex-aggregators", "meme-coins", "cross-chain-gas", "hl-top-pairs"];
+export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season", "btc-mining", "bridge-volume", "tvl-movers", "lightning-network", "eth-lst", "realized-vol", "lending-rates", "protocol-revenue", "btc-onchain", "nft-market", "market-breadth", "perp-oi", "stablecoin-chains", "stablecoin-pegs", "mining-pools", "rwa-tvl", "crypto-funding", "chain-fees", "chain-tvl", "defi-exploits", "global-dex", "futures-basis", "dex-aggregators", "meme-coins", "cross-chain-gas", "hl-top-pairs", "eth-beacon"];
 
 export interface MarketData {
   symbol: string;
@@ -715,6 +715,7 @@ export interface ServiceResult {
   meme_coins?: MemeCoinsData;
   cross_chain_gas?: CrossChainGasData;
   hl_top_pairs?: HlTopPairsData;
+  eth_beacon?: EthBeaconData;
   timestamp: string;
   delivered_to: string;
 }
@@ -786,6 +787,20 @@ export interface HlTopPairsData {
   pairs: HlPairEntry[];          // top 10 by 24h volume
   total_volume_24h_usd: number;  // sum of all Hyperliquid 24h volume
   top_pair: string;              // symbol with highest volume
+}
+
+export interface EthBeaconData {
+  // Consensus Layer (beaconchain)
+  epoch: number;
+  slot: number;
+  slot_in_epoch: number;         // 0-31, where we are in the current epoch
+  finalized_epoch: number;
+  finality_lag: number;          // head epoch - finalized epoch (healthy = 2)
+  is_finalizing: boolean;        // finality_lag <= 3
+  // Execution Layer
+  block_number: number;
+  base_fee_gwei: number;
+  gas_util_pct: number;          // gas used / gas limit * 100
 }
 
 /**
@@ -3265,6 +3280,7 @@ export async function deliverService(delivered_to: string, serviceType: ServiceT
   if (serviceType === "meme-coins") return deliverMemeCoins(delivered_to, timestamp);
   if (serviceType === "cross-chain-gas") return deliverCrossChainGas(delivered_to, timestamp);
   if (serviceType === "hl-top-pairs") return deliverHlTopPairs(delivered_to, timestamp);
+  if (serviceType === "eth-beacon") return deliverEthBeacon(delivered_to, timestamp);
   return deliverCryptoPrices(delivered_to, timestamp);
 }
 
@@ -4613,4 +4629,93 @@ export async function deliverHlTopPairs(delivered_to: string, timestamp: string)
     : "Hyperliquid data temporarily unavailable";
 
   return { service_type: "hl-top-pairs", result, hl_top_pairs, timestamp, delivered_to };
+}
+
+let _ethBeaconCache: { data: EthBeaconData; expires: number } | null = null;
+
+export async function deliverEthBeacon(delivered_to: string, timestamp: string): Promise<ServiceResult> {
+  // Cache for 2 minutes — slot time is 12s, epoch is ~6.4 min
+  if (_ethBeaconCache && Date.now() < _ethBeaconCache.expires) {
+    const eb = _ethBeaconCache.data;
+    const result = `Epoch ${eb.epoch.toLocaleString()} · Block #${eb.block_number.toLocaleString()} · ${eb.gas_util_pct.toFixed(1)}% gas · Base fee ${eb.base_fee_gwei.toFixed(4)} Gwei`;
+    return { service_type: "eth-beacon", result, eth_beacon: eb, timestamp, delivered_to };
+  }
+
+  let eth_beacon: EthBeaconData | undefined;
+
+  try {
+    // Fetch beacon head, finality checkpoints, and latest EL block in parallel
+    const CL_BASE = "https://ethereum-beacon-api.publicnode.com";
+    const EL_URL  = "https://ethereum.publicnode.com";
+
+    const [headRes, finalityRes, blockRes] = await Promise.all([
+      fetch(`${CL_BASE}/eth/v1/beacon/headers/head`, {
+        headers: { "Accept": "application/json", "User-Agent": "skill-tokenized-agents/1.0" },
+        signal: AbortSignal.timeout(10000),
+      }),
+      fetch(`${CL_BASE}/eth/v1/beacon/states/head/finality_checkpoints`, {
+        headers: { "Accept": "application/json", "User-Agent": "skill-tokenized-agents/1.0" },
+        signal: AbortSignal.timeout(10000),
+      }),
+      fetch(EL_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "User-Agent": "skill-tokenized-agents/1.0" },
+        body: JSON.stringify({ jsonrpc: "2.0", method: "eth_getBlockByNumber", params: ["latest", false], id: 1 }),
+        signal: AbortSignal.timeout(10000),
+      }),
+    ]);
+
+    if (!headRes.ok) throw new Error(`CL head HTTP ${headRes.status}`);
+    if (!finalityRes.ok) throw new Error(`CL finality HTTP ${finalityRes.status}`);
+    if (!blockRes.ok) throw new Error(`EL block HTTP ${blockRes.status}`);
+
+    const headData = await headRes.json() as {
+      data: { header: { message: { slot: string } } };
+    };
+    const finalityData = await finalityRes.json() as {
+      data: { finalized: { epoch: string } };
+    };
+    const blockData = await blockRes.json() as {
+      result: {
+        number: string;
+        baseFeePerGas: string;
+        gasUsed: string;
+        gasLimit: string;
+      };
+    };
+
+    const slot = parseInt(headData.data.header.message.slot, 10);
+    const epoch = Math.floor(slot / 32);
+    const slot_in_epoch = slot % 32;
+    const finalized_epoch = parseInt(finalityData.data.finalized.epoch, 10);
+    const finality_lag = epoch - finalized_epoch;
+
+    const blk = blockData.result;
+    const block_number = parseInt(blk.number, 16);
+    const base_fee_gwei = parseInt(blk.baseFeePerGas, 16) / 1e9;
+    const gas_used = parseInt(blk.gasUsed, 16);
+    const gas_limit = parseInt(blk.gasLimit, 16);
+    const gas_util_pct = gas_limit > 0 ? (gas_used / gas_limit) * 100 : 0;
+
+    eth_beacon = {
+      epoch,
+      slot,
+      slot_in_epoch,
+      finalized_epoch,
+      finality_lag,
+      is_finalizing: finality_lag <= 3,
+      block_number,
+      base_fee_gwei: Math.round(base_fee_gwei * 10000) / 10000,
+      gas_util_pct: Math.round(gas_util_pct * 10) / 10,
+    };
+    _ethBeaconCache = { data: eth_beacon, expires: Date.now() + 2 * 60 * 1000 };
+  } catch {
+    // Fall through with undefined
+  }
+
+  const result = eth_beacon
+    ? `Epoch ${eth_beacon.epoch.toLocaleString()} · Block #${eth_beacon.block_number.toLocaleString()} · ${eth_beacon.gas_util_pct.toFixed(1)}% gas · Base fee ${eth_beacon.base_fee_gwei.toFixed(4)} Gwei`
+    : "ETH beacon chain data temporarily unavailable";
+
+  return { service_type: "eth-beacon", result, eth_beacon, timestamp, delivered_to };
 }
