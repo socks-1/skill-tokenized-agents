@@ -81,6 +81,8 @@ import type {
   EthBeaconData,
   RestakingProtocolEntry,
   RestakingData,
+  BtcHalvingEntry,
+  BtcHalvingData,
 } from "@/lib/services";
 
 interface InvoiceParams {
@@ -521,6 +523,13 @@ const SERVICE_OPTIONS: { id: ServiceType; label: string; description: string; pr
     description: "Total TVL locked across restaking and liquid restaking protocols: EigenLayer, Symbiotic, Kelp, Puffer, and more. Shows the size of the restaking economy, dominant protocol share, and 1d/7d TVL changes. Via DeFi Llama public API.",
     price: "1 USDC",
     category: "DeFi",
+  },
+  {
+    id: "btc-halving",
+    label: "Bitcoin Halving Countdown",
+    description: "Live countdown to the next Bitcoin halving: current block height, blocks remaining, estimated date, epoch progress, supply mined %, current and next block reward. Includes complete halving history. Via mempool.space public API.",
+    price: "1 USDC",
+    category: "Market Data",
   },
 ];
 
@@ -1330,6 +1339,25 @@ const MOCK_RESTAKING_TVL: RestakingData = {
   total_tvl: 17_450_000_000,
   top_protocol: "EigenLayer",
   dominant_pct: 64.2,
+};
+
+const MOCK_BTC_HALVING: BtcHalvingData = {
+  current_height: 941_313,
+  next_halving_height: 1_050_000,
+  blocks_remaining: 108_687,
+  epoch_progress_pct: 48.2,
+  current_reward_btc: 3.125,
+  next_reward_btc: 1.5625,
+  estimated_days: 755,
+  estimated_date: "March 2028",
+  avg_block_time_secs: 600,
+  supply_mined_pct: 94.3,
+  halvings: [
+    { number: 1, block_height: 210_000, date_approx: "Nov 2012", reward_before_btc: 50, reward_after_btc: 25 },
+    { number: 2, block_height: 420_000, date_approx: "Jul 2016", reward_before_btc: 25, reward_after_btc: 12.5 },
+    { number: 3, block_height: 630_000, date_approx: "May 2020", reward_before_btc: 12.5, reward_after_btc: 6.25 },
+    { number: 4, block_height: 840_000, date_approx: "Apr 2024", reward_before_btc: 6.25, reward_after_btc: 3.125 },
+  ],
 };
 
 const MOCK_SIGNATURE =
@@ -2478,6 +2506,15 @@ function buildTourSteps(serviceType: ServiceType, liveData?: ServiceResult): Pay
       service_type: "restaking-tvl",
       result: `Total restaking: ${fmtTvl(rd.total_tvl)} · #1: ${rd.top_protocol} (${rd.dominant_pct.toFixed(1)}%) · ${rd.protocols.length} protocols`,
       restaking_tvl: rd,
+      timestamp: new Date().toISOString(),
+      delivered_to: "Demo1234...abcd",
+    };
+  } else if (serviceType === "btc-halving") {
+    const hv = liveData?.btc_halving ?? MOCK_BTC_HALVING;
+    mockService = liveData ?? {
+      service_type: "btc-halving",
+      result: `Block ${hv.current_height.toLocaleString()} · Next halving in ${hv.blocks_remaining.toLocaleString()} blocks · ~${hv.estimated_days}d · ${hv.epoch_progress_pct.toFixed(1)}% through epoch`,
+      btc_halving: hv,
       timestamp: new Date().toISOString(),
       delivered_to: "Demo1234...abcd",
     };
@@ -5416,6 +5453,74 @@ function ServiceResultTable({ service }: { service: ServiceResult }) {
           ))}
         </div>
         <p style={{ marginTop: 8, fontSize: 12, color: "#888" }}>Restaking economy · Via DeFi Llama</p>
+      </div>
+    );
+  }
+
+  if (service.service_type === "btc-halving" && service.btc_halving) {
+    const hv = service.btc_halving;
+    const progressWidth = Math.min(100, Math.max(0, hv.epoch_progress_pct));
+    return (
+      <div>
+        {/* Countdown header */}
+        <div style={{ marginBottom: 10, padding: "8px 12px", background: "#fffbeb", borderRadius: 6, border: "1px solid #fcd34d" }}>
+          <div style={{ fontWeight: 700, fontSize: 15, color: "#92400e" }}>
+            🔢 Next Halving: Block {hv.next_halving_height.toLocaleString()}
+          </div>
+          <div style={{ fontSize: 13, color: "#78350f", marginTop: 2 }}>
+            {hv.blocks_remaining.toLocaleString()} blocks remaining · est. {hv.estimated_date} (~{hv.estimated_days} days)
+          </div>
+        </div>
+
+        {/* Epoch progress bar */}
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#666", marginBottom: 4 }}>
+            <span>Epoch Progress</span>
+            <span>{hv.epoch_progress_pct.toFixed(1)}%</span>
+          </div>
+          <div style={{ height: 10, background: "#e5e7eb", borderRadius: 5, overflow: "hidden" }}>
+            <div style={{ height: "100%", width: `${progressWidth}%`, background: "linear-gradient(90deg, #f59e0b, #d97706)", borderRadius: 5 }} />
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#999", marginTop: 2 }}>
+            <span>Block {(hv.next_halving_height - 210_000).toLocaleString()}</span>
+            <span>Block {hv.next_halving_height.toLocaleString()}</span>
+          </div>
+        </div>
+
+        {/* Key stats */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 12 }}>
+          <div style={{ padding: "8px 10px", background: "#f9fafb", borderRadius: 6, border: "1px solid #e5e7eb", textAlign: "center" }}>
+            <div style={{ fontSize: 11, color: "#888" }}>Current Block</div>
+            <div style={{ fontWeight: 700, fontSize: 14, color: "#111" }}>{hv.current_height.toLocaleString()}</div>
+          </div>
+          <div style={{ padding: "8px 10px", background: "#f9fafb", borderRadius: 6, border: "1px solid #e5e7eb", textAlign: "center" }}>
+            <div style={{ fontSize: 11, color: "#888" }}>Block Reward</div>
+            <div style={{ fontWeight: 700, fontSize: 14, color: "#f59e0b" }}>{hv.current_reward_btc} BTC</div>
+            <div style={{ fontSize: 11, color: "#999" }}>→ {hv.next_reward_btc} BTC</div>
+          </div>
+          <div style={{ padding: "8px 10px", background: "#f9fafb", borderRadius: 6, border: "1px solid #e5e7eb", textAlign: "center" }}>
+            <div style={{ fontSize: 11, color: "#888" }}>Supply Mined</div>
+            <div style={{ fontWeight: 700, fontSize: 14, color: "#111" }}>{hv.supply_mined_pct.toFixed(1)}%</div>
+            <div style={{ fontSize: 11, color: "#999" }}>of 21M BTC</div>
+          </div>
+        </div>
+
+        {/* Historical halvings */}
+        <div style={{ fontSize: 12, fontWeight: 600, color: "#555", marginBottom: 6 }}>Halving History</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          {hv.halvings.map((h) => (
+            <div key={h.number} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "5px 10px", background: "#fafafa", borderRadius: 5, border: "1px solid #e5e7eb" }}>
+              <div>
+                <span style={{ fontWeight: 600, fontSize: 12, color: "#111" }}>#{h.number} — {h.date_approx}</span>
+                <span style={{ fontSize: 11, color: "#888", marginLeft: 6 }}>Block {h.block_height.toLocaleString()}</span>
+              </div>
+              <div style={{ fontSize: 12, color: "#555" }}>
+                {h.reward_before_btc} → <span style={{ fontWeight: 700, color: "#f59e0b" }}>{h.reward_after_btc} BTC</span>
+              </div>
+            </div>
+          ))}
+        </div>
+        <p style={{ marginTop: 8, fontSize: 12, color: "#888" }}>Avg block time: {hv.avg_block_time_secs}s · Via mempool.space</p>
       </div>
     );
   }

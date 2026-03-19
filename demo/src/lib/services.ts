@@ -3,10 +3,10 @@
  * All functions are read-only calls to public APIs — no auth required.
  */
 
-export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season" | "btc-mining" | "bridge-volume" | "tvl-movers" | "lightning-network" | "eth-lst" | "realized-vol" | "lending-rates" | "protocol-revenue" | "btc-onchain" | "nft-market" | "market-breadth" | "perp-oi" | "stablecoin-chains" | "stablecoin-pegs" | "mining-pools" | "rwa-tvl" | "crypto-funding" | "chain-fees" | "chain-tvl" | "defi-exploits" | "global-dex" | "futures-basis" | "dex-aggregators" | "meme-coins" | "cross-chain-gas" | "hl-top-pairs" | "eth-beacon" | "restaking-tvl";
+export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season" | "btc-mining" | "bridge-volume" | "tvl-movers" | "lightning-network" | "eth-lst" | "realized-vol" | "lending-rates" | "protocol-revenue" | "btc-onchain" | "nft-market" | "market-breadth" | "perp-oi" | "stablecoin-chains" | "stablecoin-pegs" | "mining-pools" | "rwa-tvl" | "crypto-funding" | "chain-fees" | "chain-tvl" | "defi-exploits" | "global-dex" | "futures-basis" | "dex-aggregators" | "meme-coins" | "cross-chain-gas" | "hl-top-pairs" | "eth-beacon" | "restaking-tvl" | "btc-halving";
 
 /** All valid service type strings — use this for runtime validation instead of duplicating the list. */
-export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season", "btc-mining", "bridge-volume", "tvl-movers", "lightning-network", "eth-lst", "realized-vol", "lending-rates", "protocol-revenue", "btc-onchain", "nft-market", "market-breadth", "perp-oi", "stablecoin-chains", "stablecoin-pegs", "mining-pools", "rwa-tvl", "crypto-funding", "chain-fees", "chain-tvl", "defi-exploits", "global-dex", "futures-basis", "dex-aggregators", "meme-coins", "cross-chain-gas", "hl-top-pairs", "eth-beacon", "restaking-tvl"];
+export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season", "btc-mining", "bridge-volume", "tvl-movers", "lightning-network", "eth-lst", "realized-vol", "lending-rates", "protocol-revenue", "btc-onchain", "nft-market", "market-breadth", "perp-oi", "stablecoin-chains", "stablecoin-pegs", "mining-pools", "rwa-tvl", "crypto-funding", "chain-fees", "chain-tvl", "defi-exploits", "global-dex", "futures-basis", "dex-aggregators", "meme-coins", "cross-chain-gas", "hl-top-pairs", "eth-beacon", "restaking-tvl", "btc-halving"];
 
 export interface MarketData {
   symbol: string;
@@ -717,6 +717,7 @@ export interface ServiceResult {
   hl_top_pairs?: HlTopPairsData;
   eth_beacon?: EthBeaconData;
   restaking_tvl?: RestakingData;
+  btc_halving?: BtcHalvingData;
   timestamp: string;
   delivered_to: string;
 }
@@ -818,6 +819,28 @@ export interface RestakingData {
   total_tvl: number;                    // total restaking TVL in USD
   top_protocol: string;                 // name of largest protocol
   dominant_pct: number;                 // top protocol % of total TVL
+}
+
+export interface BtcHalvingEntry {
+  number: number;             // halving number (1, 2, 3, 4…)
+  block_height: number;       // block height at which halving occurred
+  date_approx: string;        // approximate date e.g. "Apr 2024"
+  reward_before_btc: number;  // block reward before halving
+  reward_after_btc: number;   // block reward after halving
+}
+
+export interface BtcHalvingData {
+  current_height: number;       // latest Bitcoin block height
+  next_halving_height: number;  // block height of next halving
+  blocks_remaining: number;     // blocks until next halving
+  epoch_progress_pct: number;   // % progress through current halving epoch
+  current_reward_btc: number;   // current block reward in BTC
+  next_reward_btc: number;      // block reward after next halving
+  estimated_days: number;       // estimated days until next halving
+  estimated_date: string;       // human-readable estimated date
+  avg_block_time_secs: number;  // current avg block time in seconds
+  supply_mined_pct: number;     // % of 21M BTC cap already mined
+  halvings: BtcHalvingEntry[];  // historical halvings
 }
 
 /**
@@ -3299,6 +3322,7 @@ export async function deliverService(delivered_to: string, serviceType: ServiceT
   if (serviceType === "hl-top-pairs") return deliverHlTopPairs(delivered_to, timestamp);
   if (serviceType === "eth-beacon") return deliverEthBeacon(delivered_to, timestamp);
   if (serviceType === "restaking-tvl") return deliverRestakingTvl(delivered_to, timestamp);
+  if (serviceType === "btc-halving") return deliverBtcHalving(delivered_to, timestamp);
   return deliverCryptoPrices(delivered_to, timestamp);
 }
 
@@ -4806,4 +4830,94 @@ export async function deliverRestakingTvl(delivered_to: string, timestamp: strin
     : "Restaking TVL data temporarily unavailable";
 
   return { service_type: "restaking-tvl", result, restaking_tvl, timestamp, delivered_to };
+}
+
+let _btcHalvingCache: { data: BtcHalvingData; expires: number } | null = null;
+
+/**
+ * Bitcoin Halving Countdown — current block height, blocks to next halving,
+ * epoch progress, estimated date, supply mined %, and halving history.
+ * Uses mempool.space public API (no auth required).
+ * 5-minute server-side cache.
+ */
+export async function deliverBtcHalving(delivered_to: string, timestamp: string): Promise<ServiceResult> {
+  if (_btcHalvingCache && Date.now() < _btcHalvingCache.expires) {
+    const hv = _btcHalvingCache.data;
+    const result = `Block ${hv.current_height.toLocaleString()} · Next halving in ${hv.blocks_remaining.toLocaleString()} blocks · ~${hv.estimated_days}d · ${hv.epoch_progress_pct.toFixed(1)}% through epoch`;
+    return { service_type: "btc-halving", result, btc_halving: hv, timestamp, delivered_to };
+  }
+
+  let btc_halving: BtcHalvingData | undefined;
+
+  try {
+    const [heightRes, diffRes] = await Promise.all([
+      fetch("https://mempool.space/api/blocks/tip/height", {
+        signal: AbortSignal.timeout(8000),
+        headers: { "User-Agent": "skill-tokenized-agents/1.0" },
+      }),
+      fetch("https://mempool.space/api/v1/difficulty-adjustment", {
+        signal: AbortSignal.timeout(8000),
+        headers: { "User-Agent": "skill-tokenized-agents/1.0" },
+      }),
+    ]);
+    if (!heightRes.ok || !diffRes.ok) throw new Error("mempool.space API error");
+
+    const currentHeight = parseInt(await heightRes.text(), 10);
+    const diffData = await diffRes.json() as { timeAvg: number };
+
+    const HALVING_INTERVAL = 210_000;
+    const halvingNumber = Math.floor(currentHeight / HALVING_INTERVAL);
+    const lastHalvingHeight = halvingNumber * HALVING_INTERVAL;
+    const nextHalvingHeight = (halvingNumber + 1) * HALVING_INTERVAL;
+    const blocksRemaining = nextHalvingHeight - currentHeight;
+    const epochProgressPct = Math.round(((currentHeight - lastHalvingHeight) / HALVING_INTERVAL) * 1000) / 10;
+
+    const avgBlockTimeSecs = Math.round(diffData.timeAvg / 1000);
+    const estimatedDays = Math.round(blocksRemaining * avgBlockTimeSecs / 86400);
+    const estimatedDate = new Date(Date.now() + blocksRemaining * avgBlockTimeSecs * 1000);
+    const estimatedDateStr = estimatedDate.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+
+    // Block reward: 50 BTC halved halvingNumber times
+    const currentRewardBtc = 50 / Math.pow(2, halvingNumber);
+    const nextRewardBtc = currentRewardBtc / 2;
+
+    // Supply mined: sum completed epochs + current epoch
+    const SUPPLY_CAP = 21_000_000;
+    let supplyMined = 0;
+    for (let i = 0; i < halvingNumber; i++) {
+      supplyMined += HALVING_INTERVAL * (50 / Math.pow(2, i));
+    }
+    supplyMined += (currentHeight - lastHalvingHeight) * currentRewardBtc;
+    const supplyMinedPct = Math.round((supplyMined / SUPPLY_CAP) * 1000) / 10;
+
+    const halvings: BtcHalvingEntry[] = [
+      { number: 1, block_height: 210_000, date_approx: "Nov 2012", reward_before_btc: 50, reward_after_btc: 25 },
+      { number: 2, block_height: 420_000, date_approx: "Jul 2016", reward_before_btc: 25, reward_after_btc: 12.5 },
+      { number: 3, block_height: 630_000, date_approx: "May 2020", reward_before_btc: 12.5, reward_after_btc: 6.25 },
+      { number: 4, block_height: 840_000, date_approx: "Apr 2024", reward_before_btc: 6.25, reward_after_btc: 3.125 },
+    ];
+
+    btc_halving = {
+      current_height: currentHeight,
+      next_halving_height: nextHalvingHeight,
+      blocks_remaining: blocksRemaining,
+      epoch_progress_pct: epochProgressPct,
+      current_reward_btc: currentRewardBtc,
+      next_reward_btc: nextRewardBtc,
+      estimated_days: estimatedDays,
+      estimated_date: estimatedDateStr,
+      avg_block_time_secs: avgBlockTimeSecs,
+      supply_mined_pct: supplyMinedPct,
+      halvings,
+    };
+    _btcHalvingCache = { data: btc_halving, expires: Date.now() + 5 * 60 * 1000 };
+  } catch {
+    // Fall through with undefined
+  }
+
+  const result = btc_halving
+    ? `Block ${btc_halving.current_height.toLocaleString()} · Next halving in ${btc_halving.blocks_remaining.toLocaleString()} blocks · ~${btc_halving.estimated_days}d · ${btc_halving.epoch_progress_pct.toFixed(1)}% through epoch`
+    : "Bitcoin halving data temporarily unavailable";
+
+  return { service_type: "btc-halving", result, btc_halving, timestamp, delivered_to };
 }

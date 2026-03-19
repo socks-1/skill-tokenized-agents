@@ -61,7 +61,8 @@
     "cross-chain-gas",
     "hl-top-pairs",
     "eth-beacon",
-    "restaking-tvl"
+    "restaking-tvl",
+    "btc-halving"
   ],
   "endpoints": {
     "preview": {
