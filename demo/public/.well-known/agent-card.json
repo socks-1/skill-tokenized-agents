@@ -5,26 +5,13 @@
   "version": "1.57.0",
   "active": true,
   "x402Support": true,
-  "supportedTrust": ["web"],
+  "supportedTrust": ["reputation"],
   "registrations": [],
   "services": [
     {
       "name": "web",
       "endpoint": "http://89.167.25.248:8086",
       "version": "1.57.0"
-    },
-    {
-      "name": "x402",
-      "endpoint": "http://89.167.25.248:8086/api/x402-data",
-      "description": "Paid data endpoint — returns full real-time data after x402 micropayment ($0.001 USDC per request on Base Mainnet)",
-      "protocol": {
-        "version": 2,
-        "network": "eip155:8453",
-        "asset": "USDC",
-        "assetAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-        "payTo": "0xB7555297d48C60A6f932Fe6404ecF8b20BD3f1AB",
-        "facilitator": "https://x402.org/facilitator"
-      }
     },
     {
       "name": "web",
