@@ -83,6 +83,8 @@ import type {
   RestakingData,
   BtcHalvingEntry,
   BtcHalvingData,
+  SolValidatorEntry,
+  SolValidatorsData,
 } from "@/lib/services";
 
 interface InvoiceParams {
@@ -530,6 +532,13 @@ const SERVICE_OPTIONS: { id: ServiceType; label: string; description: string; pr
     description: "Live countdown to the next Bitcoin halving: current block height, blocks remaining, estimated date, epoch progress, supply mined %, current and next block reward. Includes complete halving history. Via mempool.space public API.",
     price: "1 USDC",
     category: "Market Data",
+  },
+  {
+    id: "sol-validators",
+    label: "Solana Validator Rankings",
+    description: "Top 10 Solana validators by activated stake — stake amount, % of network, commission rate, and last vote slot. Total validator count, delinquent count, and network stake summary. Via Solana mainnet-beta RPC.",
+    price: "1 USDC",
+    category: "Solana",
   },
 ];
 
@@ -1358,6 +1367,26 @@ const MOCK_BTC_HALVING: BtcHalvingData = {
     { number: 3, block_height: 630_000, date_approx: "May 2020", reward_before_btc: 12.5, reward_after_btc: 6.25 },
     { number: 4, block_height: 840_000, date_approx: "Apr 2024", reward_before_btc: 6.25, reward_after_btc: 3.125 },
   ],
+};
+
+const MOCK_SOL_VALIDATORS: SolValidatorsData = {
+  validators: [
+    { rank: 1, vote_pubkey: "7Np41oeYqPefeNQEHSv1UDhYrehxin3NStELsSKCT4K2", node_pubkey_short: "7Np4…4K2", activated_stake_sol: 20_841, stake_pct: 5.21, commission: 0, last_vote: 318_456_789, status: "active" },
+    { rank: 2, vote_pubkey: "dv1ZAGvdsz5hHLwWXsVnM94hWf1pjbKVau1QVkaMJ92", node_pubkey_short: "dv1Z…J92", activated_stake_sol: 14_203, stake_pct: 3.55, commission: 8, last_vote: 318_456_788, status: "active" },
+    { rank: 3, vote_pubkey: "GE6atKoWiQ2pt3zL7N13pjNHjdLVys8LinG8qeJLcAiN", node_pubkey_short: "GE6a…AiN", activated_stake_sol: 11_567, stake_pct: 2.89, commission: 5, last_vote: 318_456_787, status: "active" },
+    { rank: 4, vote_pubkey: "CakcnaRDHka2gXyfxNhaszeW5ApOf9E15gBQ1s5p4vu", node_pubkey_short: "Cakc…4vu", activated_stake_sol: 9_834, stake_pct: 2.46, commission: 0, last_vote: 318_456_786, status: "active" },
+    { rank: 5, vote_pubkey: "HbZ5FdqjoBNLyfmtBNjmMqXxFq6dFbDLhqEMbmJVo8a3", node_pubkey_short: "HbZ5…8a3", activated_stake_sol: 8_912, stake_pct: 2.23, commission: 10, last_vote: 318_456_785, status: "active" },
+    { rank: 6, vote_pubkey: "B1mrQSpdeMU9gCvkJ6VsXVVoYjRGkNA7TtjMyqxrhecH", node_pubkey_short: "B1mr…ecH", activated_stake_sol: 7_456, stake_pct: 1.86, commission: 7, last_vote: 318_456_784, status: "active" },
+    { rank: 7, vote_pubkey: "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi", node_pubkey_short: "4vJ9…KLi", activated_stake_sol: 6_789, stake_pct: 1.70, commission: 0, last_vote: 318_456_783, status: "active" },
+    { rank: 8, vote_pubkey: "rFqFJ9g7TGBD8Ed7TPDnvGKZ5pWLPDyxLcvcH2eRCtt", node_pubkey_short: "rFqF…Ctt", activated_stake_sol: 5_934, stake_pct: 1.48, commission: 5, last_vote: 318_456_782, status: "active" },
+    { rank: 9, vote_pubkey: "5Q544fKrFoe6tsEbD7S8EmxGTJYAKtTVhAW5Q5pge4j1", node_pubkey_short: "5Q54…4j1", activated_stake_sol: 5_123, stake_pct: 1.28, commission: 0, last_vote: 318_456_781, status: "active" },
+    { rank: 10, vote_pubkey: "EWoJBfBqpDUdUaJAMQnCBCRCRCRFpDuMH2uQFRqpqUbn", node_pubkey_short: "EWoJ…Ubn", activated_stake_sol: 4_567, stake_pct: 1.14, commission: 8, last_vote: 318_456_780, status: "active" },
+  ],
+  total_stake_sol: 399.8,
+  total_validators: 1_506,
+  delinquent_count: 14,
+  avg_commission: 4.3,
+  slot_height: 318_456_789,
 };
 
 const MOCK_SIGNATURE =
@@ -2515,6 +2544,15 @@ function buildTourSteps(serviceType: ServiceType, liveData?: ServiceResult): Pay
       service_type: "btc-halving",
       result: `Block ${hv.current_height.toLocaleString()} · Next halving in ${hv.blocks_remaining.toLocaleString()} blocks · ~${hv.estimated_days}d · ${hv.epoch_progress_pct.toFixed(1)}% through epoch`,
       btc_halving: hv,
+      timestamp: new Date().toISOString(),
+      delivered_to: "Demo1234...abcd",
+    };
+  } else if (serviceType === "sol-validators") {
+    const sv = liveData?.sol_validators ?? MOCK_SOL_VALIDATORS;
+    mockService = liveData ?? {
+      service_type: "sol-validators",
+      result: `${sv.total_validators} validators · Top stake: ${sv.validators[0]?.activated_stake_sol.toFixed(0)}K SOL (${sv.validators[0]?.stake_pct.toFixed(2)}%) · Avg commission: ${sv.avg_commission.toFixed(1)}%`,
+      sol_validators: sv,
       timestamp: new Date().toISOString(),
       delivered_to: "Demo1234...abcd",
     };
@@ -5521,6 +5559,48 @@ function ServiceResultTable({ service }: { service: ServiceResult }) {
           ))}
         </div>
         <p style={{ marginTop: 8, fontSize: 12, color: "#888" }}>Avg block time: {hv.avg_block_time_secs}s · Via mempool.space</p>
+      </div>
+    );
+  }
+
+  if (service.service_type === "sol-validators" && service.sol_validators) {
+    const sv = service.sol_validators;
+    return (
+      <div>
+        {/* Network summary */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8, marginBottom: 12 }}>
+          <div style={{ padding: "8px 10px", background: "#f0fdf4", borderRadius: 6, border: "1px solid #86efac", textAlign: "center" }}>
+            <div style={{ fontSize: 11, color: "#888" }}>Validators</div>
+            <div style={{ fontWeight: 700, fontSize: 14, color: "#111" }}>{sv.total_validators.toLocaleString()}</div>
+          </div>
+          <div style={{ padding: "8px 10px", background: "#f0fdf4", borderRadius: 6, border: "1px solid #86efac", textAlign: "center" }}>
+            <div style={{ fontSize: 11, color: "#888" }}>Total Staked</div>
+            <div style={{ fontWeight: 700, fontSize: 14, color: "#111" }}>{sv.total_stake_sol.toFixed(1)}M SOL</div>
+          </div>
+          <div style={{ padding: "8px 10px", background: "#f0fdf4", borderRadius: 6, border: "1px solid #86efac", textAlign: "center" }}>
+            <div style={{ fontSize: 11, color: "#888" }}>Delinquent</div>
+            <div style={{ fontWeight: 700, fontSize: 14, color: sv.delinquent_count > 20 ? "#dc2626" : "#111" }}>{sv.delinquent_count}</div>
+          </div>
+          <div style={{ padding: "8px 10px", background: "#f0fdf4", borderRadius: 6, border: "1px solid #86efac", textAlign: "center" }}>
+            <div style={{ fontSize: 11, color: "#888" }}>Avg Commission</div>
+            <div style={{ fontWeight: 700, fontSize: 14, color: "#111" }}>{sv.avg_commission.toFixed(1)}%</div>
+          </div>
+        </div>
+
+        {/* Top 10 validators table */}
+        <div style={{ fontSize: 12, fontWeight: 600, color: "#555", marginBottom: 6 }}>Top 10 Validators by Stake</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+          {sv.validators.map((v) => (
+            <div key={v.rank} style={{ display: "flex", alignItems: "center", padding: "5px 10px", background: "#fafafa", borderRadius: 5, border: "1px solid #e5e7eb", gap: 8 }}>
+              <div style={{ fontWeight: 700, fontSize: 12, color: "#9ca3af", width: 18, textAlign: "right", flexShrink: 0 }}>#{v.rank}</div>
+              <div style={{ fontFamily: "monospace", fontSize: 11, color: "#374151", flex: 1 }}>{v.node_pubkey_short}</div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: "#111", minWidth: 70, textAlign: "right" }}>{v.activated_stake_sol.toFixed(0)}K SOL</div>
+              <div style={{ fontSize: 11, color: "#6b7280", minWidth: 40, textAlign: "right" }}>{v.stake_pct.toFixed(2)}%</div>
+              <div style={{ fontSize: 11, color: v.commission === 0 ? "#16a34a" : "#555", minWidth: 38, textAlign: "right" }}>{v.commission}% fee</div>
+            </div>
+          ))}
+        </div>
+        <p style={{ marginTop: 8, fontSize: 12, color: "#888" }}>Solana mainnet-beta · Via Solana RPC</p>
       </div>
     );
   }

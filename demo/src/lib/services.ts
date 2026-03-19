@@ -3,10 +3,10 @@
  * All functions are read-only calls to public APIs — no auth required.
  */
 
-export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season" | "btc-mining" | "bridge-volume" | "tvl-movers" | "lightning-network" | "eth-lst" | "realized-vol" | "lending-rates" | "protocol-revenue" | "btc-onchain" | "nft-market" | "market-breadth" | "perp-oi" | "stablecoin-chains" | "stablecoin-pegs" | "mining-pools" | "rwa-tvl" | "crypto-funding" | "chain-fees" | "chain-tvl" | "defi-exploits" | "global-dex" | "futures-basis" | "dex-aggregators" | "meme-coins" | "cross-chain-gas" | "hl-top-pairs" | "eth-beacon" | "restaking-tvl" | "btc-halving";
+export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season" | "btc-mining" | "bridge-volume" | "tvl-movers" | "lightning-network" | "eth-lst" | "realized-vol" | "lending-rates" | "protocol-revenue" | "btc-onchain" | "nft-market" | "market-breadth" | "perp-oi" | "stablecoin-chains" | "stablecoin-pegs" | "mining-pools" | "rwa-tvl" | "crypto-funding" | "chain-fees" | "chain-tvl" | "defi-exploits" | "global-dex" | "futures-basis" | "dex-aggregators" | "meme-coins" | "cross-chain-gas" | "hl-top-pairs" | "eth-beacon" | "restaking-tvl" | "btc-halving" | "sol-validators";
 
 /** All valid service type strings — use this for runtime validation instead of duplicating the list. */
-export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season", "btc-mining", "bridge-volume", "tvl-movers", "lightning-network", "eth-lst", "realized-vol", "lending-rates", "protocol-revenue", "btc-onchain", "nft-market", "market-breadth", "perp-oi", "stablecoin-chains", "stablecoin-pegs", "mining-pools", "rwa-tvl", "crypto-funding", "chain-fees", "chain-tvl", "defi-exploits", "global-dex", "futures-basis", "dex-aggregators", "meme-coins", "cross-chain-gas", "hl-top-pairs", "eth-beacon", "restaking-tvl", "btc-halving"];
+export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season", "btc-mining", "bridge-volume", "tvl-movers", "lightning-network", "eth-lst", "realized-vol", "lending-rates", "protocol-revenue", "btc-onchain", "nft-market", "market-breadth", "perp-oi", "stablecoin-chains", "stablecoin-pegs", "mining-pools", "rwa-tvl", "crypto-funding", "chain-fees", "chain-tvl", "defi-exploits", "global-dex", "futures-basis", "dex-aggregators", "meme-coins", "cross-chain-gas", "hl-top-pairs", "eth-beacon", "restaking-tvl", "btc-halving", "sol-validators"];
 
 export interface MarketData {
   symbol: string;
@@ -718,6 +718,7 @@ export interface ServiceResult {
   eth_beacon?: EthBeaconData;
   restaking_tvl?: RestakingData;
   btc_halving?: BtcHalvingData;
+  sol_validators?: SolValidatorsData;
   timestamp: string;
   delivered_to: string;
 }
@@ -841,6 +842,26 @@ export interface BtcHalvingData {
   avg_block_time_secs: number;  // current avg block time in seconds
   supply_mined_pct: number;     // % of 21M BTC cap already mined
   halvings: BtcHalvingEntry[];  // historical halvings
+}
+
+export interface SolValidatorEntry {
+  rank: number;
+  vote_pubkey: string;       // full vote account pubkey
+  node_pubkey_short: string; // truncated node identity e.g. "AbCd...wxYZ"
+  activated_stake_sol: number; // stake in SOL
+  stake_pct: number;         // % of total network stake
+  commission: number;        // validator commission %
+  last_vote: number;         // slot of last vote
+  status: "active" | "delinquent";
+}
+
+export interface SolValidatorsData {
+  validators: SolValidatorEntry[]; // top 10 by stake
+  total_stake_sol: number;         // total network stake in SOL
+  total_validators: number;        // total active validators
+  delinquent_count: number;        // delinquent validator count
+  avg_commission: number;          // avg commission of top 10
+  slot_height: number;             // approximate current slot
 }
 
 /**
@@ -3323,6 +3344,7 @@ export async function deliverService(delivered_to: string, serviceType: ServiceT
   if (serviceType === "eth-beacon") return deliverEthBeacon(delivered_to, timestamp);
   if (serviceType === "restaking-tvl") return deliverRestakingTvl(delivered_to, timestamp);
   if (serviceType === "btc-halving") return deliverBtcHalving(delivered_to, timestamp);
+  if (serviceType === "sol-validators") return deliverSolValidators(delivered_to, timestamp);
   return deliverCryptoPrices(delivered_to, timestamp);
 }
 
@@ -4920,4 +4942,91 @@ export async function deliverBtcHalving(delivered_to: string, timestamp: string)
     : "Bitcoin halving data temporarily unavailable";
 
   return { service_type: "btc-halving", result, btc_halving, timestamp, delivered_to };
+}
+
+let _solValidatorsCache: { data: SolValidatorsData; expires: number } | null = null;
+const SOL_VALIDATORS_TTL = 5 * 60 * 1000; // 5 minutes
+
+export async function deliverSolValidators(delivered_to: string, timestamp: string): Promise<ServiceResult> {
+  if (_solValidatorsCache && Date.now() < _solValidatorsCache.expires) {
+    const hv = _solValidatorsCache.data;
+    const result = `${hv.total_validators} validators · Top stake: ${hv.validators[0]?.activated_stake_sol.toFixed(0)}K SOL (${hv.validators[0]?.stake_pct.toFixed(2)}%) · Avg commission: ${hv.avg_commission.toFixed(1)}%`;
+    return { service_type: "sol-validators", result, sol_validators: hv, timestamp, delivered_to };
+  }
+
+  let sol_validators: SolValidatorsData | undefined;
+
+  try {
+    const res = await fetch("https://api.mainnet-beta.solana.com", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "getVoteAccounts",
+        params: [{ commitment: "finalized" }],
+      }),
+      signal: AbortSignal.timeout(12000),
+    });
+
+    if (!res.ok) throw new Error(`RPC error ${res.status}`);
+    const json = await res.json();
+
+    const current: Array<{
+      votePubkey: string;
+      nodePubkey: string;
+      activatedStake: number;
+      commission: number;
+      lastVote: number;
+    }> = json.result?.current ?? [];
+
+    const delinquent: Array<{ votePubkey: string; activatedStake: number }> =
+      json.result?.delinquent ?? [];
+
+    // Sort by stake descending, take top 10
+    const sorted = [...current].sort((a, b) => b.activatedStake - a.activatedStake);
+    const LAMPORTS_PER_SOL = 1_000_000_000;
+    const totalStakeLamports = sorted.reduce((s, v) => s + v.activatedStake, 0) +
+      delinquent.reduce((s, v) => s + v.activatedStake, 0);
+    const totalStakeSol = totalStakeLamports / LAMPORTS_PER_SOL;
+
+    const top10 = sorted.slice(0, 10);
+    const avgCommission = top10.length > 0
+      ? top10.reduce((s, v) => s + v.commission, 0) / top10.length
+      : 0;
+
+    const validators: SolValidatorEntry[] = top10.map((v, i) => {
+      const stakeSol = v.activatedStake / LAMPORTS_PER_SOL;
+      const np = v.nodePubkey;
+      return {
+        rank: i + 1,
+        vote_pubkey: v.votePubkey,
+        node_pubkey_short: np.slice(0, 4) + "…" + np.slice(-4),
+        activated_stake_sol: stakeSol / 1000, // show in thousands
+        stake_pct: totalStakeSol > 0 ? (stakeSol / totalStakeSol) * 100 : 0,
+        commission: v.commission,
+        last_vote: v.lastVote,
+        status: "active",
+      };
+    });
+
+    sol_validators = {
+      validators,
+      total_stake_sol: totalStakeSol / 1_000_000, // show in millions
+      total_validators: current.length,
+      delinquent_count: delinquent.length,
+      avg_commission: avgCommission,
+      slot_height: top10[0]?.lastVote ?? 0,
+    };
+
+    _solValidatorsCache = { data: sol_validators, expires: Date.now() + SOL_VALIDATORS_TTL };
+  } catch (_e) {
+    // Fall through with undefined sol_validators
+  }
+
+  const result = sol_validators
+    ? `${sol_validators.total_validators} validators · Top stake: ${sol_validators.validators[0]?.activated_stake_sol.toFixed(0)}K SOL (${sol_validators.validators[0]?.stake_pct.toFixed(2)}%) · Avg commission: ${sol_validators.avg_commission.toFixed(1)}%`
+    : "Solana validator data temporarily unavailable";
+
+  return { service_type: "sol-validators", result, sol_validators, timestamp, delivered_to };
 }
