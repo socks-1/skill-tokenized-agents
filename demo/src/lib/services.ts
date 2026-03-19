@@ -3,10 +3,10 @@
  * All functions are read-only calls to public APIs — no auth required.
  */
 
-export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season" | "btc-mining" | "bridge-volume" | "tvl-movers" | "lightning-network" | "eth-lst" | "realized-vol" | "lending-rates" | "protocol-revenue" | "btc-onchain" | "nft-market" | "market-breadth" | "perp-oi" | "stablecoin-chains" | "stablecoin-pegs" | "mining-pools" | "rwa-tvl" | "crypto-funding" | "chain-fees" | "chain-tvl" | "defi-exploits" | "global-dex" | "futures-basis" | "dex-aggregators" | "meme-coins" | "cross-chain-gas" | "hl-top-pairs" | "eth-beacon" | "restaking-tvl" | "btc-halving" | "sol-validators" | "stable-yields" | "btc-treasury";
+export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season" | "btc-mining" | "bridge-volume" | "tvl-movers" | "lightning-network" | "eth-lst" | "realized-vol" | "lending-rates" | "protocol-revenue" | "btc-onchain" | "nft-market" | "market-breadth" | "perp-oi" | "stablecoin-chains" | "stablecoin-pegs" | "mining-pools" | "rwa-tvl" | "crypto-funding" | "chain-fees" | "chain-tvl" | "defi-exploits" | "global-dex" | "futures-basis" | "dex-aggregators" | "meme-coins" | "cross-chain-gas" | "hl-top-pairs" | "eth-beacon" | "restaking-tvl" | "btc-halving" | "sol-validators" | "stable-yields" | "btc-treasury" | "eth-blob";
 
 /** All valid service type strings — use this for runtime validation instead of duplicating the list. */
-export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season", "btc-mining", "bridge-volume", "tvl-movers", "lightning-network", "eth-lst", "realized-vol", "lending-rates", "protocol-revenue", "btc-onchain", "nft-market", "market-breadth", "perp-oi", "stablecoin-chains", "stablecoin-pegs", "mining-pools", "rwa-tvl", "crypto-funding", "chain-fees", "chain-tvl", "defi-exploits", "global-dex", "futures-basis", "dex-aggregators", "meme-coins", "cross-chain-gas", "hl-top-pairs", "eth-beacon", "restaking-tvl", "btc-halving", "sol-validators", "stable-yields", "btc-treasury"];
+export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season", "btc-mining", "bridge-volume", "tvl-movers", "lightning-network", "eth-lst", "realized-vol", "lending-rates", "protocol-revenue", "btc-onchain", "nft-market", "market-breadth", "perp-oi", "stablecoin-chains", "stablecoin-pegs", "mining-pools", "rwa-tvl", "crypto-funding", "chain-fees", "chain-tvl", "defi-exploits", "global-dex", "futures-basis", "dex-aggregators", "meme-coins", "cross-chain-gas", "hl-top-pairs", "eth-beacon", "restaking-tvl", "btc-halving", "sol-validators", "stable-yields", "btc-treasury", "eth-blob"];
 
 export interface MarketData {
   symbol: string;
@@ -693,6 +693,17 @@ export interface BtcTreasuryData {
   top_holder_pct: number;          // % of all corporate holdings held by #1
 }
 
+export interface EthBlobData {
+  blob_base_fee_gwei: number;      // current blob base fee in gwei
+  blobs_in_latest: number;         // number of blobs in latest block (0-6)
+  max_blobs_per_block: number;     // 6 (EIP-4844 maximum)
+  target_blobs_per_block: number;  // 3 (EIP-4844 target)
+  utilization_pct: number;         // blobs_in_latest / max * 100
+  block_number: number;            // latest block number
+  fee_tier: string;                // "Cheap" | "Moderate" | "Expensive"
+  blob_cost_eth: number;           // cost in ETH to submit one blob (131072 bytes)
+}
+
 export interface ServiceResult {
   service_type: ServiceType;
   result: string;
@@ -757,6 +768,7 @@ export interface ServiceResult {
   sol_validators?: SolValidatorsData;
   stable_yields?: StableYieldsData;
   btc_treasury?: BtcTreasuryData;
+  eth_blob?: EthBlobData;
   timestamp: string;
   delivered_to: string;
 }
@@ -3385,6 +3397,7 @@ export async function deliverService(delivered_to: string, serviceType: ServiceT
   if (serviceType === "sol-validators") return deliverSolValidators(delivered_to, timestamp);
   if (serviceType === "stable-yields") return deliverStableYields(delivered_to, timestamp);
   if (serviceType === "btc-treasury") return deliverBtcTreasury(delivered_to, timestamp);
+  if (serviceType === "eth-blob") return deliverEthBlob(delivered_to, timestamp);
   return deliverCryptoPrices(delivered_to, timestamp);
 }
 
@@ -5242,4 +5255,83 @@ export async function deliverBtcTreasury(delivered_to: string, timestamp: string
     : "Bitcoin treasury data temporarily unavailable";
 
   return { service_type: "btc-treasury", result, btc_treasury, timestamp, delivered_to };
+}
+
+const GAS_PER_BLOB = 131072; // EIP-4844: each blob occupies 2^17 blob gas units
+const ETH_BLOB_TTL = 15 * 1000; // 15 seconds — matches Ethereum block time
+let _ethBlobCache: { data: EthBlobData; expires: number } | null = null;
+
+export async function deliverEthBlob(delivered_to: string, timestamp: string): Promise<ServiceResult> {
+  if (_ethBlobCache && Date.now() < _ethBlobCache.expires) {
+    const eb = _ethBlobCache.data;
+    const fmtBlobCost = (v: number) => v < 0.000001 ? v.toExponential(2) : v.toFixed(6);
+    const result = `Blob base fee: ${eb.blob_base_fee_gwei.toFixed(4)} gwei · ${eb.blobs_in_latest}/${eb.max_blobs_per_block} blobs · ${eb.fee_tier} · 1-blob cost: ${fmtBlobCost(eb.blob_cost_eth)} ETH`;
+    return { service_type: "eth-blob", result, eth_blob: eb, timestamp, delivered_to };
+  }
+
+  let eth_blob: EthBlobData | undefined;
+
+  try {
+    const EL_URL = "https://ethereum.publicnode.com";
+    const headers = { "Content-Type": "application/json", "User-Agent": "skill-tokenized-agents/1.0" };
+
+    const [blobFeeRes, blockRes] = await Promise.all([
+      fetch(EL_URL, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ jsonrpc: "2.0", method: "eth_blobBaseFee", params: [], id: 1 }),
+        signal: AbortSignal.timeout(8000),
+      }),
+      fetch(EL_URL, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ jsonrpc: "2.0", method: "eth_getBlockByNumber", params: ["latest", false], id: 2 }),
+        signal: AbortSignal.timeout(8000),
+      }),
+    ]);
+
+    if (blobFeeRes.ok && blockRes.ok) {
+      const [blobFeeJson, blockJson] = await Promise.all([blobFeeRes.json(), blockRes.json()]) as [
+        { result: string },
+        { result: { number: string; blobGasUsed?: string } },
+      ];
+
+      const blobBaseFeeWei = parseInt(blobFeeJson.result, 16);
+      const block = blockJson.result;
+      const blobGasUsed = parseInt(block.blobGasUsed ?? "0x0", 16);
+      const blobsInLatest = Math.round(blobGasUsed / GAS_PER_BLOB);
+      const blockNumber = parseInt(block.number, 16);
+
+      const blobBaseFeeGwei = blobBaseFeeWei / 1e9;
+      const blobCostEth = (blobBaseFeeWei * GAS_PER_BLOB) / 1e18;
+      const utilizationPct = (blobsInLatest / 6) * 100;
+
+      const feeTier =
+        blobBaseFeeGwei < 0.01 ? "Cheap"
+        : blobBaseFeeGwei < 0.1 ? "Moderate"
+        : "Expensive";
+
+      eth_blob = {
+        blob_base_fee_gwei: parseFloat(blobBaseFeeGwei.toFixed(6)),
+        blobs_in_latest: blobsInLatest,
+        max_blobs_per_block: 6,
+        target_blobs_per_block: 3,
+        utilization_pct: parseFloat(utilizationPct.toFixed(1)),
+        block_number: blockNumber,
+        fee_tier: feeTier,
+        blob_cost_eth: parseFloat(blobCostEth.toFixed(8)),
+      };
+
+      _ethBlobCache = { data: eth_blob, expires: Date.now() + ETH_BLOB_TTL };
+    }
+  } catch {
+    // Fall through with undefined eth_blob
+  }
+
+  const fmtBlobCost = (v: number) => v < 0.000001 ? v.toExponential(2) : v.toFixed(6);
+  const result = eth_blob
+    ? `Blob base fee: ${eth_blob.blob_base_fee_gwei.toFixed(4)} gwei · ${eth_blob.blobs_in_latest}/${eth_blob.max_blobs_per_block} blobs · ${eth_blob.fee_tier} · 1-blob cost: ${fmtBlobCost(eth_blob.blob_cost_eth)} ETH`
+    : "Ethereum blob fee data temporarily unavailable";
+
+  return { service_type: "eth-blob", result, eth_blob, timestamp, delivered_to };
 }

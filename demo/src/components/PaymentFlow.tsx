@@ -89,6 +89,7 @@ import type {
   StableYieldsData,
   BtcTreasuryCompany,
   BtcTreasuryData,
+  EthBlobData,
 } from "@/lib/services";
 
 interface InvoiceParams {
@@ -555,6 +556,13 @@ const SERVICE_OPTIONS: { id: ServiceType; label: string; description: string; pr
     id: "btc-treasury",
     label: "Public Company Bitcoin Treasury",
     description: "Bitcoin holdings by publicly-traded companies — Strategy (MSTR), MARA Holdings, and 149+ others. Total BTC held, USD value, top 10 holders with share of corporate holdings. Via CoinGecko public treasury API.",
+    price: "1 USDC",
+    category: "Market Data",
+  },
+  {
+    id: "eth-blob",
+    label: "Ethereum Blob Fee Market",
+    description: "Post-EIP-4844 blobspace snapshot — current blob base fee in gwei, latest block blob utilization (0–6 blobs), fee tier signal, and cost in ETH to submit one 128 KB blob. Essential for L2 rollups managing data-availability costs. Via Ethereum JSON-RPC.",
     price: "1 USDC",
     category: "Market Data",
   },
@@ -1451,6 +1459,17 @@ const MOCK_BTC_TREASURY: BtcTreasuryData = {
   top_holder: "Strategy",
   top_holder_btc: 761_068,
   top_holder_pct: 64.2,
+};
+
+const MOCK_ETH_BLOB: EthBlobData = {
+  blob_base_fee_gwei: 0.0036,
+  blobs_in_latest: 2,
+  max_blobs_per_block: 6,
+  target_blobs_per_block: 3,
+  utilization_pct: 33.3,
+  block_number: 22_000_000,
+  fee_tier: "Cheap",
+  blob_cost_eth: 0.000472,
 };
 
 const MOCK_SIGNATURE =
@@ -2626,6 +2645,16 @@ function buildTourSteps(serviceType: ServiceType, liveData?: ServiceResult): Pay
       service_type: "stable-yields",
       result: `Best: ${sy.highest_apy.toFixed(1)}% APY (${sy.highest_protocol}) · Avg: ${sy.avg_stablecoin_apy.toFixed(1)}% · ${sy.pools.length} pools · $${(sy.total_shown_tvl / 1e9).toFixed(1)}B TVL`,
       stable_yields: sy,
+      timestamp: new Date().toISOString(),
+      delivered_to: "Demo1234...abcd",
+    };
+  } else if (serviceType === "eth-blob") {
+    const eb = liveData?.eth_blob ?? MOCK_ETH_BLOB;
+    const fmtBlobCostMock = (v: number) => v < 0.000001 ? v.toExponential(2) : v.toFixed(6);
+    mockService = liveData ?? {
+      service_type: "eth-blob",
+      result: `Blob base fee: ${eb.blob_base_fee_gwei.toFixed(4)} gwei · ${eb.blobs_in_latest}/${eb.max_blobs_per_block} blobs · ${eb.fee_tier} · 1-blob cost: ${fmtBlobCostMock(eb.blob_cost_eth)} ETH`,
+      eth_blob: eb,
       timestamp: new Date().toISOString(),
       delivered_to: "Demo1234...abcd",
     };
@@ -5774,6 +5803,79 @@ function ServiceResultTable({ service }: { service: ServiceResult }) {
           ))}
         </div>
         <p style={{ marginTop: 8, fontSize: 12, color: "#888" }}>Public companies only · Via CoinGecko public treasury API</p>
+      </div>
+    );
+  }
+
+  if (service.service_type === "eth-blob" && service.eth_blob) {
+    const eb = service.eth_blob;
+    const fmtBlobCostRender = (v: number) => v < 0.000001 ? v.toExponential(2) : v.toFixed(6);
+    const tierColor = eb.fee_tier === "Cheap" ? "#16a34a" : eb.fee_tier === "Moderate" ? "#d97706" : "#dc2626";
+    const tierBg = eb.fee_tier === "Cheap" ? "#f0fdf4" : eb.fee_tier === "Moderate" ? "#fffbeb" : "#fef2f2";
+    const tierBorder = eb.fee_tier === "Cheap" ? "#86efac" : eb.fee_tier === "Moderate" ? "#fde68a" : "#fecaca";
+    const utilFill = `${(eb.utilization_pct).toFixed(0)}%`;
+    return (
+      <div>
+        {/* Summary stats */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 12 }}>
+          <div style={{ padding: "8px 10px", background: "#eff6ff", borderRadius: 6, border: "1px solid #bfdbfe", textAlign: "center" }}>
+            <div style={{ fontSize: 11, color: "#888" }}>Blob Base Fee</div>
+            <div style={{ fontWeight: 700, fontSize: 15, color: "#2563eb" }}>{eb.blob_base_fee_gwei.toFixed(4)}</div>
+            <div style={{ fontSize: 10, color: "#888" }}>gwei</div>
+          </div>
+          <div style={{ padding: "8px 10px", background: tierBg, borderRadius: 6, border: `1px solid ${tierBorder}`, textAlign: "center" }}>
+            <div style={{ fontSize: 11, color: "#888" }}>Fee Tier</div>
+            <div style={{ fontWeight: 700, fontSize: 15, color: tierColor }}>{eb.fee_tier}</div>
+            <div style={{ fontSize: 10, color: "#888" }}>market signal</div>
+          </div>
+          <div style={{ padding: "8px 10px", background: "#fafafa", borderRadius: 6, border: "1px solid #e5e7eb", textAlign: "center" }}>
+            <div style={{ fontSize: 11, color: "#888" }}>1-Blob Cost</div>
+            <div style={{ fontWeight: 700, fontSize: 15, color: "#111" }}>{fmtBlobCostRender(eb.blob_cost_eth)}</div>
+            <div style={{ fontSize: 10, color: "#888" }}>ETH (~128 KB)</div>
+          </div>
+        </div>
+
+        {/* Blob utilization bar */}
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: "#555", marginBottom: 6 }}>
+            Latest Block Utilization — {eb.blobs_in_latest}/{eb.max_blobs_per_block} blobs ({utilFill})
+          </div>
+          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+            {Array.from({ length: eb.max_blobs_per_block }, (_, i) => (
+              <div
+                key={i}
+                style={{
+                  flex: 1,
+                  height: 24,
+                  borderRadius: 4,
+                  background: i < eb.blobs_in_latest ? "#3b82f6" : i < eb.target_blobs_per_block ? "#dbeafe" : "#f3f4f6",
+                  border: i < eb.target_blobs_per_block ? "1px solid #93c5fd" : "1px solid #e5e7eb",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <span style={{ fontSize: 10, color: i < eb.blobs_in_latest ? "#fff" : "#9ca3af", fontWeight: 600 }}>
+                  {i + 1}
+                </span>
+              </div>
+            ))}
+          </div>
+          <div style={{ display: "flex", gap: 12, marginTop: 4, fontSize: 10, color: "#9ca3af" }}>
+            <span>■ <span style={{ color: "#3b82f6" }}>used</span></span>
+            <span>■ <span style={{ color: "#93c5fd" }}>target zone (3)</span></span>
+            <span>■ <span style={{ color: "#e5e7eb" }}>empty</span></span>
+          </div>
+        </div>
+
+        <div style={{ display: "flex", gap: 8, fontSize: 11, color: "#6b7280" }}>
+          <span>Block #{eb.block_number.toLocaleString()}</span>
+          <span>·</span>
+          <span>Target: {eb.target_blobs_per_block} blobs/block</span>
+          <span>·</span>
+          <span>Max: {eb.max_blobs_per_block} blobs/block</span>
+        </div>
+        <p style={{ marginTop: 8, fontSize: 12, color: "#888" }}>EIP-4844 blobspace · Via Ethereum JSON-RPC (publicnode.com)</p>
       </div>
     );
   }
