@@ -3,10 +3,10 @@
  * All functions are read-only calls to public APIs — no auth required.
  */
 
-export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season" | "btc-mining" | "bridge-volume" | "tvl-movers" | "lightning-network" | "eth-lst" | "realized-vol" | "lending-rates" | "protocol-revenue" | "btc-onchain" | "nft-market" | "market-breadth" | "perp-oi" | "stablecoin-chains" | "stablecoin-pegs" | "mining-pools" | "rwa-tvl" | "crypto-funding" | "chain-fees" | "chain-tvl" | "defi-exploits" | "global-dex" | "futures-basis" | "dex-aggregators" | "meme-coins" | "cross-chain-gas";
+export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season" | "btc-mining" | "bridge-volume" | "tvl-movers" | "lightning-network" | "eth-lst" | "realized-vol" | "lending-rates" | "protocol-revenue" | "btc-onchain" | "nft-market" | "market-breadth" | "perp-oi" | "stablecoin-chains" | "stablecoin-pegs" | "mining-pools" | "rwa-tvl" | "crypto-funding" | "chain-fees" | "chain-tvl" | "defi-exploits" | "global-dex" | "futures-basis" | "dex-aggregators" | "meme-coins" | "cross-chain-gas" | "hl-top-pairs";
 
 /** All valid service type strings — use this for runtime validation instead of duplicating the list. */
-export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season", "btc-mining", "bridge-volume", "tvl-movers", "lightning-network", "eth-lst", "realized-vol", "lending-rates", "protocol-revenue", "btc-onchain", "nft-market", "market-breadth", "perp-oi", "stablecoin-chains", "stablecoin-pegs", "mining-pools", "rwa-tvl", "crypto-funding", "chain-fees", "chain-tvl", "defi-exploits", "global-dex", "futures-basis", "dex-aggregators", "meme-coins", "cross-chain-gas"];
+export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season", "btc-mining", "bridge-volume", "tvl-movers", "lightning-network", "eth-lst", "realized-vol", "lending-rates", "protocol-revenue", "btc-onchain", "nft-market", "market-breadth", "perp-oi", "stablecoin-chains", "stablecoin-pegs", "mining-pools", "rwa-tvl", "crypto-funding", "chain-fees", "chain-tvl", "defi-exploits", "global-dex", "futures-basis", "dex-aggregators", "meme-coins", "cross-chain-gas", "hl-top-pairs"];
 
 export interface MarketData {
   symbol: string;
@@ -714,6 +714,7 @@ export interface ServiceResult {
   dex_aggregators?: DexAggregatorsData;
   meme_coins?: MemeCoinsData;
   cross_chain_gas?: CrossChainGasData;
+  hl_top_pairs?: HlTopPairsData;
   timestamp: string;
   delivered_to: string;
 }
@@ -770,6 +771,21 @@ export interface CrossChainGasData {
   chains: CrossChainGasEntry[];  // sorted cheapest first
   cheapest: string;              // name of cheapest chain
   eth_base_fee_gwei: number;     // current ETH L1 gas price in gwei
+}
+
+export interface HlPairEntry {
+  symbol: string;              // asset symbol e.g. "BTC", "HYPE"
+  volume_24h_usd: number;      // 24h notional volume in USD
+  mark_price: number;          // current mark price USD
+  price_change_pct: number;    // 24h price change %
+  open_interest_usd: number;   // open interest in USD
+  funding_rate: number;        // hourly funding rate (raw, e.g. -0.0000089)
+}
+
+export interface HlTopPairsData {
+  pairs: HlPairEntry[];          // top 10 by 24h volume
+  total_volume_24h_usd: number;  // sum of all Hyperliquid 24h volume
+  top_pair: string;              // symbol with highest volume
 }
 
 /**
@@ -3248,6 +3264,7 @@ export async function deliverService(delivered_to: string, serviceType: ServiceT
   if (serviceType === "dex-aggregators") return deliverDexAggregators(delivered_to, timestamp);
   if (serviceType === "meme-coins") return deliverMemeCoins(delivered_to, timestamp);
   if (serviceType === "cross-chain-gas") return deliverCrossChainGas(delivered_to, timestamp);
+  if (serviceType === "hl-top-pairs") return deliverHlTopPairs(delivered_to, timestamp);
   return deliverCryptoPrices(delivered_to, timestamp);
 }
 
@@ -4516,4 +4533,84 @@ export async function deliverMemeCoins(delivered_to: string, timestamp: string):
     : "Meme coin data temporarily unavailable";
 
   return { service_type: "meme-coins", result, meme_coins, timestamp, delivered_to };
+}
+
+let _hlTopPairsCache: { data: HlTopPairsData; expires: number } | null = null;
+
+/**
+ * Fetches the top 10 Hyperliquid perpetual pairs by 24h trading volume.
+ * Shows volume, price, 24h change, open interest, and funding rate for each.
+ * Reveals which assets are most actively traded on the largest perp DEX.
+ * Cached 3 minutes.
+ */
+export async function deliverHlTopPairs(delivered_to: string, timestamp: string): Promise<ServiceResult> {
+  if (_hlTopPairsCache && Date.now() < _hlTopPairsCache.expires) {
+    const ht = _hlTopPairsCache.data;
+    const fmtVol = (v: number) => v >= 1e9 ? `$${(v / 1e9).toFixed(2)}B` : `$${(v / 1e6).toFixed(0)}M`;
+    const result = `#1: ${ht.top_pair} ${fmtVol(ht.pairs[0]?.volume_24h_usd ?? 0)} · Total HL vol ${fmtVol(ht.total_volume_24h_usd)} · Top 10 pairs`;
+    return { service_type: "hl-top-pairs", result, hl_top_pairs: ht, timestamp, delivered_to };
+  }
+
+  let hl_top_pairs: HlTopPairsData | undefined;
+
+  try {
+    const res = await fetch("https://api.hyperliquid.xyz/info", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json", "User-Agent": "skill-tokenized-agents/1.0" },
+      body: JSON.stringify({ type: "metaAndAssetCtxs" }),
+      signal: AbortSignal.timeout(12000),
+    });
+    if (!res.ok) throw new Error(`Hyperliquid API HTTP ${res.status}`);
+
+    const data = await res.json() as [
+      { universe: Array<{ name: string }> },
+      Array<{
+        funding: string;
+        openInterest: string;
+        prevDayPx: string;
+        dayNtlVlm: string;
+        markPx: string;
+      }>
+    ];
+
+    const [meta, ctxs] = data;
+
+    const allPairs = meta.universe.map((asset, i) => {
+      const ctx = ctxs[i];
+      if (!ctx) return null;
+      const markPx = parseFloat(ctx.markPx) || 0;
+      const prevDayPx = parseFloat(ctx.prevDayPx) || 0;
+      const volume_24h_usd = parseFloat(ctx.dayNtlVlm) || 0;
+      const openInterest = parseFloat(ctx.openInterest) || 0;
+      const funding_rate = parseFloat(ctx.funding) || 0;
+      const price_change_pct = prevDayPx > 0 ? ((markPx - prevDayPx) / prevDayPx) * 100 : 0;
+      return {
+        symbol: asset.name,
+        volume_24h_usd,
+        mark_price: markPx,
+        price_change_pct: Math.round(price_change_pct * 100) / 100,
+        open_interest_usd: openInterest * markPx,
+        funding_rate,
+      } as HlPairEntry;
+    }).filter((p): p is HlPairEntry => p !== null && p.volume_24h_usd > 0);
+
+    // Sort by 24h volume descending, take top 10
+    allPairs.sort((a, b) => b.volume_24h_usd - a.volume_24h_usd);
+    const pairs = allPairs.slice(0, 10);
+
+    const total_volume_24h_usd = allPairs.reduce((s, p) => s + p.volume_24h_usd, 0);
+    const top_pair = pairs[0]?.symbol ?? "BTC";
+
+    hl_top_pairs = { pairs, total_volume_24h_usd, top_pair };
+    _hlTopPairsCache = { data: hl_top_pairs, expires: Date.now() + 3 * 60 * 1000 };
+  } catch {
+    // Fall through with undefined
+  }
+
+  const fmtVol = (v: number) => v >= 1e9 ? `$${(v / 1e9).toFixed(2)}B` : `$${(v / 1e6).toFixed(0)}M`;
+  const result = hl_top_pairs && hl_top_pairs.pairs.length > 0
+    ? `#1: ${hl_top_pairs.top_pair} ${fmtVol(hl_top_pairs.pairs[0]?.volume_24h_usd ?? 0)} · Total HL vol ${fmtVol(hl_top_pairs.total_volume_24h_usd)} · Top 10 pairs`
+    : "Hyperliquid data temporarily unavailable";
+
+  return { service_type: "hl-top-pairs", result, hl_top_pairs, timestamp, delivered_to };
 }

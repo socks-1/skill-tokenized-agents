@@ -76,6 +76,8 @@ import type {
   MemeCoinsData,
   CrossChainGasEntry,
   CrossChainGasData,
+  HlPairEntry,
+  HlTopPairsData,
 } from "@/lib/services";
 
 interface InvoiceParams {
@@ -493,6 +495,13 @@ const SERVICE_OPTIONS: { id: ServiceType; label: string; description: string; pr
     id: "cross-chain-gas",
     label: "Cross-Chain Gas Cost Comparison",
     description: "Real-time simple transfer cost across 6 chains: Ethereum L1, Base, Arbitrum, Optimism, BNB Chain, and Solana. Shows gas price in Gwei and USD cost per transfer, ranked cheapest to most expensive. Essential for cost-conscious developers and traders.",
+    price: "1 USDC",
+    category: "Market Data",
+  },
+  {
+    id: "hl-top-pairs",
+    label: "Hyperliquid Top Pairs by Volume",
+    description: "Top 10 perpetual pairs on Hyperliquid ranked by 24h trading volume — with price, 24h change, open interest, and funding rate for each. See which assets are hottest in perp markets right now. Total Hyperliquid volume included. Via Hyperliquid public API.",
     price: "1 USDC",
     category: "Market Data",
   },
@@ -1262,6 +1271,23 @@ const MOCK_CROSS_CHAIN_GAS: CrossChainGasData = {
     { chain: "BNB Chain",    symbol: "BNB", gas_price_gwei: 1.1,   transfer_cost_usd: 0.063,   relative_pct: 38 },
     { chain: "Ethereum L1",  symbol: "ETH", gas_price_gwei: 8.4,   transfer_cost_usd: 0.168,   relative_pct: 100 },
   ] as CrossChainGasEntry[],
+};
+
+const MOCK_HL_TOP_PAIRS: HlTopPairsData = {
+  top_pair: "BTC",
+  total_volume_24h_usd: 6_400_000_000,
+  pairs: [
+    { symbol: "BTC",      volume_24h_usd: 2_938_000_000, mark_price: 71019,  price_change_pct: -3.62, open_interest_usd: 1_975_000_000, funding_rate: -0.0000089 },
+    { symbol: "ETH",      volume_24h_usd: 1_722_000_000, mark_price: 2191,   price_change_pct: -5.11, open_interest_usd: 1_275_000_000, funding_rate: -0.0000078 },
+    { symbol: "HYPE",     volume_24h_usd:   615_000_000, mark_price: 42.19,  price_change_pct:  2.34, open_interest_usd:   854_000_000, funding_rate:  0.0000130 },
+    { symbol: "SOL",      volume_24h_usd:   280_000_000, mark_price: 90.05,  price_change_pct: -4.88, open_interest_usd:   312_000_000, funding_rate: -0.0000072 },
+    { symbol: "ZEC",      volume_24h_usd:    93_900_000, mark_price: 248.87, price_change_pct: 14.20, open_interest_usd:    67_500_000, funding_rate:  0.0000130 },
+    { symbol: "FARTCOIN", volume_24h_usd:    64_900_000, mark_price: 0.2133, price_change_pct: -6.22, open_interest_usd:    48_800_000, funding_rate:  0.0000130 },
+    { symbol: "XRP",      volume_24h_usd:    56_100_000, mark_price: 1.4596, price_change_pct: -3.41, open_interest_usd:    85_100_000, funding_rate: -0.0000210 },
+    { symbol: "TAO",      volume_24h_usd:    30_000_000, mark_price: 272.32, price_change_pct: -7.55, open_interest_usd:    43_100_000, funding_rate:  0.0000130 },
+    { symbol: "ASTER",    volume_24h_usd:    26_000_000, mark_price: 0.6923, price_change_pct: -1.83, open_interest_usd:    69_200_000, funding_rate: -0.0000180 },
+    { symbol: "SUI",      volume_24h_usd:    19_300_000, mark_price: 0.9837, price_change_pct: -8.07, open_interest_usd:    27_900_000, funding_rate:  0.0000000 },
+  ] as HlPairEntry[],
 };
 
 const MOCK_SIGNATURE =
@@ -2381,6 +2407,16 @@ function buildTourSteps(serviceType: ServiceType, liveData?: ServiceResult): Pay
       service_type: "cross-chain-gas",
       result: `Cheapest: ${ccg.cheapest} · ETH L1: ${ccg.eth_base_fee_gwei} Gwei · ${top3}`,
       cross_chain_gas: ccg,
+      timestamp: new Date().toISOString(),
+      delivered_to: "Demo1234...abcd",
+    };
+  } else if (serviceType === "hl-top-pairs") {
+    const ht = liveData?.hl_top_pairs ?? MOCK_HL_TOP_PAIRS;
+    const fmtVol = (v: number) => v >= 1e9 ? `$${(v / 1e9).toFixed(2)}B` : `$${(v / 1e6).toFixed(0)}M`;
+    mockService = liveData ?? {
+      service_type: "hl-top-pairs",
+      result: `#1: ${ht.top_pair} ${fmtVol(ht.pairs[0]?.volume_24h_usd ?? 0)} · Total HL vol ${fmtVol(ht.total_volume_24h_usd)} · Top 10 pairs`,
+      hl_top_pairs: ht,
       timestamp: new Date().toISOString(),
       delivered_to: "Demo1234...abcd",
     };
@@ -5149,6 +5185,82 @@ function ServiceResultTable({ service }: { service: ServiceResult }) {
         </table>
         <p style={{ marginTop: 8, fontSize: 12, color: "#888" }}>
           Simple transfer (21k gas EVM / 5k lamports Solana) · live via public RPC endpoints
+        </p>
+      </div>
+    );
+  }
+
+  if (service.service_type === "hl-top-pairs" && service.hl_top_pairs) {
+    const ht = service.hl_top_pairs;
+    const fmtVol = (v: number) => v >= 1e9 ? `$${(v / 1e9).toFixed(2)}B` : v >= 1e6 ? `$${(v / 1e6).toFixed(0)}M` : `$${v.toFixed(0)}`;
+    const fmtOI  = (v: number) => v >= 1e9 ? `$${(v / 1e9).toFixed(1)}B` : `$${(v / 1e6).toFixed(0)}M`;
+    const fmtFunding = (r: number) => {
+      const pct = r * 100;
+      const sign = pct >= 0 ? "+" : "";
+      return `${sign}${pct.toFixed(4)}%`;
+    };
+    const maxVol = ht.pairs[0]?.volume_24h_usd ?? 1;
+    return (
+      <div>
+        <div style={{ marginBottom: 12, padding: 12, background: "#f0fdf4", borderRadius: 8, border: "1px solid #bbf7d0", display: "flex", gap: 24, flexWrap: "wrap" }}>
+          <div>
+            <div style={{ fontSize: 11, color: "#aaa", marginBottom: 2 }}>Total 24h Volume</div>
+            <div style={{ fontWeight: 700, fontSize: 18, color: "#15803d" }}>{fmtVol(ht.total_volume_24h_usd)}</div>
+          </div>
+          <div>
+            <div style={{ fontSize: 11, color: "#aaa", marginBottom: 2 }}>#1 Asset</div>
+            <div style={{ fontWeight: 700, fontSize: 18, color: "#222" }}>{ht.top_pair}</div>
+          </div>
+          <div>
+            <div style={{ fontSize: 11, color: "#aaa", marginBottom: 2 }}>Top 10 Pairs</div>
+            <div style={{ fontWeight: 600, fontSize: 15, color: "#555" }}>{ht.pairs.length} shown</div>
+          </div>
+        </div>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+          <thead>
+            <tr style={{ borderBottom: "1px solid #eee" }}>
+              <th style={{ textAlign: "left",  padding: "4px 6px", color: "#aaa", fontWeight: 500 }}>#</th>
+              <th style={{ textAlign: "left",  padding: "4px 6px", color: "#aaa", fontWeight: 500 }}>Pair</th>
+              <th style={{ textAlign: "right", padding: "4px 6px", color: "#aaa", fontWeight: 500 }}>24h Vol</th>
+              <th style={{ textAlign: "right", padding: "4px 6px", color: "#aaa", fontWeight: 500 }}>Price</th>
+              <th style={{ textAlign: "right", padding: "4px 6px", color: "#aaa", fontWeight: 500 }}>24h %</th>
+              <th style={{ textAlign: "right", padding: "4px 6px", color: "#aaa", fontWeight: 500 }}>OI</th>
+              <th style={{ textAlign: "right", padding: "4px 6px", color: "#aaa", fontWeight: 500 }}>Funding/h</th>
+            </tr>
+          </thead>
+          <tbody>
+            {ht.pairs.map((p, i) => {
+              const barWidth = Math.max(2, Math.round((p.volume_24h_usd / maxVol) * 100));
+              const changeColor = p.price_change_pct >= 0 ? "#16a34a" : "#dc2626";
+              const fundingColor = p.funding_rate > 0.0001 ? "#dc2626" : p.funding_rate < -0.0001 ? "#2563eb" : "#888";
+              const priceStr = p.mark_price >= 1000
+                ? `$${p.mark_price.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+                : p.mark_price >= 1
+                ? `$${p.mark_price.toFixed(4)}`
+                : `$${p.mark_price.toFixed(6)}`;
+              return (
+                <tr key={i} style={{ borderBottom: "1px solid #f5f5f5" }}>
+                  <td style={{ padding: "5px 6px", color: "#aaa", fontSize: 12 }}>{i + 1}</td>
+                  <td style={{ padding: "5px 6px" }}>
+                    <div style={{ fontWeight: i < 3 ? 700 : 600, color: i === 0 ? "#111" : "#333" }}>{p.symbol}-PERP</div>
+                    <div style={{ height: 3, background: "#f0f0f0", borderRadius: 2, marginTop: 3, overflow: "hidden", width: 80 }}>
+                      <div style={{ width: `${barWidth}%`, height: "100%", background: i === 0 ? "#15803d" : "#86efac", borderRadius: 2 }} />
+                    </div>
+                  </td>
+                  <td style={{ padding: "5px 6px", textAlign: "right", fontFamily: "monospace", fontWeight: i === 0 ? 700 : 600, color: "#111" }}>{fmtVol(p.volume_24h_usd)}</td>
+                  <td style={{ padding: "5px 6px", textAlign: "right", fontFamily: "monospace", color: "#555", fontSize: 12 }}>{priceStr}</td>
+                  <td style={{ padding: "5px 6px", textAlign: "right", fontFamily: "monospace", fontSize: 12, color: changeColor, fontWeight: 600 }}>
+                    {p.price_change_pct >= 0 ? "+" : ""}{p.price_change_pct.toFixed(2)}%
+                  </td>
+                  <td style={{ padding: "5px 6px", textAlign: "right", color: "#888", fontSize: 12 }}>{fmtOI(p.open_interest_usd)}</td>
+                  <td style={{ padding: "5px 6px", textAlign: "right", fontFamily: "monospace", fontSize: 11, color: fundingColor, fontWeight: 600 }}>{fmtFunding(p.funding_rate)}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+        <p style={{ marginTop: 8, fontSize: 12, color: "#888" }}>
+          Top 10 perps by 24h notional volume · Funding rate is hourly · via Hyperliquid public API
         </p>
       </div>
     );
