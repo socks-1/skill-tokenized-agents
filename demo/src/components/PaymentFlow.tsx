@@ -92,6 +92,7 @@ import type {
   EthBlobData,
   EthSupplyData,
   DaoGovernanceData,
+  CryptoCorrelationData,
 } from "@/lib/services";
 
 interface InvoiceParams {
@@ -581,6 +582,13 @@ const SERVICE_OPTIONS: { id: ServiceType; label: string; description: string; pr
     description: "Active and recent governance proposals from major DeFi DAOs — Uniswap, Aave, Arbitrum, Compound, Optimism, ENS, Gnosis, Safe, Curve, and more. Shows proposal title, DAO name, vote count, and status. Via Snapshot GraphQL (hub.snapshot.org).",
     price: "1 USDC",
     category: "DeFi",
+  },
+  {
+    id: "crypto-correlation",
+    label: "Crypto Asset Correlations",
+    description: "30-day Pearson correlation coefficients of top crypto assets (ETH, SOL, BNB, XRP, DOGE, LINK, AVAX, SUI) vs BTC. Computed from daily log returns. Shows which assets move with Bitcoin and which are decorrelated. Via CoinGecko market chart API.",
+    price: "1 USDC",
+    category: "Market Data",
   },
 ];
 
@@ -1508,6 +1516,21 @@ const MOCK_DAO_GOVERNANCE: DaoGovernanceData = {
   ],
   active_count: 2,
   closed_count: 2,
+};
+
+const MOCK_CRYPTO_CORRELATION: CryptoCorrelationData = {
+  assets: [
+    { symbol: "ETH", correlation_30d: 0.921, strength: "high" },
+    { symbol: "SOL", correlation_30d: 0.874, strength: "high" },
+    { symbol: "AVAX", correlation_30d: 0.832, strength: "high" },
+    { symbol: "BNB", correlation_30d: 0.789, strength: "high" },
+    { symbol: "LINK", correlation_30d: 0.751, strength: "high" },
+    { symbol: "DOGE", correlation_30d: 0.612, strength: "moderate" },
+    { symbol: "XRP", correlation_30d: 0.543, strength: "moderate" },
+    { symbol: "SUI", correlation_30d: 0.487, strength: "low" },
+  ],
+  btc_price_usd: 84200,
+  period_days: 30,
 };
 
 const MOCK_SIGNATURE =
@@ -2727,6 +2750,22 @@ function buildTourSteps(serviceType: ServiceType, liveData?: ServiceResult): Pay
       service_type: "dao-governance",
       result: dgResult,
       dao_governance: dg,
+      timestamp: new Date().toISOString(),
+      delivered_to: "Demo1234...abcd",
+    };
+  } else if (serviceType === "crypto-correlation") {
+    const cc = liveData?.crypto_correlation ?? MOCK_CRYPTO_CORRELATION;
+    const top = cc.assets[0];
+    const avg = cc.assets.length > 0
+      ? (cc.assets.reduce((s, a) => s + a.correlation_30d, 0) / cc.assets.length).toFixed(2)
+      : "0.00";
+    const ccResult = top
+      ? `${top.symbol}/BTC ρ=${top.correlation_30d.toFixed(2)} (${top.strength}) · avg ρ=${avg} · 30-day rolling vs BTC`
+      : "Correlation data unavailable";
+    mockService = liveData ?? {
+      service_type: "crypto-correlation",
+      result: ccResult,
+      crypto_correlation: cc,
       timestamp: new Date().toISOString(),
       delivered_to: "Demo1234...abcd",
     };
@@ -6073,6 +6112,77 @@ function ServiceResultTable({ service }: { service: ServiceResult }) {
         </div>
 
         <p style={{ marginTop: 6, fontSize: 12, color: "#888" }}>Governance activity across major DeFi DAOs · Via Snapshot GraphQL (hub.snapshot.org)</p>
+      </div>
+    );
+  }
+
+  if (service.service_type === "crypto-correlation" && service.crypto_correlation) {
+    const cc = service.crypto_correlation;
+    const avg = cc.assets.length > 0
+      ? (cc.assets.reduce((s, a) => s + a.correlation_30d, 0) / cc.assets.length).toFixed(2)
+      : "—";
+    const highCount = cc.assets.filter((a) => a.strength === "high").length;
+    const negCount = cc.assets.filter((a) => a.strength === "negative").length;
+
+    const strengthColor = (s: string) => {
+      if (s === "high") return "#16a34a";
+      if (s === "moderate") return "#d97706";
+      if (s === "negative") return "#dc2626";
+      return "#6b7280";
+    };
+    const strengthBg = (s: string) => {
+      if (s === "high") return "#f0fdf4";
+      if (s === "moderate") return "#fffbeb";
+      if (s === "negative") return "#fef2f2";
+      return "#f9fafb";
+    };
+    const strengthBorder = (s: string) => {
+      if (s === "high") return "#86efac";
+      if (s === "moderate") return "#fcd34d";
+      if (s === "negative") return "#fca5a5";
+      return "#e5e7eb";
+    };
+    const barWidth = (r: number) => `${Math.round(Math.max(0, Math.min(1, (r + 1) / 2)) * 100)}%`;
+
+    return (
+      <div>
+        {/* Summary header */}
+        <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
+          <div style={{ padding: "8px 14px", background: "#eff6ff", borderRadius: 6, border: "1px solid #bfdbfe", textAlign: "center" }}>
+            <div style={{ fontWeight: 700, fontSize: 20, color: "#2563eb" }}>{avg}</div>
+            <div style={{ fontSize: 11, color: "#888" }}>Avg ρ vs BTC</div>
+          </div>
+          <div style={{ padding: "8px 14px", background: "#f0fdf4", borderRadius: 6, border: "1px solid #86efac", textAlign: "center" }}>
+            <div style={{ fontWeight: 700, fontSize: 20, color: "#16a34a" }}>{highCount}</div>
+            <div style={{ fontSize: 11, color: "#888" }}>High Corr.</div>
+          </div>
+          <div style={{ flex: 1, padding: "8px 12px", background: "#fafafa", borderRadius: 6, border: "1px solid #e5e7eb", display: "flex", alignItems: "center" }}>
+            <span style={{ fontSize: 12, color: "#555" }}>
+              BTC ${cc.btc_price_usd.toLocaleString()} · {cc.period_days}-day rolling
+              {negCount > 0 && <span style={{ color: "#dc2626", marginLeft: 6 }}>· {negCount} decorrelated</span>}
+            </span>
+          </div>
+        </div>
+
+        {/* Correlation bars */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 10 }}>
+          {cc.assets.map((a) => (
+            <div key={a.symbol} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ width: 36, fontSize: 12, fontWeight: 700, color: "#222", textAlign: "right" }}>{a.symbol}</span>
+              <div style={{ flex: 1, background: "#f3f4f6", borderRadius: 4, height: 16, overflow: "hidden" }}>
+                <div style={{ width: barWidth(a.correlation_30d), background: strengthColor(a.strength), height: "100%", borderRadius: 4 }} />
+              </div>
+              <span style={{ width: 38, fontSize: 12, fontWeight: 600, color: strengthColor(a.strength), textAlign: "right" }}>
+                {a.correlation_30d >= 0 ? "" : "−"}{Math.abs(a.correlation_30d).toFixed(2)}
+              </span>
+              <span style={{ padding: "1px 6px", background: strengthBg(a.strength), border: `1px solid ${strengthBorder(a.strength)}`, borderRadius: 4, fontSize: 10, fontWeight: 700, color: strengthColor(a.strength), width: 64, textAlign: "center" }}>
+                {a.strength.toUpperCase()}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        <p style={{ marginTop: 6, fontSize: 12, color: "#888" }}>Pearson correlation of daily log returns (30 days) vs BTC · Via CoinGecko market chart API</p>
       </div>
     );
   }

@@ -3,10 +3,10 @@
  * All functions are read-only calls to public APIs — no auth required.
  */
 
-export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season" | "btc-mining" | "bridge-volume" | "tvl-movers" | "lightning-network" | "eth-lst" | "realized-vol" | "lending-rates" | "protocol-revenue" | "btc-onchain" | "nft-market" | "market-breadth" | "perp-oi" | "stablecoin-chains" | "stablecoin-pegs" | "mining-pools" | "rwa-tvl" | "crypto-funding" | "chain-fees" | "chain-tvl" | "defi-exploits" | "global-dex" | "futures-basis" | "dex-aggregators" | "meme-coins" | "cross-chain-gas" | "hl-top-pairs" | "eth-beacon" | "restaking-tvl" | "btc-halving" | "sol-validators" | "stable-yields" | "btc-treasury" | "eth-blob" | "eth-supply" | "dao-governance";
+export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season" | "btc-mining" | "bridge-volume" | "tvl-movers" | "lightning-network" | "eth-lst" | "realized-vol" | "lending-rates" | "protocol-revenue" | "btc-onchain" | "nft-market" | "market-breadth" | "perp-oi" | "stablecoin-chains" | "stablecoin-pegs" | "mining-pools" | "rwa-tvl" | "crypto-funding" | "chain-fees" | "chain-tvl" | "defi-exploits" | "global-dex" | "futures-basis" | "dex-aggregators" | "meme-coins" | "cross-chain-gas" | "hl-top-pairs" | "eth-beacon" | "restaking-tvl" | "btc-halving" | "sol-validators" | "stable-yields" | "btc-treasury" | "eth-blob" | "eth-supply" | "dao-governance" | "crypto-correlation";
 
 /** All valid service type strings — use this for runtime validation instead of duplicating the list. */
-export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season", "btc-mining", "bridge-volume", "tvl-movers", "lightning-network", "eth-lst", "realized-vol", "lending-rates", "protocol-revenue", "btc-onchain", "nft-market", "market-breadth", "perp-oi", "stablecoin-chains", "stablecoin-pegs", "mining-pools", "rwa-tvl", "crypto-funding", "chain-fees", "chain-tvl", "defi-exploits", "global-dex", "futures-basis", "dex-aggregators", "meme-coins", "cross-chain-gas", "hl-top-pairs", "eth-beacon", "restaking-tvl", "btc-halving", "sol-validators", "stable-yields", "btc-treasury", "eth-blob", "eth-supply", "dao-governance"];
+export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season", "btc-mining", "bridge-volume", "tvl-movers", "lightning-network", "eth-lst", "realized-vol", "lending-rates", "protocol-revenue", "btc-onchain", "nft-market", "market-breadth", "perp-oi", "stablecoin-chains", "stablecoin-pegs", "mining-pools", "rwa-tvl", "crypto-funding", "chain-fees", "chain-tvl", "defi-exploits", "global-dex", "futures-basis", "dex-aggregators", "meme-coins", "cross-chain-gas", "hl-top-pairs", "eth-beacon", "restaking-tvl", "btc-halving", "sol-validators", "stable-yields", "btc-treasury", "eth-blob", "eth-supply", "dao-governance", "crypto-correlation"];
 
 export interface MarketData {
   symbol: string;
@@ -731,6 +731,18 @@ export interface DaoGovernanceData {
   closed_count: number;
 }
 
+export interface CorrelationEntry {
+  symbol: string;
+  correlation_30d: number;    // Pearson r, -1 to 1
+  strength: "high" | "moderate" | "low" | "negative";
+}
+
+export interface CryptoCorrelationData {
+  assets: CorrelationEntry[];    // sorted descending by correlation
+  btc_price_usd: number;
+  period_days: number;
+}
+
 export interface ServiceResult {
   service_type: ServiceType;
   result: string;
@@ -798,6 +810,7 @@ export interface ServiceResult {
   eth_blob?: EthBlobData;
   eth_supply?: EthSupplyData;
   dao_governance?: DaoGovernanceData;
+  crypto_correlation?: CryptoCorrelationData;
   timestamp: string;
   delivered_to: string;
 }
@@ -3429,6 +3442,7 @@ export async function deliverService(delivered_to: string, serviceType: ServiceT
   if (serviceType === "eth-blob") return deliverEthBlob(delivered_to, timestamp);
   if (serviceType === "eth-supply") return deliverEthSupply(delivered_to, timestamp);
   if (serviceType === "dao-governance") return deliverDaoGovernance(delivered_to, timestamp);
+  if (serviceType === "crypto-correlation") return deliverCryptoCorrelation(delivered_to, timestamp);
   return deliverCryptoPrices(delivered_to, timestamp);
 }
 
@@ -5582,4 +5596,126 @@ export async function deliverDaoGovernance(delivered_to: string, timestamp: stri
     : `${dao_governance.proposals.length} recent proposals · ${dao_governance.proposals[0]?.dao_name ?? "DAO"}: "${dao_governance.proposals[0]?.title.slice(0, 60) ?? ""}…"`;
 
   return { service_type: "dao-governance", result, dao_governance, timestamp, delivered_to };
+}
+
+// ---- Crypto Correlation ----
+// Pearson correlation of 30-day daily log returns vs BTC
+// CoinGecko free market_chart API — no key required
+
+let _cryptoCorrelationCache: { data: CryptoCorrelationData; expires: number } | null = null;
+const CRYPTO_CORRELATION_TTL = 60 * 60 * 1000; // 1 hour
+
+interface CgMarketChart {
+  prices: [number, number][];
+}
+
+function pearsonR(xs: number[], ys: number[]): number {
+  const n = Math.min(xs.length, ys.length);
+  if (n < 2) return 0;
+  const meanX = xs.slice(0, n).reduce((a, b) => a + b, 0) / n;
+  const meanY = ys.slice(0, n).reduce((a, b) => a + b, 0) / n;
+  let num = 0, dx2 = 0, dy2 = 0;
+  for (let i = 0; i < n; i++) {
+    const dx = xs[i] - meanX;
+    const dy = ys[i] - meanY;
+    num += dx * dy;
+    dx2 += dx * dx;
+    dy2 += dy * dy;
+  }
+  const denom = Math.sqrt(dx2 * dy2);
+  return denom === 0 ? 0 : num / denom;
+}
+
+function dailyLogReturns(prices: number[]): number[] {
+  const returns: number[] = [];
+  for (let i = 1; i < prices.length; i++) {
+    if (prices[i - 1] > 0 && prices[i] > 0) {
+      returns.push(Math.log(prices[i] / prices[i - 1]));
+    }
+  }
+  return returns;
+}
+
+function correlationStrength(r: number): CorrelationEntry["strength"] {
+  const abs = Math.abs(r);
+  if (r < 0) return "negative";
+  if (abs >= 0.75) return "high";
+  if (abs >= 0.50) return "moderate";
+  return "low";
+}
+
+const CORRELATION_ASSETS: { symbol: string; cgId: string }[] = [
+  { symbol: "ETH", cgId: "ethereum" },
+  { symbol: "SOL", cgId: "solana" },
+  { symbol: "BNB", cgId: "binancecoin" },
+  { symbol: "XRP", cgId: "ripple" },
+  { symbol: "DOGE", cgId: "dogecoin" },
+  { symbol: "LINK", cgId: "chainlink" },
+  { symbol: "AVAX", cgId: "avalanche-2" },
+  { symbol: "SUI", cgId: "sui" },
+];
+
+async function fetchCgDailyPrices(cgId: string): Promise<number[]> {
+  const url = `https://api.coingecko.com/api/v3/coins/${cgId}/market_chart?vs_currency=usd&days=30&interval=daily`;
+  const res = await fetch(url, {
+    headers: { "User-Agent": "skill-tokenized-agents/1.0", "Accept": "application/json" },
+    signal: AbortSignal.timeout(10000),
+  });
+  if (!res.ok) throw new Error(`CoinGecko HTTP ${res.status} for ${cgId}`);
+  const json = await res.json() as CgMarketChart;
+  return (json.prices ?? []).map(([, price]) => price);
+}
+
+export async function deliverCryptoCorrelation(delivered_to: string, timestamp: string): Promise<ServiceResult> {
+  if (_cryptoCorrelationCache && Date.now() < _cryptoCorrelationCache.expires) {
+    const d = _cryptoCorrelationCache.data;
+    const top = d.assets[0];
+    const result = top
+      ? `${top.symbol}/BTC ρ=${top.correlation_30d.toFixed(2)} (${top.strength}) · ${d.assets.length} assets · 30-day correlation vs BTC`
+      : "Correlation data cached";
+    return { service_type: "crypto-correlation", result, crypto_correlation: d, timestamp, delivered_to };
+  }
+
+  let crypto_correlation: CryptoCorrelationData | undefined;
+
+  try {
+    // Fetch BTC first, then others with a small delay to respect free rate limits
+    const btcPrices = await fetchCgDailyPrices("bitcoin");
+    const btcReturns = dailyLogReturns(btcPrices);
+    const btcPrice = btcPrices[btcPrices.length - 1] ?? 0;
+
+    const entries: CorrelationEntry[] = [];
+
+    for (const asset of CORRELATION_ASSETS) {
+      try {
+        // 200ms gap between calls to stay within free tier (30 req/min)
+        await new Promise((r) => setTimeout(r, 200));
+        const prices = await fetchCgDailyPrices(asset.cgId);
+        const returns = dailyLogReturns(prices);
+        const r = parseFloat(pearsonR(btcReturns, returns).toFixed(3));
+        entries.push({ symbol: asset.symbol, correlation_30d: r, strength: correlationStrength(r) });
+      } catch {
+        // Skip this asset if fetch fails
+      }
+    }
+
+    if (entries.length > 0) {
+      entries.sort((a, b) => b.correlation_30d - a.correlation_30d);
+      crypto_correlation = { assets: entries, btc_price_usd: btcPrice, period_days: 30 };
+      _cryptoCorrelationCache = { data: crypto_correlation, expires: Date.now() + CRYPTO_CORRELATION_TTL };
+    }
+  } catch {
+    // Fall through with undefined
+  }
+
+  if (!crypto_correlation) {
+    return { service_type: "crypto-correlation", result: "Correlation data temporarily unavailable", timestamp, delivered_to };
+  }
+
+  const top = crypto_correlation.assets[0];
+  const result = top
+    ? `${top.symbol}/BTC ρ=${top.correlation_30d.toFixed(2)} (${top.strength}) · avg ρ=${(crypto_correlation.assets.reduce((s, a) => s + a.correlation_30d, 0) / crypto_correlation.assets.length).toFixed(2)} · 30-day rolling vs BTC`
+    : "No correlation data";
+
+  return { service_type: "crypto-correlation", result, crypto_correlation, timestamp, delivered_to };
 }

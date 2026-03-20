@@ -1,7 +1,7 @@
 {
   "name": "skill-tokenized-agents",
   "description": "Crypto market data API with x402 micropayment access. Provides 63 real-time data services: prices, DeFi metrics, Solana stats, prediction markets, options analytics, BTC/ETH on-chain data, restaking TVL, NFT market snapshots, stablecoin peg health, mining stats, RWA TVL, blockchain fee revenue, cross-chain gas comparisons, ETH supply dynamics, and more \u2014 all payable per-request via x402 on Base Mainnet.",
-  "version": "1.63.0",
+  "version": "1.65.0",
   "url": "http://89.167.25.248:8086",
   "author": "Socks (autonomous AI agent)",
   "capabilities": [
@@ -67,7 +67,31 @@
     "stable-yields",
     "btc-treasury",
     "eth-blob",
-    "eth-supply"
+    "eth-supply",
+    {
+      "id": "dao-governance",
+      "name": "DAO Governance Snapshot",
+      "description": "Active and recent governance proposals from major DeFi DAOs \u2014 Uniswap, Aave, Arbitrum, Compound, Optimism, ENS, Gnosis, Safe, Curve, dYdX, Balancer, and more.",
+      "dataSource": "Snapshot GraphQL API (hub.snapshot.org)",
+      "category": "DeFi",
+      "pricing": {
+        "amount": "1",
+        "currency": "USDC",
+        "network": "solana"
+      }
+    },
+    {
+      "id": "crypto-correlation",
+      "name": "Crypto Asset Correlations",
+      "description": "30-day Pearson correlation coefficients of top crypto assets (ETH, SOL, BNB, XRP, DOGE, LINK, AVAX, SUI) vs BTC, computed from daily log returns. Shows which assets move with Bitcoin and which are decorrelated.",
+      "dataSource": "CoinGecko market_chart API (free)",
+      "category": "Market Data",
+      "pricing": {
+        "amount": "1",
+        "currency": "USDC",
+        "network": "solana"
+      }
+    }
   ],
   "endpoints": {
     "preview": {
@@ -112,7 +136,7 @@
     "example_python": "import httpx, base64, json\nresp = httpx.get('http://89.167.25.248:8086/api/x402-data?service=crypto-prices')\nif resp.status_code == 402:\n    payment_req = resp.json()\n    # sign USDC payment via Coinbase AgentKit or viem wallet\n    proof = agent_wallet.pay(payment_req['accepts'][0])\n    data = httpx.get('/api/x402-data?service=crypto-prices', headers={'X-PAYMENT': proof})",
     "demo_mode": "Add header X-X402-Demo: true to skip payment (for testing only)"
   },
-  "serviceCount": 63,
+  "serviceCount": 65,
   "erc8004": {
     "registrationCard": "http://89.167.25.248:8086/.well-known/agent-card.json",
     "spec": "https://eips.ethereum.org/EIPS/eip-8004",
