@@ -3,10 +3,10 @@
  * All functions are read-only calls to public APIs — no auth required.
  */
 
-export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season" | "btc-mining" | "bridge-volume" | "tvl-movers" | "lightning-network" | "eth-lst" | "realized-vol" | "lending-rates" | "protocol-revenue" | "btc-onchain" | "nft-market" | "market-breadth" | "perp-oi" | "stablecoin-chains" | "stablecoin-pegs" | "mining-pools" | "rwa-tvl" | "crypto-funding" | "chain-fees" | "chain-tvl" | "defi-exploits" | "global-dex" | "futures-basis" | "dex-aggregators" | "meme-coins" | "cross-chain-gas" | "hl-top-pairs" | "eth-beacon" | "restaking-tvl" | "btc-halving" | "sol-validators" | "stable-yields" | "btc-treasury" | "eth-blob" | "eth-supply" | "dao-governance" | "crypto-correlation" | "chain-dev" | "crypto-iv" | "ath-distance" | "deriv-overview" | "macro-signals" | "sol-priority-fees" | "sui-network" | "aptos-network";
+export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season" | "btc-mining" | "bridge-volume" | "tvl-movers" | "lightning-network" | "eth-lst" | "realized-vol" | "lending-rates" | "protocol-revenue" | "btc-onchain" | "nft-market" | "market-breadth" | "perp-oi" | "stablecoin-chains" | "stablecoin-pegs" | "mining-pools" | "rwa-tvl" | "crypto-funding" | "chain-fees" | "chain-tvl" | "defi-exploits" | "global-dex" | "futures-basis" | "dex-aggregators" | "meme-coins" | "cross-chain-gas" | "hl-top-pairs" | "eth-beacon" | "restaking-tvl" | "btc-halving" | "sol-validators" | "stable-yields" | "btc-treasury" | "eth-blob" | "eth-supply" | "dao-governance" | "crypto-correlation" | "chain-dev" | "crypto-iv" | "ath-distance" | "deriv-overview" | "macro-signals" | "sol-priority-fees" | "sui-network" | "aptos-network" | "near-network";
 
 /** All valid service type strings — use this for runtime validation instead of duplicating the list. */
-export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season", "btc-mining", "bridge-volume", "tvl-movers", "lightning-network", "eth-lst", "realized-vol", "lending-rates", "protocol-revenue", "btc-onchain", "nft-market", "market-breadth", "perp-oi", "stablecoin-chains", "stablecoin-pegs", "mining-pools", "rwa-tvl", "crypto-funding", "chain-fees", "chain-tvl", "defi-exploits", "global-dex", "futures-basis", "dex-aggregators", "meme-coins", "cross-chain-gas", "hl-top-pairs", "eth-beacon", "restaking-tvl", "btc-halving", "sol-validators", "stable-yields", "btc-treasury", "eth-blob", "eth-supply", "dao-governance", "crypto-correlation", "chain-dev", "crypto-iv", "ath-distance", "deriv-overview", "macro-signals", "sol-priority-fees", "sui-network", "aptos-network"];
+export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season", "btc-mining", "bridge-volume", "tvl-movers", "lightning-network", "eth-lst", "realized-vol", "lending-rates", "protocol-revenue", "btc-onchain", "nft-market", "market-breadth", "perp-oi", "stablecoin-chains", "stablecoin-pegs", "mining-pools", "rwa-tvl", "crypto-funding", "chain-fees", "chain-tvl", "defi-exploits", "global-dex", "futures-basis", "dex-aggregators", "meme-coins", "cross-chain-gas", "hl-top-pairs", "eth-beacon", "restaking-tvl", "btc-halving", "sol-validators", "stable-yields", "btc-treasury", "eth-blob", "eth-supply", "dao-governance", "crypto-correlation", "chain-dev", "crypto-iv", "ath-distance", "deriv-overview", "macro-signals", "sol-priority-fees", "sui-network", "aptos-network", "near-network"];
 
 export interface MarketData {
   symbol: string;
@@ -57,6 +57,16 @@ export interface AptosNetworkData {
   active_validators: number;
   apt_price_usd: number;
   apt_change_24h: number;   // percent
+  defi_tvl_usd: number;
+}
+
+export interface NearNetworkData {
+  block_height: number;
+  protocol_version: number;
+  nodes_online: number;
+  avg_block_time: number;   // seconds
+  near_price_usd: number;
+  near_change_24h: number;  // percent
   defi_tvl_usd: number;
 }
 
@@ -854,6 +864,7 @@ export interface ServiceResult {
   sol_priority_fees?: SolPriorityFeeData;
   sui_network?: SuiNetworkData;
   aptos_network?: AptosNetworkData;
+  near_network?: NearNetworkData;
   timestamp: string;
   delivered_to: string;
 }
@@ -3564,6 +3575,7 @@ export async function deliverService(delivered_to: string, serviceType: ServiceT
   if (serviceType === "sol-priority-fees") return deliverSolPriorityFees(delivered_to, timestamp);
   if (serviceType === "sui-network") return deliverSuiNetwork(delivered_to, timestamp);
   if (serviceType === "aptos-network") return deliverAptosNetwork(delivered_to, timestamp);
+  if (serviceType === "near-network") return deliverNearNetwork(delivered_to, timestamp);
   return deliverCryptoPrices(delivered_to, timestamp);
 }
 
@@ -6515,4 +6527,63 @@ export async function deliverAptosNetwork(delivered_to: string, timestamp: strin
     : "Aptos network data temporarily unavailable";
 
   return { service_type: "aptos-network", result, aptos_network, timestamp, delivered_to };
+}
+
+export async function deliverNearNetwork(delivered_to: string, timestamp: string): Promise<ServiceResult> {
+  let near_network: NearNetworkData | undefined;
+
+  try {
+    const [statsRaw, rpcRaw, priceRaw, chainsRaw] = await Promise.all([
+      fetch("https://api.nearblocks.io/v1/stats", {
+        signal: AbortSignal.timeout(10000),
+        headers: { "User-Agent": "skill-tokenized-agents/1.0" },
+      }).then((r) => r.json()),
+      fetch("https://rpc.mainnet.near.org", {
+        method: "POST",
+        signal: AbortSignal.timeout(10000),
+        headers: { "Content-Type": "application/json", "User-Agent": "skill-tokenized-agents/1.0" },
+        body: JSON.stringify({ jsonrpc: "2.0", id: "sta", method: "status", params: [] }),
+      }).then((r) => r.json()),
+      fetch(
+        "https://api.coingecko.com/api/v3/simple/price?ids=near&vs_currencies=usd&include_24hr_change=true",
+        { signal: AbortSignal.timeout(8000), headers: { "User-Agent": "skill-tokenized-agents/1.0" } }
+      ).then((r) => r.json()),
+      fetch("https://api.llama.fi/v2/chains", {
+        signal: AbortSignal.timeout(8000),
+        headers: { "User-Agent": "skill-tokenized-agents/1.0" },
+      }).then((r) => r.json()),
+    ]);
+
+    const stats = Array.isArray(statsRaw?.stats) ? statsRaw.stats[0] : statsRaw?.stats ?? {};
+    const nodes_online: number = Number(stats.nodes_online ?? 0);
+    const avg_block_time: number = parseFloat(stats.avg_block_time ?? "0");
+
+    const syncInfo = rpcRaw?.result?.sync_info ?? {};
+    const block_height: number = Number(syncInfo.latest_block_height ?? 0);
+    const protocol_version: number = Number(rpcRaw?.result?.protocol_version ?? 0);
+
+    const near_price_usd: number = priceRaw?.near?.usd ?? 0;
+    const near_change_24h: number = priceRaw?.near?.usd_24h_change ?? 0;
+
+    const nearChain = Array.isArray(chainsRaw)
+      ? chainsRaw.find((c: { name?: string }) => c.name?.toLowerCase() === "near")
+      : null;
+    const defi_tvl_usd: number = nearChain?.tvl ?? 0;
+
+    near_network = { block_height, protocol_version, nodes_online, avg_block_time, near_price_usd, near_change_24h, defi_tvl_usd };
+  } catch {
+    // Fall through with undefined
+  }
+
+  const fmtNum = (n: number) =>
+    n >= 1e9 ? `${(n / 1e9).toFixed(2)}B` : n >= 1e6 ? `${(n / 1e6).toFixed(0)}M` : n.toLocaleString();
+  const fmtTvl = (v: number) =>
+    v >= 1e9 ? `$${(v / 1e9).toFixed(2)}B` : v >= 1e6 ? `$${(v / 1e6).toFixed(0)}M` : `$${v.toFixed(0)}`;
+  const sign = (n: number) => (n >= 0 ? "+" : "") + n.toFixed(2);
+
+  const result = near_network
+    ? `NEAR $${near_network.near_price_usd.toFixed(3)} (${sign(near_network.near_change_24h)}%) · ${near_network.nodes_online} validators · ${near_network.avg_block_time.toFixed(2)}s blocks · TVL ${fmtTvl(near_network.defi_tvl_usd)} · Block ${fmtNum(near_network.block_height)}`
+    : "NEAR network data temporarily unavailable";
+
+  return { service_type: "near-network", result, near_network, timestamp, delivered_to };
 }

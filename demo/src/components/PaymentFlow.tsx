@@ -103,6 +103,8 @@ import type {
   MacroAssetData,
   SolPriorityFeeData,
   SuiNetworkData,
+  AptosNetworkData,
+  NearNetworkData,
 } from "@/lib/services";
 
 interface InvoiceParams {
@@ -653,6 +655,13 @@ const SERVICE_OPTIONS: { id: ServiceType; label: string; description: string; pr
     id: "aptos-network",
     label: "Aptos Network Overview",
     description: "Live Aptos blockchain stats: current epoch, block height, active validator count (114), DeFi TVL, and APT token price with 24h change. Data from Aptos mainnet API, CoinGecko, and DeFi Llama.",
+    price: "1 USDC",
+    category: "Market Data",
+  },
+  {
+    id: "near-network",
+    label: "NEAR Protocol Network",
+    description: "Live NEAR blockchain stats: block height, protocol version, active validator count, average block time, DeFi TVL, and NEAR token price with 24h change. Data from NEAR RPC, NearBlocks.io, CoinGecko, and DeFi Llama.",
     price: "1 USDC",
     category: "Market Data",
   },
@@ -2999,6 +3008,18 @@ function buildTourSteps(serviceType: ServiceType, liveData?: ServiceResult): Pay
       service_type: "aptos-network",
       result: `APT $${an.apt_price_usd.toFixed(3)} (${sign(an.apt_change_24h)}%) · Epoch ${an.epoch} · ${an.active_validators} validators · TVL ${fmtTvl(an.defi_tvl_usd)} · Block ${fmtNum(an.block_height)}`,
       aptos_network: an,
+      timestamp: new Date().toISOString(),
+      delivered_to: "Demo1234...abcd",
+    };
+  } else if (serviceType === "near-network") {
+    const nn = liveData?.near_network ?? { block_height: 190000000, protocol_version: 82, nodes_online: 429, avg_block_time: 0.64, near_price_usd: 1.33, near_change_24h: -1.54, defi_tvl_usd: 200000000 };
+    const fmtTvl = (v: number) => v >= 1e9 ? `$${(v / 1e9).toFixed(2)}B` : `$${(v / 1e6).toFixed(0)}M`;
+    const fmtNum = (n: number) => n >= 1e9 ? `${(n / 1e9).toFixed(2)}B` : `${(n / 1e6).toFixed(0)}M`;
+    const sign = (n: number) => (n >= 0 ? "+" : "") + n.toFixed(2);
+    mockService = liveData ?? {
+      service_type: "near-network",
+      result: `NEAR $${nn.near_price_usd.toFixed(3)} (${sign(nn.near_change_24h)}%) · ${nn.nodes_online} validators · ${nn.avg_block_time.toFixed(2)}s blocks · TVL ${fmtTvl(nn.defi_tvl_usd)} · Block ${fmtNum(nn.block_height)}`,
+      near_network: nn,
       timestamp: new Date().toISOString(),
       delivered_to: "Demo1234...abcd",
     };
@@ -6832,6 +6853,54 @@ function ServiceResultTable({ service }: { service: ServiceResult }) {
 
         <p style={{ fontSize: 11, color: "#888", marginTop: 6 }}>
           Aptos mainnet API · CoinGecko · DeFi Llama
+        </p>
+      </div>
+    );
+  }
+
+  if (service.service_type === "near-network" && service.near_network) {
+    const nn = service.near_network;
+    const fmtNum = (n: number) => n >= 1e9 ? `${(n / 1e9).toFixed(2)}B` : n >= 1e6 ? `${(n / 1e6).toFixed(0)}M` : n.toLocaleString();
+    const fmtTvl = (v: number) => v >= 1e9 ? `$${(v / 1e9).toFixed(2)}B` : `$${(v / 1e6).toFixed(0)}M`;
+    const priceColor = nn.near_change_24h >= 0 ? "#16a34a" : "#dc2626";
+    const sign = (n: number) => (n >= 0 ? "+" : "") + n.toFixed(2);
+    return (
+      <div>
+        {/* Price header */}
+        <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 12 }}>
+          <div style={{ fontWeight: 800, fontSize: 22, color: "#111" }}>${nn.near_price_usd.toFixed(3)}</div>
+          <div style={{ fontWeight: 600, fontSize: 14, color: priceColor }}>{sign(nn.near_change_24h)}% 24h</div>
+          <div style={{ fontSize: 12, color: "#888", marginLeft: "auto" }}>NEAR / USD</div>
+        </div>
+
+        {/* Stats grid */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 }}>
+          <div style={{ padding: "8px 10px", background: "#fafafa", borderRadius: 6, border: "1px solid #e5e7eb" }}>
+            <div style={{ fontSize: 10, color: "#888", textTransform: "uppercase" }}>DeFi TVL</div>
+            <div style={{ fontWeight: 700, fontSize: 16, color: "#111" }}>{fmtTvl(nn.defi_tvl_usd)}</div>
+          </div>
+          <div style={{ padding: "8px 10px", background: "#fafafa", borderRadius: 6, border: "1px solid #e5e7eb" }}>
+            <div style={{ fontSize: 10, color: "#888", textTransform: "uppercase" }}>Block Height</div>
+            <div style={{ fontWeight: 700, fontSize: 16, color: "#111" }}>{fmtNum(nn.block_height)}</div>
+          </div>
+          <div style={{ padding: "8px 10px", background: "#fafafa", borderRadius: 6, border: "1px solid #e5e7eb" }}>
+            <div style={{ fontSize: 10, color: "#888", textTransform: "uppercase" }}>Validators Online</div>
+            <div style={{ fontWeight: 700, fontSize: 16, color: "#111" }}>{nn.nodes_online}</div>
+          </div>
+          <div style={{ padding: "8px 10px", background: "#fafafa", borderRadius: 6, border: "1px solid #e5e7eb" }}>
+            <div style={{ fontSize: 10, color: "#888", textTransform: "uppercase" }}>Avg Block Time</div>
+            <div style={{ fontWeight: 700, fontSize: 16, color: "#111" }}>{nn.avg_block_time.toFixed(2)}s</div>
+          </div>
+        </div>
+
+        {/* Protocol version */}
+        <div style={{ padding: "8px 10px", background: "#f0fdf4", borderRadius: 6, border: "1px solid #86efac", marginBottom: 8 }}>
+          <div style={{ fontSize: 10, color: "#888", textTransform: "uppercase" }}>Protocol Version</div>
+          <div style={{ fontWeight: 700, fontSize: 15, color: "#15803d" }}>v{nn.protocol_version}</div>
+        </div>
+
+        <p style={{ fontSize: 11, color: "#888", marginTop: 6 }}>
+          NEAR RPC · NearBlocks.io · CoinGecko · DeFi Llama
         </p>
       </div>
     );

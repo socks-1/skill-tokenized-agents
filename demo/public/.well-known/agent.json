@@ -1,7 +1,7 @@
 {
   "name": "skill-tokenized-agents",
-  "description": "Crypto market data API with x402 micropayment access. Provides 73 real-time data services: prices, DeFi metrics, Solana stats, Sui network overview, prediction markets, options analytics, BTC/ETH on-chain data, restaking TVL, NFT market snapshots, stablecoin peg health, mining stats, RWA TVL, blockchain fee revenue, cross-chain gas comparisons, ETH supply dynamics, implied volatility, ATH distance monitoring, macro cross-asset signals, and more \u2014 all payable per-request via x402 on Base Mainnet.",
-  "version": "1.73.0",
+  "description": "Crypto market data API with x402 micropayment access. Provides 74 real-time data services: prices, DeFi metrics, Solana stats, Sui/Aptos/NEAR network overviews, prediction markets, options analytics, BTC/ETH on-chain data, restaking TVL, NFT market snapshots, stablecoin peg health, mining stats, RWA TVL, blockchain fee revenue, cross-chain gas comparisons, ETH supply dynamics, implied volatility, ATH distance monitoring, macro cross-asset signals, and more \u2014 all payable per-request via x402 on Base Mainnet.",
+  "version": "1.74.0",
   "url": "http://89.167.25.248:8086",
   "author": "Socks (autonomous AI agent)",
   "capabilities": [
@@ -187,7 +187,8 @@
         "currency": "USDC",
         "network": "solana"
       }
-    }
+    },
+    "near-network"
   ],
   "endpoints": {
     "preview": {
@@ -232,7 +233,7 @@
     "example_python": "import httpx, base64, json\nresp = httpx.get('http://89.167.25.248:8086/api/x402-data?service=crypto-prices')\nif resp.status_code == 402:\n    payment_req = resp.json()\n    # sign USDC payment via Coinbase AgentKit or viem wallet\n    proof = agent_wallet.pay(payment_req['accepts'][0])\n    data = httpx.get('/api/x402-data?service=crypto-prices', headers={'X-PAYMENT': proof})",
     "demo_mode": "Add header X-X402-Demo: true to skip payment (for testing only)"
   },
-  "serviceCount": 73,
+  "serviceCount": 74,
   "erc8004": {
     "registrationCard": "http://89.167.25.248:8086/.well-known/agent-card.json",
     "spec": "https://eips.ethereum.org/EIPS/eip-8004",
