@@ -3,10 +3,10 @@
  * All functions are read-only calls to public APIs — no auth required.
  */
 
-export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season" | "btc-mining" | "bridge-volume" | "tvl-movers" | "lightning-network" | "eth-lst" | "realized-vol" | "lending-rates" | "protocol-revenue" | "btc-onchain" | "nft-market" | "market-breadth" | "perp-oi" | "stablecoin-chains" | "stablecoin-pegs" | "mining-pools" | "rwa-tvl" | "crypto-funding" | "chain-fees" | "chain-tvl" | "defi-exploits" | "global-dex" | "futures-basis" | "dex-aggregators" | "meme-coins" | "cross-chain-gas" | "hl-top-pairs" | "eth-beacon" | "restaking-tvl" | "btc-halving" | "sol-validators" | "stable-yields" | "btc-treasury" | "eth-blob" | "eth-supply" | "dao-governance" | "crypto-correlation" | "chain-dev" | "crypto-iv" | "ath-distance" | "deriv-overview" | "macro-signals" | "sol-priority-fees" | "sui-network";
+export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season" | "btc-mining" | "bridge-volume" | "tvl-movers" | "lightning-network" | "eth-lst" | "realized-vol" | "lending-rates" | "protocol-revenue" | "btc-onchain" | "nft-market" | "market-breadth" | "perp-oi" | "stablecoin-chains" | "stablecoin-pegs" | "mining-pools" | "rwa-tvl" | "crypto-funding" | "chain-fees" | "chain-tvl" | "defi-exploits" | "global-dex" | "futures-basis" | "dex-aggregators" | "meme-coins" | "cross-chain-gas" | "hl-top-pairs" | "eth-beacon" | "restaking-tvl" | "btc-halving" | "sol-validators" | "stable-yields" | "btc-treasury" | "eth-blob" | "eth-supply" | "dao-governance" | "crypto-correlation" | "chain-dev" | "crypto-iv" | "ath-distance" | "deriv-overview" | "macro-signals" | "sol-priority-fees" | "sui-network" | "aptos-network";
 
 /** All valid service type strings — use this for runtime validation instead of duplicating the list. */
-export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season", "btc-mining", "bridge-volume", "tvl-movers", "lightning-network", "eth-lst", "realized-vol", "lending-rates", "protocol-revenue", "btc-onchain", "nft-market", "market-breadth", "perp-oi", "stablecoin-chains", "stablecoin-pegs", "mining-pools", "rwa-tvl", "crypto-funding", "chain-fees", "chain-tvl", "defi-exploits", "global-dex", "futures-basis", "dex-aggregators", "meme-coins", "cross-chain-gas", "hl-top-pairs", "eth-beacon", "restaking-tvl", "btc-halving", "sol-validators", "stable-yields", "btc-treasury", "eth-blob", "eth-supply", "dao-governance", "crypto-correlation", "chain-dev", "crypto-iv", "ath-distance", "deriv-overview", "macro-signals", "sol-priority-fees", "sui-network"];
+export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season", "btc-mining", "bridge-volume", "tvl-movers", "lightning-network", "eth-lst", "realized-vol", "lending-rates", "protocol-revenue", "btc-onchain", "nft-market", "market-breadth", "perp-oi", "stablecoin-chains", "stablecoin-pegs", "mining-pools", "rwa-tvl", "crypto-funding", "chain-fees", "chain-tvl", "defi-exploits", "global-dex", "futures-basis", "dex-aggregators", "meme-coins", "cross-chain-gas", "hl-top-pairs", "eth-beacon", "restaking-tvl", "btc-halving", "sol-validators", "stable-yields", "btc-treasury", "eth-blob", "eth-supply", "dao-governance", "crypto-correlation", "chain-dev", "crypto-iv", "ath-distance", "deriv-overview", "macro-signals", "sol-priority-fees", "sui-network", "aptos-network"];
 
 export interface MarketData {
   symbol: string;
@@ -47,6 +47,16 @@ export interface SuiNetworkData {
   total_staked_sui: number;     // SUI tokens staked (not micro-SUI)
   sui_price_usd: number;
   sui_change_24h: number;       // percent
+  defi_tvl_usd: number;
+}
+
+export interface AptosNetworkData {
+  epoch: number;
+  block_height: number;
+  ledger_version: number;
+  active_validators: number;
+  apt_price_usd: number;
+  apt_change_24h: number;   // percent
   defi_tvl_usd: number;
 }
 
@@ -843,6 +853,7 @@ export interface ServiceResult {
   macro_signals?: MacroSignalsData;
   sol_priority_fees?: SolPriorityFeeData;
   sui_network?: SuiNetworkData;
+  aptos_network?: AptosNetworkData;
   timestamp: string;
   delivered_to: string;
 }
@@ -3552,6 +3563,7 @@ export async function deliverService(delivered_to: string, serviceType: ServiceT
   if (serviceType === "macro-signals") return deliverMacroSignals(delivered_to, timestamp);
   if (serviceType === "sol-priority-fees") return deliverSolPriorityFees(delivered_to, timestamp);
   if (serviceType === "sui-network") return deliverSuiNetwork(delivered_to, timestamp);
+  if (serviceType === "aptos-network") return deliverAptosNetwork(delivered_to, timestamp);
   return deliverCryptoPrices(delivered_to, timestamp);
 }
 
@@ -6447,4 +6459,60 @@ export async function deliverSuiNetwork(delivered_to: string, timestamp: string)
     : "Sui network data temporarily unavailable";
 
   return { service_type: "sui-network", result, sui_network, timestamp, delivered_to };
+}
+
+export async function deliverAptosNetwork(delivered_to: string, timestamp: string): Promise<ServiceResult> {
+  let aptos_network: AptosNetworkData | undefined;
+
+  try {
+    const APTOS_API = "https://api.mainnet.aptoslabs.com/v1";
+
+    const [ledgerRaw, validatorRaw, priceRaw, chainsRaw] = await Promise.all([
+      fetch(APTOS_API, {
+        signal: AbortSignal.timeout(10000),
+        headers: { "User-Agent": "skill-tokenized-agents/1.0" },
+      }).then((r) => r.json()),
+      fetch(`${APTOS_API}/accounts/0x1/resource/0x1::stake::ValidatorSet`, {
+        signal: AbortSignal.timeout(10000),
+        headers: { "User-Agent": "skill-tokenized-agents/1.0" },
+      }).then((r) => r.json()),
+      fetch(
+        "https://api.coingecko.com/api/v3/simple/price?ids=aptos&vs_currencies=usd&include_24hr_change=true",
+        { signal: AbortSignal.timeout(8000), headers: { "User-Agent": "skill-tokenized-agents/1.0" } }
+      ).then((r) => r.json()),
+      fetch("https://api.llama.fi/v2/chains", {
+        signal: AbortSignal.timeout(8000),
+        headers: { "User-Agent": "skill-tokenized-agents/1.0" },
+      }).then((r) => r.json()),
+    ]);
+
+    const epoch = Number(ledgerRaw.epoch ?? 0);
+    const block_height = Number(ledgerRaw.block_height ?? 0);
+    const ledger_version = Number(ledgerRaw.ledger_version ?? 0);
+    const active_validators: number = Array.isArray(validatorRaw?.data?.active_validators)
+      ? validatorRaw.data.active_validators.length
+      : 0;
+    const apt_price_usd: number = priceRaw?.aptos?.usd ?? 0;
+    const apt_change_24h: number = priceRaw?.aptos?.usd_24h_change ?? 0;
+    const aptosChain = Array.isArray(chainsRaw)
+      ? chainsRaw.find((c: { name?: string }) => c.name?.toLowerCase() === "aptos")
+      : null;
+    const defi_tvl_usd: number = aptosChain?.tvl ?? 0;
+
+    aptos_network = { epoch, block_height, ledger_version, active_validators, apt_price_usd, apt_change_24h, defi_tvl_usd };
+  } catch {
+    // Fall through with undefined
+  }
+
+  const fmtTvl = (v: number) =>
+    v >= 1e9 ? `$${(v / 1e9).toFixed(2)}B` : v >= 1e6 ? `$${(v / 1e6).toFixed(0)}M` : `$${v.toFixed(0)}`;
+  const fmtNum = (n: number) =>
+    n >= 1e9 ? `${(n / 1e9).toFixed(2)}B` : n >= 1e6 ? `${(n / 1e6).toFixed(0)}M` : n.toString();
+  const sign = (n: number) => (n >= 0 ? "+" : "") + n.toFixed(2);
+
+  const result = aptos_network
+    ? `APT $${aptos_network.apt_price_usd.toFixed(3)} (${sign(aptos_network.apt_change_24h)}%) · Epoch ${aptos_network.epoch} · ${aptos_network.active_validators} validators · TVL ${fmtTvl(aptos_network.defi_tvl_usd)} · Block ${fmtNum(aptos_network.block_height)}`
+    : "Aptos network data temporarily unavailable";
+
+  return { service_type: "aptos-network", result, aptos_network, timestamp, delivered_to };
 }

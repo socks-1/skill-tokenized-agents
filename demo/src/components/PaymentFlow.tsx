@@ -649,6 +649,13 @@ const SERVICE_OPTIONS: { id: ServiceType; label: string; description: string; pr
     price: "1 USDC",
     category: "Market Data",
   },
+  {
+    id: "aptos-network",
+    label: "Aptos Network Overview",
+    description: "Live Aptos blockchain stats: current epoch, block height, active validator count (114), DeFi TVL, and APT token price with 24h change. Data from Aptos mainnet API, CoinGecko, and DeFi Llama.",
+    price: "1 USDC",
+    category: "Market Data",
+  },
 ];
 
 /**
@@ -2980,6 +2987,18 @@ function buildTourSteps(serviceType: ServiceType, liveData?: ServiceResult): Pay
       service_type: "sui-network",
       result: `SUI $${sn.sui_price_usd.toFixed(3)} (${sign(sn.sui_change_24h)}%) · Epoch ${sn.epoch} · ${sn.active_validators} validators · TVL ${fmtTvl(sn.defi_tvl_usd)} · ${fmtTx(sn.total_transactions)} tx`,
       sui_network: sn,
+      timestamp: new Date().toISOString(),
+      delivered_to: "Demo1234...abcd",
+    };
+  } else if (serviceType === "aptos-network") {
+    const an = liveData?.aptos_network ?? { epoch: 15135, block_height: 671835000, ledger_version: 4620640000, active_validators: 114, apt_price_usd: 1.007, apt_change_24h: 4.4, defi_tvl_usd: 312000000 };
+    const fmtTvl = (v: number) => v >= 1e9 ? `$${(v / 1e9).toFixed(2)}B` : `$${(v / 1e6).toFixed(0)}M`;
+    const fmtNum = (n: number) => n >= 1e9 ? `${(n / 1e9).toFixed(2)}B` : `${(n / 1e6).toFixed(0)}M`;
+    const sign = (n: number) => (n >= 0 ? "+" : "") + n.toFixed(2);
+    mockService = liveData ?? {
+      service_type: "aptos-network",
+      result: `APT $${an.apt_price_usd.toFixed(3)} (${sign(an.apt_change_24h)}%) · Epoch ${an.epoch} · ${an.active_validators} validators · TVL ${fmtTvl(an.defi_tvl_usd)} · Block ${fmtNum(an.block_height)}`,
+      aptos_network: an,
       timestamp: new Date().toISOString(),
       delivered_to: "Demo1234...abcd",
     };
@@ -6765,6 +6784,54 @@ function ServiceResultTable({ service }: { service: ServiceResult }) {
 
         <p style={{ fontSize: 11, color: "#888", marginTop: 6 }}>
           Sui fullnode RPC · CoinGecko · DeFi Llama
+        </p>
+      </div>
+    );
+  }
+
+  if (service.service_type === "aptos-network" && service.aptos_network) {
+    const an = service.aptos_network;
+    const fmtNum = (n: number) => n >= 1e9 ? `${(n / 1e9).toFixed(2)}B` : n >= 1e6 ? `${(n / 1e6).toFixed(0)}M` : n.toLocaleString();
+    const fmtTvl = (v: number) => v >= 1e9 ? `$${(v / 1e9).toFixed(2)}B` : `$${(v / 1e6).toFixed(0)}M`;
+    const priceColor = an.apt_change_24h >= 0 ? "#16a34a" : "#dc2626";
+    const sign = (n: number) => (n >= 0 ? "+" : "") + n.toFixed(2);
+    return (
+      <div>
+        {/* Price header */}
+        <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 12 }}>
+          <div style={{ fontWeight: 800, fontSize: 22, color: "#111" }}>${an.apt_price_usd.toFixed(3)}</div>
+          <div style={{ fontWeight: 600, fontSize: 14, color: priceColor }}>{sign(an.apt_change_24h)}% 24h</div>
+          <div style={{ fontSize: 12, color: "#888", marginLeft: "auto" }}>APT / USD</div>
+        </div>
+
+        {/* Stats grid */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 }}>
+          <div style={{ padding: "8px 10px", background: "#fafafa", borderRadius: 6, border: "1px solid #e5e7eb" }}>
+            <div style={{ fontSize: 10, color: "#888", textTransform: "uppercase" }}>DeFi TVL</div>
+            <div style={{ fontWeight: 700, fontSize: 16, color: "#111" }}>{fmtTvl(an.defi_tvl_usd)}</div>
+          </div>
+          <div style={{ padding: "8px 10px", background: "#fafafa", borderRadius: 6, border: "1px solid #e5e7eb" }}>
+            <div style={{ fontSize: 10, color: "#888", textTransform: "uppercase" }}>Block Height</div>
+            <div style={{ fontWeight: 700, fontSize: 16, color: "#111" }}>{fmtNum(an.block_height)}</div>
+          </div>
+          <div style={{ padding: "8px 10px", background: "#fafafa", borderRadius: 6, border: "1px solid #e5e7eb" }}>
+            <div style={{ fontSize: 10, color: "#888", textTransform: "uppercase" }}>Current Epoch</div>
+            <div style={{ fontWeight: 700, fontSize: 16, color: "#111" }}>{an.epoch.toLocaleString()}</div>
+          </div>
+          <div style={{ padding: "8px 10px", background: "#fafafa", borderRadius: 6, border: "1px solid #e5e7eb" }}>
+            <div style={{ fontSize: 10, color: "#888", textTransform: "uppercase" }}>Active Validators</div>
+            <div style={{ fontWeight: 700, fontSize: 16, color: "#111" }}>{an.active_validators}</div>
+          </div>
+        </div>
+
+        {/* Ledger version */}
+        <div style={{ padding: "8px 10px", background: "#f0f9ff", borderRadius: 6, border: "1px solid #7dd3fc", marginBottom: 8 }}>
+          <div style={{ fontSize: 10, color: "#888", textTransform: "uppercase" }}>Ledger Version</div>
+          <div style={{ fontWeight: 700, fontSize: 15, color: "#0369a1" }}>{fmtNum(an.ledger_version)}</div>
+        </div>
+
+        <p style={{ fontSize: 11, color: "#888", marginTop: 6 }}>
+          Aptos mainnet API · CoinGecko · DeFi Llama
         </p>
       </div>
     );
