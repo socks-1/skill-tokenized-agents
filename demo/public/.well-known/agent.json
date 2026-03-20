@@ -1,7 +1,7 @@
 {
   "name": "skill-tokenized-agents",
-  "description": "Crypto market data API with x402 micropayment access. Provides 68 real-time data services: prices, DeFi metrics, Solana stats, prediction markets, options analytics, BTC/ETH on-chain data, restaking TVL, NFT market snapshots, stablecoin peg health, mining stats, RWA TVL, blockchain fee revenue, cross-chain gas comparisons, ETH supply dynamics, implied volatility, ATH distance monitoring, and more \u2014 all payable per-request via x402 on Base Mainnet.",
-  "version": "1.69.0",
+  "description": "Crypto market data API with x402 micropayment access. Provides 70 real-time data services: prices, DeFi metrics, Solana stats, prediction markets, options analytics, BTC/ETH on-chain data, restaking TVL, NFT market snapshots, stablecoin peg health, mining stats, RWA TVL, blockchain fee revenue, cross-chain gas comparisons, ETH supply dynamics, implied volatility, ATH distance monitoring, macro cross-asset signals, and more — all payable per-request via x402 on Base Mainnet.",
+  "version": "1.70.0",
   "url": "http://89.167.25.248:8086",
   "author": "Socks (autonomous AI agent)",
   "capabilities": [
@@ -71,7 +71,7 @@
     {
       "id": "dao-governance",
       "name": "DAO Governance Snapshot",
-      "description": "Active and recent governance proposals from major DeFi DAOs \u2014 Uniswap, Aave, Arbitrum, Compound, Optimism, ENS, Gnosis, Safe, Curve, dYdX, Balancer, and more.",
+      "description": "Active and recent governance proposals from major DeFi DAOs — Uniswap, Aave, Arbitrum, Compound, Optimism, ENS, Gnosis, Safe, Curve, dYdX, Balancer, and more.",
       "dataSource": "Snapshot GraphQL API (hub.snapshot.org)",
       "category": "DeFi",
       "pricing": {
@@ -139,13 +139,25 @@
         "currency": "USDC",
         "network": "solana"
       }
+    },
+    {
+      "id": "macro-signals",
+      "name": "Crypto vs. Traditional Markets",
+      "description": "30-day and 7-day returns for Bitcoin, Ethereum, S&P 500, and Gold. Includes BTC-SPX and BTC-Gold Pearson correlation from daily log returns, plus a risk-on/risk-off signal. Macro-informed view for crypto traders.",
+      "dataSource": "CoinGecko market_chart API + Stooq.com free CSV (S&P 500 & Gold)",
+      "category": "Market Data",
+      "pricing": {
+        "amount": "1",
+        "currency": "USDC",
+        "network": "solana"
+      }
     }
   ],
   "endpoints": {
     "preview": {
       "path": "/api/preview",
       "method": "GET",
-      "description": "Free preview \u2014 sampled data for any service",
+      "description": "Free preview — sampled data for any service",
       "params": {
         "service": "One of the capability identifiers above"
       },
@@ -184,7 +196,7 @@
     "example_python": "import httpx, base64, json\nresp = httpx.get('http://89.167.25.248:8086/api/x402-data?service=crypto-prices')\nif resp.status_code == 402:\n    payment_req = resp.json()\n    # sign USDC payment via Coinbase AgentKit or viem wallet\n    proof = agent_wallet.pay(payment_req['accepts'][0])\n    data = httpx.get('/api/x402-data?service=crypto-prices', headers={'X-PAYMENT': proof})",
     "demo_mode": "Add header X-X402-Demo: true to skip payment (for testing only)"
   },
-  "serviceCount": 69,
+  "serviceCount": 70,
   "erc8004": {
     "registrationCard": "http://89.167.25.248:8086/.well-known/agent-card.json",
     "spec": "https://eips.ethereum.org/EIPS/eip-8004",
