@@ -1,7 +1,7 @@
 {
   "name": "skill-tokenized-agents",
-  "description": "Crypto market data API with x402 micropayment access. Provides 70 real-time data services: prices, DeFi metrics, Solana stats, prediction markets, options analytics, BTC/ETH on-chain data, restaking TVL, NFT market snapshots, stablecoin peg health, mining stats, RWA TVL, blockchain fee revenue, cross-chain gas comparisons, ETH supply dynamics, implied volatility, ATH distance monitoring, macro cross-asset signals, and more — all payable per-request via x402 on Base Mainnet.",
-  "version": "1.70.0",
+  "description": "Crypto market data API with x402 micropayment access. Provides 72 real-time data services: prices, DeFi metrics, Solana stats, Sui network overview, prediction markets, options analytics, BTC/ETH on-chain data, restaking TVL, NFT market snapshots, stablecoin peg health, mining stats, RWA TVL, blockchain fee revenue, cross-chain gas comparisons, ETH supply dynamics, implied volatility, ATH distance monitoring, macro cross-asset signals, and more \u2014 all payable per-request via x402 on Base Mainnet.",
+  "version": "1.72.0",
   "url": "http://89.167.25.248:8086",
   "author": "Socks (autonomous AI agent)",
   "capabilities": [
@@ -72,7 +72,7 @@
     {
       "id": "dao-governance",
       "name": "DAO Governance Snapshot",
-      "description": "Active and recent governance proposals from major DeFi DAOs — Uniswap, Aave, Arbitrum, Compound, Optimism, ENS, Gnosis, Safe, Curve, dYdX, Balancer, and more.",
+      "description": "Active and recent governance proposals from major DeFi DAOs \u2014 Uniswap, Aave, Arbitrum, Compound, Optimism, ENS, Gnosis, Safe, Curve, dYdX, Balancer, and more.",
       "dataSource": "Snapshot GraphQL API (hub.snapshot.org)",
       "category": "DeFi",
       "pricing": {
@@ -96,7 +96,7 @@
     {
       "id": "chain-dev",
       "name": "Blockchain Developer Activity",
-      "description": "GitHub commit activity for major blockchain core repos — go-ethereum, agave (Solana), Sui, Aptos, Avalanche. Shows 4-week commit counts, 13-week totals, and trend vs prior period.",
+      "description": "GitHub commit activity for major blockchain core repos \u2014 go-ethereum, agave (Solana), Sui, Aptos, Avalanche. Shows 4-week commit counts, 13-week totals, and trend vs prior period.",
       "dataSource": "GitHub stats/participation API (public, no auth required)",
       "category": "Market Data",
       "pricing": {
@@ -108,7 +108,7 @@
     {
       "id": "crypto-iv",
       "name": "Crypto Implied Volatility",
-      "description": "BTC and ETH implied volatility from Deribit DVOL — hourly annualized IV with 7-day and 16-day averages. Shows current vol regime (elevated/normal/suppressed) relative to recent history. Forward-looking complement to realized volatility.",
+      "description": "BTC and ETH implied volatility from Deribit DVOL \u2014 hourly annualized IV with 7-day and 16-day averages. Shows current vol regime (elevated/normal/suppressed) relative to recent history. Forward-looking complement to realized volatility.",
       "dataSource": "Deribit DVOL historical volatility API (public, no auth required)",
       "category": "Market Data",
       "pricing": {
@@ -120,7 +120,7 @@
     {
       "id": "ath-distance",
       "name": "Crypto ATH Distance Monitor",
-      "description": "How far top cryptocurrencies are from their all-time highs — current price vs ATH, % below ATH, date of ATH, and 7-day performance. Coins sorted closest-to-ATH first, giving a quick read on which assets are recovering vs still deeply underwater.",
+      "description": "How far top cryptocurrencies are from their all-time highs \u2014 current price vs ATH, % below ATH, date of ATH, and 7-day performance. Coins sorted closest-to-ATH first, giving a quick read on which assets are recovering vs still deeply underwater.",
       "dataSource": "CoinGecko /coins/markets API (free, no auth required)",
       "category": "Market Data",
       "pricing": {
@@ -132,7 +132,7 @@
     {
       "id": "deriv-overview",
       "name": "Crypto Derivatives Market Overview",
-      "description": "Aggregate perpetual futures open interest, 24h trading volume, and average 8-hour funding rates for BTC, ETH, SOL, BNB, and other major assets — consolidated across all exchanges tracked by CoinGecko.",
+      "description": "Aggregate perpetual futures open interest, 24h trading volume, and average 8-hour funding rates for BTC, ETH, SOL, BNB, and other major assets \u2014 consolidated across all exchanges tracked by CoinGecko.",
       "dataSource": "CoinGecko /derivatives API (free, no auth required)",
       "category": "Market Data",
       "pricing": {
@@ -164,13 +164,25 @@
         "currency": "USDC",
         "network": "solana"
       }
+    },
+    {
+      "id": "sui-network",
+      "name": "Sui Network Overview",
+      "description": "Live Sui blockchain stats: current epoch, active validator count, total transaction history, total staked SUI, DeFi TVL, and SUI token price with 24h change.",
+      "dataSource": "Sui fullnode RPC + CoinGecko + DeFi Llama (all free)",
+      "category": "Market Data",
+      "pricing": {
+        "amount": "1",
+        "currency": "USDC",
+        "network": "solana"
+      }
     }
   ],
   "endpoints": {
     "preview": {
       "path": "/api/preview",
       "method": "GET",
-      "description": "Free preview — sampled data for any service",
+      "description": "Free preview \u2014 sampled data for any service",
       "params": {
         "service": "One of the capability identifiers above"
       },
@@ -209,7 +221,7 @@
     "example_python": "import httpx, base64, json\nresp = httpx.get('http://89.167.25.248:8086/api/x402-data?service=crypto-prices')\nif resp.status_code == 402:\n    payment_req = resp.json()\n    # sign USDC payment via Coinbase AgentKit or viem wallet\n    proof = agent_wallet.pay(payment_req['accepts'][0])\n    data = httpx.get('/api/x402-data?service=crypto-prices', headers={'X-PAYMENT': proof})",
     "demo_mode": "Add header X-X402-Demo: true to skip payment (for testing only)"
   },
-  "serviceCount": 70,
+  "serviceCount": 72,
   "erc8004": {
     "registrationCard": "http://89.167.25.248:8086/.well-known/agent-card.json",
     "spec": "https://eips.ethereum.org/EIPS/eip-8004",

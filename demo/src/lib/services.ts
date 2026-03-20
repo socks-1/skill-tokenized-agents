@@ -3,10 +3,10 @@
  * All functions are read-only calls to public APIs — no auth required.
  */
 
-export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season" | "btc-mining" | "bridge-volume" | "tvl-movers" | "lightning-network" | "eth-lst" | "realized-vol" | "lending-rates" | "protocol-revenue" | "btc-onchain" | "nft-market" | "market-breadth" | "perp-oi" | "stablecoin-chains" | "stablecoin-pegs" | "mining-pools" | "rwa-tvl" | "crypto-funding" | "chain-fees" | "chain-tvl" | "defi-exploits" | "global-dex" | "futures-basis" | "dex-aggregators" | "meme-coins" | "cross-chain-gas" | "hl-top-pairs" | "eth-beacon" | "restaking-tvl" | "btc-halving" | "sol-validators" | "stable-yields" | "btc-treasury" | "eth-blob" | "eth-supply" | "dao-governance" | "crypto-correlation" | "chain-dev" | "crypto-iv" | "ath-distance" | "deriv-overview" | "macro-signals" | "sol-priority-fees";
+export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season" | "btc-mining" | "bridge-volume" | "tvl-movers" | "lightning-network" | "eth-lst" | "realized-vol" | "lending-rates" | "protocol-revenue" | "btc-onchain" | "nft-market" | "market-breadth" | "perp-oi" | "stablecoin-chains" | "stablecoin-pegs" | "mining-pools" | "rwa-tvl" | "crypto-funding" | "chain-fees" | "chain-tvl" | "defi-exploits" | "global-dex" | "futures-basis" | "dex-aggregators" | "meme-coins" | "cross-chain-gas" | "hl-top-pairs" | "eth-beacon" | "restaking-tvl" | "btc-halving" | "sol-validators" | "stable-yields" | "btc-treasury" | "eth-blob" | "eth-supply" | "dao-governance" | "crypto-correlation" | "chain-dev" | "crypto-iv" | "ath-distance" | "deriv-overview" | "macro-signals" | "sol-priority-fees" | "sui-network";
 
 /** All valid service type strings — use this for runtime validation instead of duplicating the list. */
-export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season", "btc-mining", "bridge-volume", "tvl-movers", "lightning-network", "eth-lst", "realized-vol", "lending-rates", "protocol-revenue", "btc-onchain", "nft-market", "market-breadth", "perp-oi", "stablecoin-chains", "stablecoin-pegs", "mining-pools", "rwa-tvl", "crypto-funding", "chain-fees", "chain-tvl", "defi-exploits", "global-dex", "futures-basis", "dex-aggregators", "meme-coins", "cross-chain-gas", "hl-top-pairs", "eth-beacon", "restaking-tvl", "btc-halving", "sol-validators", "stable-yields", "btc-treasury", "eth-blob", "eth-supply", "dao-governance", "crypto-correlation", "chain-dev", "crypto-iv", "ath-distance", "deriv-overview", "macro-signals", "sol-priority-fees"];
+export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season", "btc-mining", "bridge-volume", "tvl-movers", "lightning-network", "eth-lst", "realized-vol", "lending-rates", "protocol-revenue", "btc-onchain", "nft-market", "market-breadth", "perp-oi", "stablecoin-chains", "stablecoin-pegs", "mining-pools", "rwa-tvl", "crypto-funding", "chain-fees", "chain-tvl", "defi-exploits", "global-dex", "futures-basis", "dex-aggregators", "meme-coins", "cross-chain-gas", "hl-top-pairs", "eth-beacon", "restaking-tvl", "btc-halving", "sol-validators", "stable-yields", "btc-treasury", "eth-blob", "eth-supply", "dao-governance", "crypto-correlation", "chain-dev", "crypto-iv", "ath-distance", "deriv-overview", "macro-signals", "sol-priority-fees", "sui-network"];
 
 export interface MarketData {
   symbol: string;
@@ -38,6 +38,16 @@ export interface FearGreedData {
   current_value: number;
   classification: string;
   history: FearGreedEntry[];
+}
+
+export interface SuiNetworkData {
+  epoch: number;
+  active_validators: number;
+  total_transactions: number;   // total tx blocks since genesis
+  total_staked_sui: number;     // SUI tokens staked (not micro-SUI)
+  sui_price_usd: number;
+  sui_change_24h: number;       // percent
+  defi_tvl_usd: number;
 }
 
 export interface SolanaToken {
@@ -832,6 +842,7 @@ export interface ServiceResult {
   deriv_overview?: DerivOverviewData;
   macro_signals?: MacroSignalsData;
   sol_priority_fees?: SolPriorityFeeData;
+  sui_network?: SuiNetworkData;
   timestamp: string;
   delivered_to: string;
 }
@@ -3540,6 +3551,7 @@ export async function deliverService(delivered_to: string, serviceType: ServiceT
   if (serviceType === "deriv-overview") return deliverDerivOverview(delivered_to, timestamp);
   if (serviceType === "macro-signals") return deliverMacroSignals(delivered_to, timestamp);
   if (serviceType === "sol-priority-fees") return deliverSolPriorityFees(delivered_to, timestamp);
+  if (serviceType === "sui-network") return deliverSuiNetwork(delivered_to, timestamp);
   return deliverCryptoPrices(delivered_to, timestamp);
 }
 
@@ -6375,4 +6387,64 @@ function buildPriorityFeeResult(pf: SolPriorityFeeData): string {
   const fmt = (n: number) => n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}M` : n >= 1_000 ? `${(n / 1_000).toFixed(0)}K` : n.toString();
   const usd = (n: number) => n < 0.0001 ? "<$0.0001" : `$${n.toFixed(4)}`;
   return `Congestion: ${pf.congestion} · Median ${fmt(pf.p50_micro_lamports)} µL/CU (${usd(pf.p50_usd)}) · P95 ${fmt(pf.p95_micro_lamports)} µL/CU (${usd(pf.p95_usd)})`;
+}
+
+/**
+ * Fetches a live Sui Network overview: epoch, validator count, total transaction blocks,
+ * total staked SUI, SUI price, and Sui DeFi TVL from three free public APIs.
+ */
+export async function deliverSuiNetwork(delivered_to: string, timestamp: string): Promise<ServiceResult> {
+  let sui_network: SuiNetworkData | undefined;
+
+  try {
+    const SUI_RPC = "https://fullnode.mainnet.sui.io/";
+    const rpcPost = (method: string, params: unknown[] = []) =>
+      fetch(SUI_RPC, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
+        signal: AbortSignal.timeout(10000),
+      }).then((r) => r.json());
+
+    const [systemState, totalTxRaw, priceRaw, chainsRaw] = await Promise.all([
+      rpcPost("suix_getLatestSuiSystemState"),
+      rpcPost("sui_getTotalTransactionBlocks"),
+      fetch(
+        "https://api.coingecko.com/api/v3/simple/price?ids=sui&vs_currencies=usd&include_24hr_change=true",
+        { signal: AbortSignal.timeout(8000), headers: { "User-Agent": "skill-tokenized-agents/1.0" } }
+      ).then((r) => r.json()),
+      fetch("https://api.llama.fi/v2/chains", {
+        signal: AbortSignal.timeout(8000),
+        headers: { "User-Agent": "skill-tokenized-agents/1.0" },
+      }).then((r) => r.json()),
+    ]);
+
+    const sys = systemState.result;
+    const epoch = Number(sys.epoch);
+    const active_validators: number = sys.activeValidators?.length ?? 0;
+    const total_staked_sui = Number(sys.totalStake ?? 0) / 1e9;  // micro-SUI → SUI
+    const total_transactions = Number(totalTxRaw.result ?? 0);
+    const sui_price_usd: number = priceRaw?.sui?.usd ?? 0;
+    const sui_change_24h: number = priceRaw?.sui?.usd_24h_change ?? 0;
+    const suiChain = Array.isArray(chainsRaw)
+      ? chainsRaw.find((c: { name?: string }) => c.name?.toLowerCase() === "sui")
+      : null;
+    const defi_tvl_usd: number = suiChain?.tvl ?? 0;
+
+    sui_network = { epoch, active_validators, total_transactions, total_staked_sui, sui_price_usd, sui_change_24h, defi_tvl_usd };
+  } catch {
+    // Fall through with undefined
+  }
+
+  const fmtTvl = (v: number) =>
+    v >= 1e9 ? `$${(v / 1e9).toFixed(2)}B` : v >= 1e6 ? `$${(v / 1e6).toFixed(0)}M` : `$${v.toFixed(0)}`;
+  const fmtTx = (n: number) =>
+    n >= 1e9 ? `${(n / 1e9).toFixed(2)}B` : n >= 1e6 ? `${(n / 1e6).toFixed(0)}M` : n.toString();
+  const sign = (n: number) => (n >= 0 ? "+" : "") + n.toFixed(2);
+
+  const result = sui_network
+    ? `SUI $${sui_network.sui_price_usd.toFixed(3)} (${sign(sui_network.sui_change_24h)}%) · Epoch ${sui_network.epoch} · ${sui_network.active_validators} validators · TVL ${fmtTvl(sui_network.defi_tvl_usd)} · ${fmtTx(sui_network.total_transactions)} tx`
+    : "Sui network data temporarily unavailable";
+
+  return { service_type: "sui-network", result, sui_network, timestamp, delivered_to };
 }

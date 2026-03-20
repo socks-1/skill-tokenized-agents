@@ -102,6 +102,7 @@ import type {
   MacroSignalsData,
   MacroAssetData,
   SolPriorityFeeData,
+  SuiNetworkData,
 } from "@/lib/services";
 
 interface InvoiceParams {
@@ -640,6 +641,13 @@ const SERVICE_OPTIONS: { id: ServiceType; label: string; description: string; pr
     description: "Real-time Solana network congestion metrics derived from recent block priority fees. Shows median, P75, and P95 fee rates (in micro-lamports per Compute Unit) with estimated USD transaction cost, and a congestion level signal (low / moderate / high / extreme).",
     price: "1 USDC",
     category: "Solana",
+  },
+  {
+    id: "sui-network",
+    label: "Sui Network Overview",
+    description: "Live Sui blockchain stats: current epoch, active validator count, total transaction history, total staked SUI, DeFi TVL, and SUI token price with 24h change. Data from Sui fullnode RPC, CoinGecko, and DeFi Llama.",
+    price: "1 USDC",
+    category: "Market Data",
   },
 ];
 
@@ -1656,6 +1664,16 @@ const MOCK_SOL_PRIORITY_FEES: SolPriorityFeeData = {
   congestion: "moderate",
   sol_price_usd: 130,
   slots_sampled: 150,
+};
+
+const MOCK_SUI_NETWORK: SuiNetworkData = {
+  epoch: 1072,
+  active_validators: 128,
+  total_transactions: 4_957_000_000,
+  total_staked_sui: 7_450_000_000,
+  sui_price_usd: 0.97,
+  sui_change_24h: 0.93,
+  defi_tvl_usd: 611_000_000,
 };
 
 const MOCK_SIGNATURE =
@@ -2950,6 +2968,18 @@ function buildTourSteps(serviceType: ServiceType, liveData?: ServiceResult): Pay
       service_type: "sol-priority-fees",
       result: `Congestion: ${pf.congestion} · Median ${fmt(pf.p50_micro_lamports)} µL/CU · P95 ${fmt(pf.p95_micro_lamports)} µL/CU`,
       sol_priority_fees: pf,
+      timestamp: new Date().toISOString(),
+      delivered_to: "Demo1234...abcd",
+    };
+  } else if (serviceType === "sui-network") {
+    const sn = liveData?.sui_network ?? MOCK_SUI_NETWORK;
+    const fmtTvl = (v: number) => v >= 1e9 ? `$${(v / 1e9).toFixed(2)}B` : `$${(v / 1e6).toFixed(0)}M`;
+    const fmtTx = (n: number) => n >= 1e9 ? `${(n / 1e9).toFixed(2)}B` : `${(n / 1e6).toFixed(0)}M`;
+    const sign = (n: number) => (n >= 0 ? "+" : "") + n.toFixed(2);
+    mockService = liveData ?? {
+      service_type: "sui-network",
+      result: `SUI $${sn.sui_price_usd.toFixed(3)} (${sign(sn.sui_change_24h)}%) · Epoch ${sn.epoch} · ${sn.active_validators} validators · TVL ${fmtTvl(sn.defi_tvl_usd)} · ${fmtTx(sn.total_transactions)} tx`,
+      sui_network: sn,
       timestamp: new Date().toISOString(),
       delivered_to: "Demo1234...abcd",
     };
@@ -6686,6 +6716,55 @@ function ServiceResultTable({ service }: { service: ServiceResult }) {
 
         <p style={{ fontSize: 11, color: "#888", marginTop: 6 }}>
           Fees in micro-lamports per Compute Unit · Via Solana RPC getRecentPrioritizationFees
+        </p>
+      </div>
+    );
+  }
+
+  if (service.service_type === "sui-network" && service.sui_network) {
+    const sn = service.sui_network;
+    const fmtSui = (n: number) => n >= 1e9 ? `${(n / 1e9).toFixed(2)}B` : n >= 1e6 ? `${(n / 1e6).toFixed(0)}M` : n.toLocaleString();
+    const fmtTvl = (v: number) => v >= 1e9 ? `$${(v / 1e9).toFixed(2)}B` : `$${(v / 1e6).toFixed(0)}M`;
+    const fmtTx = (n: number) => n >= 1e9 ? `${(n / 1e9).toFixed(2)}B` : `${(n / 1e6).toFixed(0)}M`;
+    const priceColor = sn.sui_change_24h >= 0 ? "#16a34a" : "#dc2626";
+    const sign = (n: number) => (n >= 0 ? "+" : "") + n.toFixed(2);
+    return (
+      <div>
+        {/* Price header */}
+        <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 12 }}>
+          <div style={{ fontWeight: 800, fontSize: 22, color: "#111" }}>${sn.sui_price_usd.toFixed(3)}</div>
+          <div style={{ fontWeight: 600, fontSize: 14, color: priceColor }}>{sign(sn.sui_change_24h)}% 24h</div>
+          <div style={{ fontSize: 12, color: "#888", marginLeft: "auto" }}>SUI / USD</div>
+        </div>
+
+        {/* Stats grid */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 }}>
+          <div style={{ padding: "8px 10px", background: "#fafafa", borderRadius: 6, border: "1px solid #e5e7eb" }}>
+            <div style={{ fontSize: 10, color: "#888", textTransform: "uppercase" }}>DeFi TVL</div>
+            <div style={{ fontWeight: 700, fontSize: 16, color: "#111" }}>{fmtTvl(sn.defi_tvl_usd)}</div>
+          </div>
+          <div style={{ padding: "8px 10px", background: "#fafafa", borderRadius: 6, border: "1px solid #e5e7eb" }}>
+            <div style={{ fontSize: 10, color: "#888", textTransform: "uppercase" }}>Total Transactions</div>
+            <div style={{ fontWeight: 700, fontSize: 16, color: "#111" }}>{fmtTx(sn.total_transactions)}</div>
+          </div>
+          <div style={{ padding: "8px 10px", background: "#fafafa", borderRadius: 6, border: "1px solid #e5e7eb" }}>
+            <div style={{ fontSize: 10, color: "#888", textTransform: "uppercase" }}>Current Epoch</div>
+            <div style={{ fontWeight: 700, fontSize: 16, color: "#111" }}>{sn.epoch.toLocaleString()}</div>
+          </div>
+          <div style={{ padding: "8px 10px", background: "#fafafa", borderRadius: 6, border: "1px solid #e5e7eb" }}>
+            <div style={{ fontSize: 10, color: "#888", textTransform: "uppercase" }}>Active Validators</div>
+            <div style={{ fontWeight: 700, fontSize: 16, color: "#111" }}>{sn.active_validators}</div>
+          </div>
+        </div>
+
+        {/* Total staked */}
+        <div style={{ padding: "8px 10px", background: "#f0fdf4", borderRadius: 6, border: "1px solid #86efac", marginBottom: 8 }}>
+          <div style={{ fontSize: 10, color: "#888", textTransform: "uppercase" }}>Total Staked SUI</div>
+          <div style={{ fontWeight: 700, fontSize: 15, color: "#166534" }}>{fmtSui(sn.total_staked_sui)} SUI</div>
+        </div>
+
+        <p style={{ fontSize: 11, color: "#888", marginTop: 6 }}>
+          Sui fullnode RPC · CoinGecko · DeFi Llama
         </p>
       </div>
     );
