@@ -2854,7 +2854,6 @@ function buildTourSteps(serviceType: ServiceType, liveData?: ServiceResult): Pay
     };
   } else if (serviceType === "ath-distance") {
     const ad = liveData?.ath_distance ?? MOCK_ATH_DISTANCE;
-    const closest = ad.coins[0];
     mockService = liveData ?? {
       service_type: "ath-distance",
       result: ad.coins.slice(0, 3).map((c) => `${c.symbol} ${c.ath_change_pct.toFixed(1)}% from ATH`).join(" · "),
@@ -2862,7 +2861,6 @@ function buildTourSteps(serviceType: ServiceType, liveData?: ServiceResult): Pay
       timestamp: new Date().toISOString(),
       delivered_to: "Demo1234...abcd",
     };
-    void closest;
   } else {
     const md = liveData?.market_data ?? MOCK_MARKET_DATA;
     mockService = liveData ?? {
