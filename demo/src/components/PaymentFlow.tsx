@@ -99,6 +99,8 @@ import type {
   AthDistanceData,
   DerivOverviewData,
   DerivAssetStats,
+  MacroSignalsData,
+  MacroAssetData,
 } from "@/lib/services";
 
 interface InvoiceParams {
@@ -621,6 +623,13 @@ const SERVICE_OPTIONS: { id: ServiceType; label: string; description: string; pr
     id: "deriv-overview",
     label: "Crypto Derivatives Market Overview",
     description: "Aggregate perpetual futures open interest, 24h trading volume, and average 8-hour funding rates for BTC, ETH, SOL, BNB, and other major assets — consolidated across all exchanges tracked by CoinGecko. See where leveraged demand is concentrated.",
+    price: "1 USDC",
+    category: "Market Data",
+  },
+  {
+    id: "macro-signals",
+    label: "Crypto vs. Traditional Markets",
+    description: "Compare 30-day and 7-day returns for Bitcoin, Ethereum, the S&P 500, and Gold. Includes BTC correlation to equities and commodities, plus a risk-on/risk-off signal derived from cross-asset performance. Macro-informed view for crypto traders.",
     price: "1 USDC",
     category: "Market Data",
   },
@@ -1615,6 +1624,19 @@ const MOCK_DERIV_OVERVIEW: DerivOverviewData = {
     { index: "LINK", total_oi_usd:    210_000_000, avg_funding_8h_pct:  0.0009, total_volume_24h:    540_000_000, market_count: 14 },
   ],
   note: "Via CoinGecko · perpetual contracts only · OI and volume in USD · funding rate is 8-hour average across all exchanges",
+};
+
+const MOCK_MACRO_SIGNALS: MacroSignalsData = {
+  assets: [
+    { symbol: "BTC",  name: "Bitcoin",        return_30d_pct: -18.4, return_7d_pct: -6.2,  current_price: 70452,   asset_class: "crypto" },
+    { symbol: "ETH",  name: "Ethereum",       return_30d_pct: -24.1, return_7d_pct: -8.5,  current_price: 2137,    asset_class: "crypto" },
+    { symbol: "SPX",  name: "S&P 500",        return_30d_pct:  -6.2, return_7d_pct: -2.1,  current_price: 6606,    asset_class: "equities" },
+    { symbol: "GOLD", name: "Gold (XAU/USD)", return_30d_pct:   8.3, return_7d_pct:  3.4,  current_price: 4682,    asset_class: "commodities" },
+  ],
+  btc_spx_correlation_30d: 0.72,
+  btc_gold_correlation_30d: -0.18,
+  risk_signal: "risk-off",
+  note: "Crypto via CoinGecko · Equities & Commodities via Stooq · 30 trading days analyzed",
 };
 
 const MOCK_SIGNATURE =
@@ -2890,6 +2912,15 @@ function buildTourSteps(serviceType: ServiceType, liveData?: ServiceResult): Pay
       service_type: "deriv-overview",
       result: dov.assets.slice(0, 3).map((a) => `${a.index} OI $${(a.total_oi_usd / 1e9).toFixed(1)}B`).join(" · "),
       deriv_overview: dov,
+      timestamp: new Date().toISOString(),
+      delivered_to: "Demo1234...abcd",
+    };
+  } else if (serviceType === "macro-signals") {
+    const ms = liveData?.macro_signals ?? MOCK_MACRO_SIGNALS;
+    mockService = liveData ?? {
+      service_type: "macro-signals",
+      result: ms.assets.map((a) => `${a.symbol} ${a.return_30d_pct >= 0 ? "+" : ""}${a.return_30d_pct.toFixed(1)}%`).join(" · "),
+      macro_signals: ms,
       timestamp: new Date().toISOString(),
       delivered_to: "Demo1234...abcd",
     };
@@ -6499,6 +6530,59 @@ function ServiceResultTable({ service }: { service: ServiceResult }) {
           </tbody>
         </table>
         <p style={{ marginTop: 8, fontSize: 12, color: "#888" }}>{dov.note}</p>
+      </div>
+    );
+  }
+
+  if (service.service_type === "macro-signals" && service.macro_signals) {
+    const ms = service.macro_signals;
+    const retColor = (v: number) => v >= 0 ? "#16a34a" : "#dc2626";
+    const signalColor = ms.risk_signal === "risk-on" ? "#16a34a" : ms.risk_signal === "risk-off" ? "#dc2626" : "#b45309";
+    const signalLabel = ms.risk_signal === "risk-on" ? "Risk-On" : ms.risk_signal === "risk-off" ? "Risk-Off" : "Neutral";
+    const fmtPrice = (a: MacroAssetData) => {
+      if (a.asset_class === "crypto") return `$${a.current_price.toLocaleString()}`;
+      if (a.symbol === "GOLD") return `$${a.current_price.toLocaleString()}`;
+      return a.current_price.toLocaleString();
+    };
+    return (
+      <div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+          <span style={{ fontSize: 12, color: "#555" }}>
+            BTC–SPX corr: <strong>{ms.btc_spx_correlation_30d >= 0 ? "+" : ""}{ms.btc_spx_correlation_30d.toFixed(2)}</strong>
+            {" · "}BTC–Gold corr: <strong>{ms.btc_gold_correlation_30d >= 0 ? "+" : ""}{ms.btc_gold_correlation_30d.toFixed(2)}</strong>
+          </span>
+          <span style={{ fontSize: 12, fontWeight: 700, color: signalColor, border: `1px solid ${signalColor}`, borderRadius: 4, padding: "2px 7px" }}>
+            {signalLabel}
+          </span>
+        </div>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+          <thead>
+            <tr style={{ borderBottom: "2px solid #e8e8e8" }}>
+              <th style={{ padding: "5px 8px", textAlign: "left",  fontSize: 11, color: "#888", fontWeight: 600 }}>Asset</th>
+              <th style={{ padding: "5px 8px", textAlign: "right", fontSize: 11, color: "#888", fontWeight: 600 }}>Price / Level</th>
+              <th style={{ padding: "5px 8px", textAlign: "right", fontSize: 11, color: "#888", fontWeight: 600 }}>30d Return</th>
+              <th style={{ padding: "5px 8px", textAlign: "right", fontSize: 11, color: "#888", fontWeight: 600 }}>7d Return</th>
+            </tr>
+          </thead>
+          <tbody>
+            {ms.assets.map((a: MacroAssetData) => (
+              <tr key={a.symbol} style={{ borderBottom: "1px solid #f0f0f0" }}>
+                <td style={{ padding: "6px 8px" }}>
+                  <span style={{ fontWeight: 700 }}>{a.symbol}</span>
+                  <span style={{ fontSize: 11, color: "#888", marginLeft: 6 }}>{a.name}</span>
+                </td>
+                <td style={{ padding: "6px 8px", textAlign: "right", fontWeight: 600 }}>{fmtPrice(a)}</td>
+                <td style={{ padding: "6px 8px", textAlign: "right", fontWeight: 700, color: retColor(a.return_30d_pct) }}>
+                  {a.return_30d_pct >= 0 ? "+" : ""}{a.return_30d_pct.toFixed(1)}%
+                </td>
+                <td style={{ padding: "6px 8px", textAlign: "right", color: retColor(a.return_7d_pct) }}>
+                  {a.return_7d_pct >= 0 ? "+" : ""}{a.return_7d_pct.toFixed(1)}%
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <p style={{ marginTop: 8, fontSize: 12, color: "#888" }}>{ms.note}</p>
       </div>
     );
   }

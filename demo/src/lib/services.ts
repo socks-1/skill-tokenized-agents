@@ -3,10 +3,10 @@
  * All functions are read-only calls to public APIs — no auth required.
  */
 
-export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season" | "btc-mining" | "bridge-volume" | "tvl-movers" | "lightning-network" | "eth-lst" | "realized-vol" | "lending-rates" | "protocol-revenue" | "btc-onchain" | "nft-market" | "market-breadth" | "perp-oi" | "stablecoin-chains" | "stablecoin-pegs" | "mining-pools" | "rwa-tvl" | "crypto-funding" | "chain-fees" | "chain-tvl" | "defi-exploits" | "global-dex" | "futures-basis" | "dex-aggregators" | "meme-coins" | "cross-chain-gas" | "hl-top-pairs" | "eth-beacon" | "restaking-tvl" | "btc-halving" | "sol-validators" | "stable-yields" | "btc-treasury" | "eth-blob" | "eth-supply" | "dao-governance" | "crypto-correlation" | "chain-dev" | "crypto-iv" | "ath-distance" | "deriv-overview";
+export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season" | "btc-mining" | "bridge-volume" | "tvl-movers" | "lightning-network" | "eth-lst" | "realized-vol" | "lending-rates" | "protocol-revenue" | "btc-onchain" | "nft-market" | "market-breadth" | "perp-oi" | "stablecoin-chains" | "stablecoin-pegs" | "mining-pools" | "rwa-tvl" | "crypto-funding" | "chain-fees" | "chain-tvl" | "defi-exploits" | "global-dex" | "futures-basis" | "dex-aggregators" | "meme-coins" | "cross-chain-gas" | "hl-top-pairs" | "eth-beacon" | "restaking-tvl" | "btc-halving" | "sol-validators" | "stable-yields" | "btc-treasury" | "eth-blob" | "eth-supply" | "dao-governance" | "crypto-correlation" | "chain-dev" | "crypto-iv" | "ath-distance" | "deriv-overview" | "macro-signals";
 
 /** All valid service type strings — use this for runtime validation instead of duplicating the list. */
-export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season", "btc-mining", "bridge-volume", "tvl-movers", "lightning-network", "eth-lst", "realized-vol", "lending-rates", "protocol-revenue", "btc-onchain", "nft-market", "market-breadth", "perp-oi", "stablecoin-chains", "stablecoin-pegs", "mining-pools", "rwa-tvl", "crypto-funding", "chain-fees", "chain-tvl", "defi-exploits", "global-dex", "futures-basis", "dex-aggregators", "meme-coins", "cross-chain-gas", "hl-top-pairs", "eth-beacon", "restaking-tvl", "btc-halving", "sol-validators", "stable-yields", "btc-treasury", "eth-blob", "eth-supply", "dao-governance", "crypto-correlation", "chain-dev", "crypto-iv", "ath-distance", "deriv-overview"];
+export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season", "btc-mining", "bridge-volume", "tvl-movers", "lightning-network", "eth-lst", "realized-vol", "lending-rates", "protocol-revenue", "btc-onchain", "nft-market", "market-breadth", "perp-oi", "stablecoin-chains", "stablecoin-pegs", "mining-pools", "rwa-tvl", "crypto-funding", "chain-fees", "chain-tvl", "defi-exploits", "global-dex", "futures-basis", "dex-aggregators", "meme-coins", "cross-chain-gas", "hl-top-pairs", "eth-beacon", "restaking-tvl", "btc-halving", "sol-validators", "stable-yields", "btc-treasury", "eth-blob", "eth-supply", "dao-governance", "crypto-correlation", "chain-dev", "crypto-iv", "ath-distance", "deriv-overview", "macro-signals"];
 
 export interface MarketData {
   symbol: string;
@@ -830,6 +830,7 @@ export interface ServiceResult {
   implied_vol?: ImpliedVolData;
   ath_distance?: AthDistanceData;
   deriv_overview?: DerivOverviewData;
+  macro_signals?: MacroSignalsData;
   timestamp: string;
   delivered_to: string;
 }
@@ -888,6 +889,23 @@ export interface DerivAssetStats {
 
 export interface DerivOverviewData {
   assets: DerivAssetStats[];  // sorted by OI desc
+  note: string;
+}
+
+export interface MacroAssetData {
+  symbol: string;          // BTC, ETH, SPX, GOLD
+  name: string;            // full name
+  return_30d_pct: number;  // 30-day percentage return
+  return_7d_pct: number;   // 7-day percentage return
+  current_price: number;   // current price/level
+  asset_class: string;     // "crypto" | "equities" | "commodities"
+}
+
+export interface MacroSignalsData {
+  assets: MacroAssetData[];          // BTC, ETH, SPX, GOLD
+  btc_spx_correlation_30d: number;   // Pearson correlation -1 to 1
+  btc_gold_correlation_30d: number;  // Pearson correlation -1 to 1
+  risk_signal: "risk-on" | "risk-off" | "neutral"; // derived from correlations + returns
   note: string;
 }
 
@@ -3508,6 +3526,7 @@ export async function deliverService(delivered_to: string, serviceType: ServiceT
   if (serviceType === "crypto-iv") return deliverCryptoIV(delivered_to, timestamp);
   if (serviceType === "ath-distance") return deliverAthDistance(delivered_to, timestamp);
   if (serviceType === "deriv-overview") return deliverDerivOverview(delivered_to, timestamp);
+  if (serviceType === "macro-signals") return deliverMacroSignals(delivered_to, timestamp);
   return deliverCryptoPrices(delivered_to, timestamp);
 }
 
@@ -6094,5 +6113,152 @@ export async function deliverDerivOverview(delivered_to: string, timestamp: stri
     return { service_type: "deriv-overview", result: top3, deriv_overview, timestamp, delivered_to };
   } catch {
     return { service_type: "deriv-overview", result: "Derivatives overview temporarily unavailable", timestamp, delivered_to };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Macro Signals: Crypto vs. Traditional Markets (stooq + CoinGecko)
+// ---------------------------------------------------------------------------
+
+let _macroCache: { data: MacroSignalsData; expires: number } | null = null;
+const MACRO_TTL = 60 * 60 * 1000; // 1 hour
+
+/** Pearson correlation for two equal-length number arrays */
+function pearsonCorrelation(xs: number[], ys: number[]): number {
+  const n = xs.length;
+  if (n < 2) return 0;
+  const mx = xs.reduce((s, x) => s + x, 0) / n;
+  const my = ys.reduce((s, y) => s + y, 0) / n;
+  let num = 0, dx2 = 0, dy2 = 0;
+  for (let i = 0; i < n; i++) {
+    const dx = xs[i] - mx, dy = ys[i] - my;
+    num += dx * dy; dx2 += dx * dx; dy2 += dy * dy;
+  }
+  const denom = Math.sqrt(dx2 * dy2);
+  return denom === 0 ? 0 : parseFloat((num / denom).toFixed(3));
+}
+
+/** Fetch daily close prices from stooq.com CSV (no API key needed) */
+async function fetchStooqCloses(symbol: string): Promise<number[]> {
+  const today = new Date();
+  const d2 = today.toISOString().slice(0, 10).replace(/-/g, "");
+  const d1ago = new Date(today.getTime() - 35 * 24 * 3600 * 1000);
+  const d1 = d1ago.toISOString().slice(0, 10).replace(/-/g, "");
+  const url = `https://stooq.com/q/d/l/?s=${encodeURIComponent(symbol)}&d1=${d1}&d2=${d2}`;
+  const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
+  if (!res.ok) throw new Error(`stooq HTTP ${res.status}`);
+  const csv = await res.text();
+  const lines = csv.trim().split("\n").slice(1); // skip header
+  return lines
+    .map((l) => parseFloat(l.split(",")[4] ?? ""))
+    .filter((v) => !isNaN(v));
+}
+
+/** Compute return percentages from closes array */
+function computeReturns(closes: number[], days: number): { ret: number; close: number } {
+  if (closes.length < 2) return { ret: 0, close: closes[0] ?? 0 };
+  const current = closes[closes.length - 1];
+  const idx = Math.max(0, closes.length - days - 1);
+  const past = closes[idx];
+  if (past === 0) return { ret: 0, close: current };
+  return { ret: parseFloat(((current - past) / past * 100).toFixed(2)), close: current };
+}
+
+export async function deliverMacroSignals(delivered_to: string, timestamp: string): Promise<ServiceResult> {
+  if (_macroCache && Date.now() < _macroCache.expires) {
+    const d = _macroCache.data;
+    const summary = d.assets.map((a) => `${a.symbol} ${a.return_30d_pct >= 0 ? "+" : ""}${a.return_30d_pct.toFixed(1)}%`).join(" · ");
+    return { service_type: "macro-signals", result: summary, macro_signals: d, timestamp, delivered_to };
+  }
+
+  try {
+    // Fetch in parallel: BTC daily chart from CoinGecko, S&P500 & Gold from stooq, plus ETH current
+    const [cgMarketsRes, btcChartRes, spxCloses, goldCloses] = await Promise.all([
+      fetch(
+        "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=bitcoin,ethereum&order=market_cap_desc&sparkline=false&price_change_percentage=7d,30d",
+        { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(12000) }
+      ),
+      fetch(
+        "https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=usd&days=32&interval=daily",
+        { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(12000) }
+      ),
+      fetchStooqCloses("^spx"),
+      fetchStooqCloses("xauusd"),
+    ]);
+
+    if (!cgMarketsRes.ok) throw new Error(`CoinGecko markets HTTP ${cgMarketsRes.status}`);
+    if (!btcChartRes.ok) throw new Error(`CoinGecko chart HTTP ${btcChartRes.status}`);
+
+    const cgCoins = await cgMarketsRes.json() as Array<{
+      symbol: string;
+      name: string;
+      current_price: number;
+      price_change_percentage_7d_in_currency: number;
+      price_change_percentage_30d_in_currency: number;
+    }>;
+    const btcChart = await btcChartRes.json() as { prices: [number, number][] };
+
+    const btcCoin = cgCoins.find((c) => c.symbol === "btc");
+    const ethCoin = cgCoins.find((c) => c.symbol === "eth");
+    if (!btcCoin || !ethCoin) throw new Error("CoinGecko missing BTC/ETH");
+
+    const spxStats = computeReturns(spxCloses, 30);
+    const goldStats = computeReturns(goldCloses, 30);
+    const spx7d = computeReturns(spxCloses, 7);
+    const gold7d = computeReturns(goldCloses, 7);
+
+    const assets: MacroAssetData[] = [
+      { symbol: "BTC", name: "Bitcoin", return_30d_pct: parseFloat((btcCoin.price_change_percentage_30d_in_currency ?? 0).toFixed(2)), return_7d_pct: parseFloat((btcCoin.price_change_percentage_7d_in_currency ?? 0).toFixed(2)), current_price: btcCoin.current_price, asset_class: "crypto" },
+      { symbol: "ETH", name: "Ethereum", return_30d_pct: parseFloat((ethCoin.price_change_percentage_30d_in_currency ?? 0).toFixed(2)), return_7d_pct: parseFloat((ethCoin.price_change_percentage_7d_in_currency ?? 0).toFixed(2)), current_price: ethCoin.current_price, asset_class: "crypto" },
+      { symbol: "SPX", name: "S&P 500", return_30d_pct: spxStats.ret, return_7d_pct: spx7d.ret, current_price: spxStats.close, asset_class: "equities" },
+      { symbol: "GOLD", name: "Gold (XAU/USD)", return_30d_pct: goldStats.ret, return_7d_pct: gold7d.ret, current_price: goldStats.close, asset_class: "commodities" },
+    ];
+
+    // Compute BTC-SPX and BTC-GOLD correlations using daily log returns (last 30 days)
+    // Align BTC daily closes with SPX/Gold closes (both have ~30 trading days)
+    const btcCloses = btcChart.prices.map((p) => p[1]);
+    const n = Math.min(btcCloses.length - 1, spxCloses.length - 1, goldCloses.length - 1, 30);
+
+    function dailyLogReturns(closes: number[], count: number): number[] {
+      const start = closes.length - count - 1;
+      const result: number[] = [];
+      for (let i = start; i < closes.length - 1; i++) {
+        result.push(Math.log(closes[i + 1] / closes[i]));
+      }
+      return result;
+    }
+
+    const btcRets = dailyLogReturns(btcCloses, n);
+    const spxRets = dailyLogReturns(spxCloses, n);
+    const goldRets = dailyLogReturns(goldCloses, n);
+    const minLen = Math.min(btcRets.length, spxRets.length, goldRets.length);
+
+    const btcSpxCorr = pearsonCorrelation(btcRets.slice(-minLen), spxRets.slice(-minLen));
+    const btcGoldCorr = pearsonCorrelation(btcRets.slice(-minLen), goldRets.slice(-minLen));
+
+    // Risk signal: if BTC is behaving more like equity (risk-on) or safe haven (risk-off)
+    let risk_signal: "risk-on" | "risk-off" | "neutral";
+    const btc30d = btcCoin.price_change_percentage_30d_in_currency ?? 0;
+    if (btcSpxCorr > 0.4 && btc30d > 0) {
+      risk_signal = "risk-on";
+    } else if (btcGoldCorr > 0.4 || btc30d < -15) {
+      risk_signal = "risk-off";
+    } else {
+      risk_signal = "neutral";
+    }
+
+    const macro_signals: MacroSignalsData = {
+      assets,
+      btc_spx_correlation_30d: btcSpxCorr,
+      btc_gold_correlation_30d: btcGoldCorr,
+      risk_signal,
+      note: `Crypto via CoinGecko · Equities & Commodities via Stooq · ${minLen} trading days analyzed`,
+    };
+    _macroCache = { data: macro_signals, expires: Date.now() + MACRO_TTL };
+
+    const summary = assets.map((a) => `${a.symbol} ${a.return_30d_pct >= 0 ? "+" : ""}${a.return_30d_pct.toFixed(1)}%`).join(" · ");
+    return { service_type: "macro-signals", result: summary, macro_signals, timestamp, delivered_to };
+  } catch {
+    return { service_type: "macro-signals", result: "Macro signals temporarily unavailable", timestamp, delivered_to };
   }
 }
