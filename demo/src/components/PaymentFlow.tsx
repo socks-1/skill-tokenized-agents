@@ -97,6 +97,8 @@ import type {
   ChainDevEntry,
   ImpliedVolData,
   AthDistanceData,
+  DerivOverviewData,
+  DerivAssetStats,
 } from "@/lib/services";
 
 interface InvoiceParams {
@@ -612,6 +614,13 @@ const SERVICE_OPTIONS: { id: ServiceType; label: string; description: string; pr
     id: "ath-distance",
     label: "Crypto ATH Distance Monitor",
     description: "How far top cryptocurrencies are from their all-time highs — current price vs ATH, % below ATH, date of ATH, and 7-day performance. Coins sorted closest-to-ATH first, giving a quick read on which assets are recovering vs still deeply underwater.",
+    price: "1 USDC",
+    category: "Market Data",
+  },
+  {
+    id: "deriv-overview",
+    label: "Crypto Derivatives Market Overview",
+    description: "Aggregate perpetual futures open interest, 24h trading volume, and average 8-hour funding rates for BTC, ETH, SOL, BNB, and other major assets — consolidated across all exchanges tracked by CoinGecko. See where leveraged demand is concentrated.",
     price: "1 USDC",
     category: "Market Data",
   },
@@ -1592,6 +1601,20 @@ const MOCK_ATH_DISTANCE: AthDistanceData = {
     { symbol: "DOT",  name: "Polkadot",      current_price:  3.80,  ath:   55.0, ath_change_pct: -93.1, ath_date: "2021-11-04", change_7d_pct: -2.0, market_cap_rank: 18 },
   ],
   note: "Via CoinGecko · sorted closest to ATH first · prices updated hourly",
+};
+
+const MOCK_DERIV_OVERVIEW: DerivOverviewData = {
+  assets: [
+    { index: "BTC",  total_oi_usd: 28_400_000_000, avg_funding_8h_pct:  0.0105, total_volume_24h: 72_500_000_000, market_count: 38 },
+    { index: "ETH",  total_oi_usd: 11_200_000_000, avg_funding_8h_pct:  0.0082, total_volume_24h: 28_100_000_000, market_count: 35 },
+    { index: "SOL",  total_oi_usd:  3_100_000_000, avg_funding_8h_pct: -0.0023, total_volume_24h:  8_400_000_000, market_count: 24 },
+    { index: "BNB",  total_oi_usd:  1_350_000_000, avg_funding_8h_pct:  0.0044, total_volume_24h:  3_200_000_000, market_count: 18 },
+    { index: "XRP",  total_oi_usd:  1_020_000_000, avg_funding_8h_pct:  0.0018, total_volume_24h:  2_800_000_000, market_count: 20 },
+    { index: "DOGE", total_oi_usd:    680_000_000, avg_funding_8h_pct:  0.0031, total_volume_24h:  1_900_000_000, market_count: 16 },
+    { index: "AVAX", total_oi_usd:    290_000_000, avg_funding_8h_pct: -0.0041, total_volume_24h:    720_000_000, market_count: 12 },
+    { index: "LINK", total_oi_usd:    210_000_000, avg_funding_8h_pct:  0.0009, total_volume_24h:    540_000_000, market_count: 14 },
+  ],
+  note: "Via CoinGecko · perpetual contracts only · OI and volume in USD · funding rate is 8-hour average across all exchanges",
 };
 
 const MOCK_SIGNATURE =
@@ -2858,6 +2881,15 @@ function buildTourSteps(serviceType: ServiceType, liveData?: ServiceResult): Pay
       service_type: "ath-distance",
       result: ad.coins.slice(0, 3).map((c) => `${c.symbol} ${c.ath_change_pct.toFixed(1)}% from ATH`).join(" · "),
       ath_distance: ad,
+      timestamp: new Date().toISOString(),
+      delivered_to: "Demo1234...abcd",
+    };
+  } else if (serviceType === "deriv-overview") {
+    const dov = liveData?.deriv_overview ?? MOCK_DERIV_OVERVIEW;
+    mockService = liveData ?? {
+      service_type: "deriv-overview",
+      result: dov.assets.slice(0, 3).map((a) => `${a.index} OI $${(a.total_oi_usd / 1e9).toFixed(1)}B`).join(" · "),
+      deriv_overview: dov,
       timestamp: new Date().toISOString(),
       delivered_to: "Demo1234...abcd",
     };
@@ -6432,6 +6464,41 @@ function ServiceResultTable({ service }: { service: ServiceResult }) {
           </tbody>
         </table>
         <p style={{ marginTop: 8, fontSize: 12, color: "#888" }}>{ad.note}</p>
+      </div>
+    );
+  }
+
+  if (service.service_type === "deriv-overview" && service.deriv_overview) {
+    const dov = service.deriv_overview;
+    const fmtB = (n: number) => `$${(n / 1e9).toFixed(2)}B`;
+    const fundingColor = (v: number) => v > 0.01 ? "#16a34a" : v < -0.005 ? "#dc2626" : "#555";
+    return (
+      <div>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+          <thead>
+            <tr style={{ borderBottom: "2px solid #e8e8e8" }}>
+              <th style={{ padding: "5px 8px", textAlign: "left",  fontSize: 11, color: "#888", fontWeight: 600 }}>Asset</th>
+              <th style={{ padding: "5px 8px", textAlign: "right", fontSize: 11, color: "#888", fontWeight: 600 }}>Total OI</th>
+              <th style={{ padding: "5px 8px", textAlign: "right", fontSize: 11, color: "#888", fontWeight: 600 }}>24h Volume</th>
+              <th style={{ padding: "5px 8px", textAlign: "right", fontSize: 11, color: "#888", fontWeight: 600 }}>Funding (8h)</th>
+              <th style={{ padding: "5px 8px", textAlign: "right", fontSize: 11, color: "#888", fontWeight: 600 }}>Markets</th>
+            </tr>
+          </thead>
+          <tbody>
+            {dov.assets.map((a: DerivAssetStats) => (
+              <tr key={a.index} style={{ borderBottom: "1px solid #f0f0f0" }}>
+                <td style={{ padding: "6px 8px", fontWeight: 700 }}>{a.index}</td>
+                <td style={{ padding: "6px 8px", textAlign: "right", fontWeight: 600 }}>{fmtB(a.total_oi_usd)}</td>
+                <td style={{ padding: "6px 8px", textAlign: "right", color: "#555" }}>{fmtB(a.total_volume_24h)}</td>
+                <td style={{ padding: "6px 8px", textAlign: "right", fontWeight: 700, color: fundingColor(a.avg_funding_8h_pct) }}>
+                  {a.avg_funding_8h_pct >= 0 ? "+" : ""}{a.avg_funding_8h_pct.toFixed(4)}%
+                </td>
+                <td style={{ padding: "6px 8px", textAlign: "right", color: "#888", fontSize: 11 }}>{a.market_count}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <p style={{ marginTop: 8, fontSize: 12, color: "#888" }}>{dov.note}</p>
       </div>
     );
   }

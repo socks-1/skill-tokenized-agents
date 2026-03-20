@@ -3,10 +3,10 @@
  * All functions are read-only calls to public APIs — no auth required.
  */
 
-export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season" | "btc-mining" | "bridge-volume" | "tvl-movers" | "lightning-network" | "eth-lst" | "realized-vol" | "lending-rates" | "protocol-revenue" | "btc-onchain" | "nft-market" | "market-breadth" | "perp-oi" | "stablecoin-chains" | "stablecoin-pegs" | "mining-pools" | "rwa-tvl" | "crypto-funding" | "chain-fees" | "chain-tvl" | "defi-exploits" | "global-dex" | "futures-basis" | "dex-aggregators" | "meme-coins" | "cross-chain-gas" | "hl-top-pairs" | "eth-beacon" | "restaking-tvl" | "btc-halving" | "sol-validators" | "stable-yields" | "btc-treasury" | "eth-blob" | "eth-supply" | "dao-governance" | "crypto-correlation" | "chain-dev" | "crypto-iv" | "ath-distance";
+export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season" | "btc-mining" | "bridge-volume" | "tvl-movers" | "lightning-network" | "eth-lst" | "realized-vol" | "lending-rates" | "protocol-revenue" | "btc-onchain" | "nft-market" | "market-breadth" | "perp-oi" | "stablecoin-chains" | "stablecoin-pegs" | "mining-pools" | "rwa-tvl" | "crypto-funding" | "chain-fees" | "chain-tvl" | "defi-exploits" | "global-dex" | "futures-basis" | "dex-aggregators" | "meme-coins" | "cross-chain-gas" | "hl-top-pairs" | "eth-beacon" | "restaking-tvl" | "btc-halving" | "sol-validators" | "stable-yields" | "btc-treasury" | "eth-blob" | "eth-supply" | "dao-governance" | "crypto-correlation" | "chain-dev" | "crypto-iv" | "ath-distance" | "deriv-overview";
 
 /** All valid service type strings — use this for runtime validation instead of duplicating the list. */
-export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season", "btc-mining", "bridge-volume", "tvl-movers", "lightning-network", "eth-lst", "realized-vol", "lending-rates", "protocol-revenue", "btc-onchain", "nft-market", "market-breadth", "perp-oi", "stablecoin-chains", "stablecoin-pegs", "mining-pools", "rwa-tvl", "crypto-funding", "chain-fees", "chain-tvl", "defi-exploits", "global-dex", "futures-basis", "dex-aggregators", "meme-coins", "cross-chain-gas", "hl-top-pairs", "eth-beacon", "restaking-tvl", "btc-halving", "sol-validators", "stable-yields", "btc-treasury", "eth-blob", "eth-supply", "dao-governance", "crypto-correlation", "chain-dev", "crypto-iv", "ath-distance"];
+export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season", "btc-mining", "bridge-volume", "tvl-movers", "lightning-network", "eth-lst", "realized-vol", "lending-rates", "protocol-revenue", "btc-onchain", "nft-market", "market-breadth", "perp-oi", "stablecoin-chains", "stablecoin-pegs", "mining-pools", "rwa-tvl", "crypto-funding", "chain-fees", "chain-tvl", "defi-exploits", "global-dex", "futures-basis", "dex-aggregators", "meme-coins", "cross-chain-gas", "hl-top-pairs", "eth-beacon", "restaking-tvl", "btc-halving", "sol-validators", "stable-yields", "btc-treasury", "eth-blob", "eth-supply", "dao-governance", "crypto-correlation", "chain-dev", "crypto-iv", "ath-distance", "deriv-overview"];
 
 export interface MarketData {
   symbol: string;
@@ -829,6 +829,7 @@ export interface ServiceResult {
   chain_dev?: ChainDevData;
   implied_vol?: ImpliedVolData;
   ath_distance?: AthDistanceData;
+  deriv_overview?: DerivOverviewData;
   timestamp: string;
   delivered_to: string;
 }
@@ -874,6 +875,19 @@ export interface AthDistanceEntry {
 
 export interface AthDistanceData {
   coins: AthDistanceEntry[];
+  note: string;
+}
+
+export interface DerivAssetStats {
+  index: string;              // "BTC", "ETH", "SOL", etc.
+  total_oi_usd: number;       // aggregate open interest in USD
+  avg_funding_8h_pct: number; // average 8-hour funding rate in %
+  total_volume_24h: number;   // aggregate 24h trading volume in USD
+  market_count: number;       // number of exchanges listing this perp
+}
+
+export interface DerivOverviewData {
+  assets: DerivAssetStats[];  // sorted by OI desc
   note: string;
 }
 
@@ -3493,6 +3507,7 @@ export async function deliverService(delivered_to: string, serviceType: ServiceT
   if (serviceType === "chain-dev") return deliverChainDev(delivered_to, timestamp);
   if (serviceType === "crypto-iv") return deliverCryptoIV(delivered_to, timestamp);
   if (serviceType === "ath-distance") return deliverAthDistance(delivered_to, timestamp);
+  if (serviceType === "deriv-overview") return deliverDerivOverview(delivered_to, timestamp);
   return deliverCryptoPrices(delivered_to, timestamp);
 }
 
@@ -5998,5 +6013,86 @@ export async function deliverAthDistance(delivered_to: string, timestamp: string
     return { service_type: "ath-distance", result, ath_distance, timestamp, delivered_to };
   } catch {
     return { service_type: "ath-distance", result: "ATH distance data temporarily unavailable", timestamp, delivered_to };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Crypto Derivatives Overview — CoinGecko /derivatives (free, no auth)
+// Aggregates BTC/ETH/SOL/BNB/XRP perp OI, funding rates, and volume across
+// all exchanges from CoinGecko's full derivatives market dataset (~21K rows).
+// ---------------------------------------------------------------------------
+let _derivCache: { data: DerivOverviewData; expires: number } | null = null;
+const DERIV_TTL = 30 * 60 * 1000; // 30 minutes
+
+export async function deliverDerivOverview(delivered_to: string, timestamp: string): Promise<ServiceResult> {
+  if (_derivCache && Date.now() < _derivCache.expires) {
+    const d = _derivCache.data;
+    const top3 = d.assets.slice(0, 3).map((a) => `${a.index} OI $${(a.total_oi_usd / 1e9).toFixed(1)}B`).join(" · ");
+    return { service_type: "deriv-overview", result: top3, deriv_overview: d, timestamp, delivered_to };
+  }
+
+  // Track assets of interest
+  const TARGETS = ["BTC", "ETH", "SOL", "BNB", "XRP", "DOGE", "AVAX", "LINK"];
+  const agg: Record<string, { oi: number; volume: number; funding_sum: number; count: number }> = {};
+
+  try {
+    const res = await fetch("https://api.coingecko.com/api/v3/derivatives?include_tickers=unexpired", {
+      headers: { Accept: "application/json", "User-Agent": "skill-tokenized-agents/1.0" },
+      signal: AbortSignal.timeout(20000),
+    });
+    if (!res.ok) throw new Error(`CoinGecko HTTP ${res.status}`);
+
+    const json = await res.json() as Array<{
+      index_id: string;
+      contract_type: string;
+      open_interest: number | null;
+      volume_24h: number | null;
+      funding_rate: number | null;
+      expired_at: number | null;
+    }>;
+
+    for (const ticker of json) {
+      const idx = (ticker.index_id ?? "").toUpperCase();
+      if (!TARGETS.includes(idx)) continue;
+      if (ticker.contract_type !== "perpetual") continue;
+      if (ticker.expired_at !== null) continue; // skip expired
+
+      if (!agg[idx]) agg[idx] = { oi: 0, volume: 0, funding_sum: 0, count: 0 };
+      agg[idx].oi += ticker.open_interest ?? 0;
+      agg[idx].volume += ticker.volume_24h ?? 0;
+      if (ticker.funding_rate !== null && Math.abs(ticker.funding_rate) <= 0.01) {
+        // Filter outlier rates > ±1% per 8h (likely mis-reported by some exchanges)
+        agg[idx].funding_sum += ticker.funding_rate;
+        agg[idx].count += 1;
+      }
+    }
+
+    const assets: DerivAssetStats[] = TARGETS
+      .filter((idx) => agg[idx] && agg[idx].oi > 0)
+      .map((idx) => {
+        const a = agg[idx];
+        const avg8h = a.count > 0 ? (a.funding_sum / a.count) * 100 : 0; // convert to %
+        return {
+          index: idx,
+          total_oi_usd: Math.round(a.oi),
+          avg_funding_8h_pct: parseFloat(avg8h.toFixed(4)),
+          total_volume_24h: Math.round(a.volume),
+          market_count: a.count > 0 ? a.count : 1,
+        };
+      })
+      .sort((a, b) => b.total_oi_usd - a.total_oi_usd);
+
+    if (assets.length === 0) throw new Error("No derivatives data aggregated");
+
+    const deriv_overview: DerivOverviewData = {
+      assets,
+      note: "Via CoinGecko · perpetual contracts only · OI and volume in USD · funding rate is 8-hour average across all exchanges",
+    };
+    _derivCache = { data: deriv_overview, expires: Date.now() + DERIV_TTL };
+
+    const top3 = assets.slice(0, 3).map((a) => `${a.index} OI $${(a.total_oi_usd / 1e9).toFixed(1)}B`).join(" · ");
+    return { service_type: "deriv-overview", result: top3, deriv_overview, timestamp, delivered_to };
+  } catch {
+    return { service_type: "deriv-overview", result: "Derivatives overview temporarily unavailable", timestamp, delivered_to };
   }
 }
