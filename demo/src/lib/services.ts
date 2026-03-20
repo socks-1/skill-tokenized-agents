@@ -3,10 +3,10 @@
  * All functions are read-only calls to public APIs — no auth required.
  */
 
-export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season" | "btc-mining" | "bridge-volume" | "tvl-movers" | "lightning-network" | "eth-lst" | "realized-vol" | "lending-rates" | "protocol-revenue" | "btc-onchain" | "nft-market" | "market-breadth" | "perp-oi" | "stablecoin-chains" | "stablecoin-pegs" | "mining-pools" | "rwa-tvl" | "crypto-funding" | "chain-fees" | "chain-tvl" | "defi-exploits" | "global-dex" | "futures-basis" | "dex-aggregators" | "meme-coins" | "cross-chain-gas" | "hl-top-pairs" | "eth-beacon" | "restaking-tvl" | "btc-halving" | "sol-validators" | "stable-yields" | "btc-treasury" | "eth-blob" | "eth-supply";
+export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season" | "btc-mining" | "bridge-volume" | "tvl-movers" | "lightning-network" | "eth-lst" | "realized-vol" | "lending-rates" | "protocol-revenue" | "btc-onchain" | "nft-market" | "market-breadth" | "perp-oi" | "stablecoin-chains" | "stablecoin-pegs" | "mining-pools" | "rwa-tvl" | "crypto-funding" | "chain-fees" | "chain-tvl" | "defi-exploits" | "global-dex" | "futures-basis" | "dex-aggregators" | "meme-coins" | "cross-chain-gas" | "hl-top-pairs" | "eth-beacon" | "restaking-tvl" | "btc-halving" | "sol-validators" | "stable-yields" | "btc-treasury" | "eth-blob" | "eth-supply" | "dao-governance";
 
 /** All valid service type strings — use this for runtime validation instead of duplicating the list. */
-export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season", "btc-mining", "bridge-volume", "tvl-movers", "lightning-network", "eth-lst", "realized-vol", "lending-rates", "protocol-revenue", "btc-onchain", "nft-market", "market-breadth", "perp-oi", "stablecoin-chains", "stablecoin-pegs", "mining-pools", "rwa-tvl", "crypto-funding", "chain-fees", "chain-tvl", "defi-exploits", "global-dex", "futures-basis", "dex-aggregators", "meme-coins", "cross-chain-gas", "hl-top-pairs", "eth-beacon", "restaking-tvl", "btc-halving", "sol-validators", "stable-yields", "btc-treasury", "eth-blob", "eth-supply"];
+export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season", "btc-mining", "bridge-volume", "tvl-movers", "lightning-network", "eth-lst", "realized-vol", "lending-rates", "protocol-revenue", "btc-onchain", "nft-market", "market-breadth", "perp-oi", "stablecoin-chains", "stablecoin-pegs", "mining-pools", "rwa-tvl", "crypto-funding", "chain-fees", "chain-tvl", "defi-exploits", "global-dex", "futures-basis", "dex-aggregators", "meme-coins", "cross-chain-gas", "hl-top-pairs", "eth-beacon", "restaking-tvl", "btc-halving", "sol-validators", "stable-yields", "btc-treasury", "eth-blob", "eth-supply", "dao-governance"];
 
 export interface MarketData {
   symbol: string;
@@ -715,6 +715,22 @@ export interface EthSupplyData {
   supply_change_pct_annual: number;   // annualized net supply change %
 }
 
+export interface DaoProposal {
+  id: string;
+  title: string;
+  dao_name: string;
+  dao_id: string;
+  state: "active" | "closed" | "pending";
+  votes: number;
+  end_timestamp: number;           // unix seconds
+}
+
+export interface DaoGovernanceData {
+  proposals: DaoProposal[];
+  active_count: number;
+  closed_count: number;
+}
+
 export interface ServiceResult {
   service_type: ServiceType;
   result: string;
@@ -781,6 +797,7 @@ export interface ServiceResult {
   btc_treasury?: BtcTreasuryData;
   eth_blob?: EthBlobData;
   eth_supply?: EthSupplyData;
+  dao_governance?: DaoGovernanceData;
   timestamp: string;
   delivered_to: string;
 }
@@ -3411,6 +3428,7 @@ export async function deliverService(delivered_to: string, serviceType: ServiceT
   if (serviceType === "btc-treasury") return deliverBtcTreasury(delivered_to, timestamp);
   if (serviceType === "eth-blob") return deliverEthBlob(delivered_to, timestamp);
   if (serviceType === "eth-supply") return deliverEthSupply(delivered_to, timestamp);
+  if (serviceType === "dao-governance") return deliverDaoGovernance(delivered_to, timestamp);
   return deliverCryptoPrices(delivered_to, timestamp);
 }
 
@@ -5462,4 +5480,106 @@ export async function deliverEthSupply(delivered_to: string, timestamp: string):
     : "ETH supply dynamics data temporarily unavailable";
 
   return { service_type: "eth-supply", result, eth_supply, timestamp, delivered_to };
+}
+
+// DAO Governance snapshot — active and recent proposals from major DeFi DAOs
+// Uses the free public Snapshot GraphQL API (hub.snapshot.org/graphql)
+const DAO_GOVERNANCE_TTL = 5 * 60 * 1000; // 5 minutes
+let _daoGovernanceCache: { data: DaoGovernanceData; expires: number } | null = null;
+
+const DAO_SPACES = [
+  "uniswapgovernance.eth",
+  "aave.eth",
+  "arbitrumfoundation.eth",
+  "compound-governance.eth",
+  "optimism.eth",
+  "ens.eth",
+  "gitcoindao.eth",
+  "gnosis.eth",
+  "safe.eth",
+  "curve.eth",
+  "balancer.eth",
+  "dydxgov.eth",
+];
+
+export async function deliverDaoGovernance(delivered_to: string, timestamp: string): Promise<ServiceResult> {
+  if (_daoGovernanceCache && Date.now() < _daoGovernanceCache.expires) {
+    const d = _daoGovernanceCache.data;
+    const active = d.proposals.filter((p) => p.state === "active");
+    const topActive = active[0];
+    const result = active.length > 0
+      ? `${active.length} active proposal${active.length !== 1 ? "s" : ""} · ${topActive.dao_name}: "${topActive.title.slice(0, 60)}${topActive.title.length > 60 ? "…" : ""}" (${topActive.votes.toLocaleString()} votes)`
+      : `${d.proposals.length} recent proposals · ${d.proposals[0]?.dao_name ?? "DAO"}: "${d.proposals[0]?.title.slice(0, 60) ?? ""}…"`;
+    return { service_type: "dao-governance", result, dao_governance: d, timestamp, delivered_to };
+  }
+
+  let dao_governance: DaoGovernanceData | undefined;
+
+  const GQL_URL = "https://hub.snapshot.org/graphql";
+  const headers = { "Content-Type": "application/json", "User-Agent": "skill-tokenized-agents/1.0" };
+
+  const query = `{
+    active: proposals(first: 8, where: {space_in: ${JSON.stringify(DAO_SPACES)}, state: "active"}, orderBy: "votes", orderDirection: desc) {
+      id title state end votes space { id name }
+    }
+    recent: proposals(first: 8, where: {space_in: ${JSON.stringify(DAO_SPACES)}, state: "closed"}, orderBy: "end", orderDirection: desc) {
+      id title state end votes space { id name }
+    }
+  }`;
+
+  try {
+    const res = await fetch(GQL_URL, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ query }),
+      signal: AbortSignal.timeout(10000),
+    });
+
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+    const json = await res.json() as {
+      data: {
+        active: Array<{ id: string; title: string; state: string; end: number; votes: number; space: { id: string; name: string } }>;
+        recent: Array<{ id: string; title: string; state: string; end: number; votes: number; space: { id: string; name: string } }>;
+      };
+    };
+
+    const activeRaw = json.data?.active ?? [];
+    const recentRaw = json.data?.recent ?? [];
+
+    // Combine: prefer active, fill with recent up to 8 total
+    const combined = [...activeRaw, ...recentRaw].slice(0, 8);
+
+    const proposals: DaoProposal[] = combined.map((p) => ({
+      id: p.id,
+      title: p.title,
+      dao_name: p.space.name,
+      dao_id: p.space.id,
+      state: p.state as "active" | "closed" | "pending",
+      votes: p.votes,
+      end_timestamp: p.end,
+    }));
+
+    dao_governance = {
+      proposals,
+      active_count: activeRaw.length,
+      closed_count: recentRaw.length,
+    };
+
+    _daoGovernanceCache = { data: dao_governance, expires: Date.now() + DAO_GOVERNANCE_TTL };
+  } catch {
+    // Fall through with undefined dao_governance
+  }
+
+  if (!dao_governance) {
+    return { service_type: "dao-governance", result: "DAO governance data temporarily unavailable", timestamp, delivered_to };
+  }
+
+  const active = dao_governance.proposals.filter((p) => p.state === "active");
+  const topActive = active[0] ?? dao_governance.proposals[0];
+  const result = active.length > 0
+    ? `${active.length} active proposal${active.length !== 1 ? "s" : ""} · ${topActive.dao_name}: "${topActive.title.slice(0, 60)}${topActive.title.length > 60 ? "…" : ""}" (${topActive.votes.toLocaleString()} votes)`
+    : `${dao_governance.proposals.length} recent proposals · ${dao_governance.proposals[0]?.dao_name ?? "DAO"}: "${dao_governance.proposals[0]?.title.slice(0, 60) ?? ""}…"`;
+
+  return { service_type: "dao-governance", result, dao_governance, timestamp, delivered_to };
 }

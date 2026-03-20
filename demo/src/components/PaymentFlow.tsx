@@ -91,6 +91,7 @@ import type {
   BtcTreasuryData,
   EthBlobData,
   EthSupplyData,
+  DaoGovernanceData,
 } from "@/lib/services";
 
 interface InvoiceParams {
@@ -573,6 +574,13 @@ const SERVICE_OPTIONS: { id: ServiceType; label: string; description: string; pr
     description: "Is ETH deflationary right now? Real-time burn rate from EIP-1559 base fees vs validator issuance (~1700 ETH/day), net supply change per hour, annualized supply change %, and the base fee threshold needed to tip ETH into deflation. Sampled from 20 recent blocks. Via Ethereum JSON-RPC.",
     price: "1 USDC",
     category: "Market Data",
+  },
+  {
+    id: "dao-governance",
+    label: "DAO Governance Snapshot",
+    description: "Active and recent governance proposals from major DeFi DAOs — Uniswap, Aave, Arbitrum, Compound, Optimism, ENS, Gnosis, Safe, Curve, and more. Shows proposal title, DAO name, vote count, and status. Via Snapshot GraphQL (hub.snapshot.org).",
+    price: "1 USDC",
+    category: "DeFi",
   },
 ];
 
@@ -1489,6 +1497,17 @@ const MOCK_ETH_SUPPLY: EthSupplyData = {
   deflation_threshold_gwei: 15.74,
   blocks_sampled: 20,
   supply_change_pct_annual: -0.513,
+};
+
+const MOCK_DAO_GOVERNANCE: DaoGovernanceData = {
+  proposals: [
+    { id: "0x01", title: "[RFC] Fee Switch Activation for USDC/ETH Pool", dao_name: "Uniswap", dao_id: "uniswapgovernance.eth", state: "active", votes: 287, end_timestamp: Math.floor(Date.now() / 1000) + 86400 * 3 },
+    { id: "0x02", title: "Activate Safety Module Cooldown Period Update", dao_name: "Aave", dao_id: "aave.eth", state: "active", votes: 512, end_timestamp: Math.floor(Date.now() / 1000) + 86400 * 5 },
+    { id: "0x03", title: "ARB Incentives Program — Q2 2026 Renewal", dao_name: "Arbitrum DAO", dao_id: "arbitrumfoundation.eth", state: "closed", votes: 1843, end_timestamp: Math.floor(Date.now() / 1000) - 86400 },
+    { id: "0x04", title: "ENS DAO Working Group Funding Q2 2026", dao_name: "ENS", dao_id: "ens.eth", state: "closed", votes: 934, end_timestamp: Math.floor(Date.now() / 1000) - 86400 * 2 },
+  ],
+  active_count: 2,
+  closed_count: 2,
 };
 
 const MOCK_SIGNATURE =
@@ -2694,6 +2713,20 @@ function buildTourSteps(serviceType: ServiceType, liveData?: ServiceResult): Pay
       service_type: "eth-supply",
       result: `${es.is_deflationary ? "Deflationary" : "Inflationary"} · Burn: ${es.burn_per_hour.toFixed(2)} ETH/hr · Issue: ${es.issuance_per_hour.toFixed(2)} ETH/hr · Net: ${sign}${es.net_per_hour.toFixed(2)} ETH/hr`,
       eth_supply: es,
+      timestamp: new Date().toISOString(),
+      delivered_to: "Demo1234...abcd",
+    };
+  } else if (serviceType === "dao-governance") {
+    const dg = liveData?.dao_governance ?? MOCK_DAO_GOVERNANCE;
+    const active = dg.proposals.filter((p) => p.state === "active");
+    const top = active[0] ?? dg.proposals[0];
+    const dgResult = active.length > 0
+      ? `${active.length} active proposal${active.length !== 1 ? "s" : ""} · ${top.dao_name}: "${top.title.slice(0, 60)}${top.title.length > 60 ? "…" : ""}" (${top.votes.toLocaleString()} votes)`
+      : `${dg.proposals.length} recent proposals · ${dg.proposals[0]?.dao_name ?? "DAO"}: "${dg.proposals[0]?.title.slice(0, 60) ?? ""}…"`;
+    mockService = liveData ?? {
+      service_type: "dao-governance",
+      result: dgResult,
+      dao_governance: dg,
       timestamp: new Date().toISOString(),
       delivered_to: "Demo1234...abcd",
     };
@@ -5977,6 +6010,69 @@ function ServiceResultTable({ service }: { service: ServiceResult }) {
         </div>
 
         <p style={{ marginTop: 8, fontSize: 12, color: "#888" }}>EIP-1559 burn · PoS issuance ~1700 ETH/day · Via Ethereum JSON-RPC (publicnode.com)</p>
+      </div>
+    );
+  }
+
+  if (service.service_type === "dao-governance" && service.dao_governance) {
+    const dg = service.dao_governance;
+    const now = Math.floor(Date.now() / 1000);
+    const fmtEnd = (ts: number) => {
+      const diff = ts - now;
+      if (diff <= 0) return "ended";
+      const days = Math.floor(diff / 86400);
+      const hours = Math.floor((diff % 86400) / 3600);
+      return days > 0 ? `${days}d ${hours}h left` : `${hours}h left`;
+    };
+    return (
+      <div>
+        {/* Summary header */}
+        <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
+          <div style={{ padding: "8px 14px", background: dg.active_count > 0 ? "#f0fdf4" : "#f9fafb", borderRadius: 6, border: `1px solid ${dg.active_count > 0 ? "#86efac" : "#e5e7eb"}`, textAlign: "center" }}>
+            <div style={{ fontWeight: 700, fontSize: 20, color: dg.active_count > 0 ? "#16a34a" : "#6b7280" }}>{dg.active_count}</div>
+            <div style={{ fontSize: 11, color: "#888" }}>Active</div>
+          </div>
+          <div style={{ padding: "8px 14px", background: "#f9fafb", borderRadius: 6, border: "1px solid #e5e7eb", textAlign: "center" }}>
+            <div style={{ fontWeight: 700, fontSize: 20, color: "#6b7280" }}>{dg.closed_count}</div>
+            <div style={{ fontSize: 11, color: "#888" }}>Recent</div>
+          </div>
+          <div style={{ flex: 1, padding: "8px 12px", background: "#eff6ff", borderRadius: 6, border: "1px solid #bfdbfe", display: "flex", alignItems: "center" }}>
+            <span style={{ fontSize: 12, color: "#2563eb", fontWeight: 500 }}>
+              {dg.proposals.length > 0 ? `Tracking ${new Set(dg.proposals.map(p => p.dao_id)).size} DAOs` : "No recent activity"}
+            </span>
+          </div>
+        </div>
+
+        {/* Proposals list */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 10 }}>
+          {dg.proposals.map((p) => {
+            const isActive = p.state === "active";
+            const stateBg = isActive ? "#f0fdf4" : "#f9fafb";
+            const stateBorder = isActive ? "#86efac" : "#e5e7eb";
+            const stateColor = isActive ? "#16a34a" : "#9ca3af";
+            return (
+              <div key={p.id} style={{ padding: "10px 12px", background: "#fafafa", borderRadius: 6, border: "1px solid #e5e7eb" }}>
+                <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8, marginBottom: 4 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "#111", lineHeight: 1.4, flex: 1 }}>
+                    {p.title.length > 72 ? p.title.slice(0, 72) + "…" : p.title}
+                  </div>
+                  <div style={{ padding: "2px 7px", background: stateBg, borderRadius: 4, border: `1px solid ${stateBorder}`, fontSize: 10, fontWeight: 700, color: stateColor, whiteSpace: "nowrap" }}>
+                    {isActive ? "ACTIVE" : "CLOSED"}
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: 12, fontSize: 11, color: "#888" }}>
+                  <span style={{ fontWeight: 600, color: "#555" }}>{p.dao_name}</span>
+                  <span>·</span>
+                  <span>{p.votes.toLocaleString()} votes</span>
+                  <span>·</span>
+                  <span>{fmtEnd(p.end_timestamp)}</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <p style={{ marginTop: 6, fontSize: 12, color: "#888" }}>Governance activity across major DeFi DAOs · Via Snapshot GraphQL (hub.snapshot.org)</p>
       </div>
     );
   }
