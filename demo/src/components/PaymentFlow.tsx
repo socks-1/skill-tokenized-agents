@@ -103,7 +103,6 @@ import type {
   MacroAssetData,
   SolPriorityFeeData,
   SuiNetworkData,
-  AptosNetworkData,
   NearNetworkData,
 } from "@/lib/services";
 
