@@ -3,10 +3,10 @@
  * All functions are read-only calls to public APIs — no auth required.
  */
 
-export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season" | "btc-mining" | "bridge-volume" | "tvl-movers" | "lightning-network" | "eth-lst" | "realized-vol" | "lending-rates" | "protocol-revenue" | "btc-onchain" | "nft-market" | "market-breadth" | "perp-oi" | "stablecoin-chains" | "stablecoin-pegs" | "mining-pools" | "rwa-tvl" | "crypto-funding" | "chain-fees" | "chain-tvl" | "defi-exploits" | "global-dex" | "futures-basis" | "dex-aggregators" | "meme-coins" | "cross-chain-gas" | "hl-top-pairs" | "eth-beacon" | "restaking-tvl" | "btc-halving" | "sol-validators" | "stable-yields" | "btc-treasury" | "eth-blob" | "eth-supply" | "dao-governance" | "crypto-correlation" | "chain-dev" | "crypto-iv" | "ath-distance" | "deriv-overview" | "macro-signals";
+export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season" | "btc-mining" | "bridge-volume" | "tvl-movers" | "lightning-network" | "eth-lst" | "realized-vol" | "lending-rates" | "protocol-revenue" | "btc-onchain" | "nft-market" | "market-breadth" | "perp-oi" | "stablecoin-chains" | "stablecoin-pegs" | "mining-pools" | "rwa-tvl" | "crypto-funding" | "chain-fees" | "chain-tvl" | "defi-exploits" | "global-dex" | "futures-basis" | "dex-aggregators" | "meme-coins" | "cross-chain-gas" | "hl-top-pairs" | "eth-beacon" | "restaking-tvl" | "btc-halving" | "sol-validators" | "stable-yields" | "btc-treasury" | "eth-blob" | "eth-supply" | "dao-governance" | "crypto-correlation" | "chain-dev" | "crypto-iv" | "ath-distance" | "deriv-overview" | "macro-signals" | "sol-priority-fees";
 
 /** All valid service type strings — use this for runtime validation instead of duplicating the list. */
-export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season", "btc-mining", "bridge-volume", "tvl-movers", "lightning-network", "eth-lst", "realized-vol", "lending-rates", "protocol-revenue", "btc-onchain", "nft-market", "market-breadth", "perp-oi", "stablecoin-chains", "stablecoin-pegs", "mining-pools", "rwa-tvl", "crypto-funding", "chain-fees", "chain-tvl", "defi-exploits", "global-dex", "futures-basis", "dex-aggregators", "meme-coins", "cross-chain-gas", "hl-top-pairs", "eth-beacon", "restaking-tvl", "btc-halving", "sol-validators", "stable-yields", "btc-treasury", "eth-blob", "eth-supply", "dao-governance", "crypto-correlation", "chain-dev", "crypto-iv", "ath-distance", "deriv-overview", "macro-signals"];
+export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season", "btc-mining", "bridge-volume", "tvl-movers", "lightning-network", "eth-lst", "realized-vol", "lending-rates", "protocol-revenue", "btc-onchain", "nft-market", "market-breadth", "perp-oi", "stablecoin-chains", "stablecoin-pegs", "mining-pools", "rwa-tvl", "crypto-funding", "chain-fees", "chain-tvl", "defi-exploits", "global-dex", "futures-basis", "dex-aggregators", "meme-coins", "cross-chain-gas", "hl-top-pairs", "eth-beacon", "restaking-tvl", "btc-halving", "sol-validators", "stable-yields", "btc-treasury", "eth-blob", "eth-supply", "dao-governance", "crypto-correlation", "chain-dev", "crypto-iv", "ath-distance", "deriv-overview", "macro-signals", "sol-priority-fees"];
 
 export interface MarketData {
   symbol: string;
@@ -831,12 +831,24 @@ export interface ServiceResult {
   ath_distance?: AthDistanceData;
   deriv_overview?: DerivOverviewData;
   macro_signals?: MacroSignalsData;
+  sol_priority_fees?: SolPriorityFeeData;
   timestamp: string;
   delivered_to: string;
 }
 
 // Re-export SolLstData shape under the ETH LST name for use in PaymentFlow
 export type EthLstData = SolLstData;
+
+export interface SolPriorityFeeData {
+  p50_micro_lamports: number;  // median fee per Compute Unit
+  p75_micro_lamports: number;
+  p95_micro_lamports: number;
+  p50_usd: number;             // estimated USD cost for a 200K-CU transaction at p50
+  p95_usd: number;             // estimated USD cost at p95
+  congestion: "low" | "moderate" | "high" | "extreme";
+  sol_price_usd: number;
+  slots_sampled: number;
+}
 
 export interface VolatilityEntry {
   symbol: string;
@@ -3527,6 +3539,7 @@ export async function deliverService(delivered_to: string, serviceType: ServiceT
   if (serviceType === "ath-distance") return deliverAthDistance(delivered_to, timestamp);
   if (serviceType === "deriv-overview") return deliverDerivOverview(delivered_to, timestamp);
   if (serviceType === "macro-signals") return deliverMacroSignals(delivered_to, timestamp);
+  if (serviceType === "sol-priority-fees") return deliverSolPriorityFees(delivered_to, timestamp);
   return deliverCryptoPrices(delivered_to, timestamp);
 }
 
@@ -6261,4 +6274,105 @@ export async function deliverMacroSignals(delivered_to: string, timestamp: strin
   } catch {
     return { service_type: "macro-signals", result: "Macro signals temporarily unavailable", timestamp, delivered_to };
   }
+}
+
+// ---------------------------------------------------------------------------
+// Solana Priority Fee Tracker
+// ---------------------------------------------------------------------------
+
+const SOL_PRIORITY_FEE_TTL = 60_000; // 1 minute cache — fees change per slot
+let _solPriorityFeeCache: { data: SolPriorityFeeData; expires: number } | null = null;
+
+export async function deliverSolPriorityFees(delivered_to: string, timestamp: string): Promise<ServiceResult> {
+  if (_solPriorityFeeCache && Date.now() < _solPriorityFeeCache.expires) {
+    const pf = _solPriorityFeeCache.data;
+    return { service_type: "sol-priority-fees", result: buildPriorityFeeResult(pf), sol_priority_fees: pf, timestamp, delivered_to };
+  }
+
+  const rpcUrl = process.env.SOLANA_RPC_URL || "https://rpc.solanatracker.io/public";
+  let sol_priority_fees: SolPriorityFeeData | undefined;
+
+  try {
+    // Fetch priority fees and SOL price in parallel
+    const [feesRes, priceRes] = await Promise.all([
+      fetch(rpcUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: 1,
+          method: "getRecentPrioritizationFees",
+          params: [[]],
+        }),
+        signal: AbortSignal.timeout(8000),
+      }),
+      fetch("https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd", {
+        signal: AbortSignal.timeout(8000),
+      }),
+    ]);
+
+    type PrioFeeEntry = { slot: number; prioritizationFee: number };
+    const feesData = await feesRes.json() as { result: PrioFeeEntry[] };
+    const priceData = await priceRes.json() as { solana?: { usd?: number } };
+
+    const sol_price_usd = priceData?.solana?.usd ?? 130;
+
+    const fees: number[] = feesData.result
+      .map((e: PrioFeeEntry) => e.prioritizationFee)
+      .filter((f: number) => typeof f === "number");
+
+    if (fees.length === 0) throw new Error("No fee data");
+
+    fees.sort((a, b) => a - b);
+
+    const pct = (p: number) => {
+      const idx = Math.floor((p / 100) * (fees.length - 1));
+      return fees[Math.max(0, idx)];
+    };
+
+    const p50 = pct(50);
+    const p75 = pct(75);
+    const p95 = pct(95);
+
+    // Cost for a typical 200,000 CU transaction
+    // fee_per_cu is in micro-lamports; total micro-lamports = fee * 200000
+    // lamports = micro-lamports / 1000; SOL = lamports / 1e9
+    const toUsd = (fee_per_cu: number) => {
+      const micro_lamports = fee_per_cu * 200_000;
+      const lamports = micro_lamports / 1_000;
+      const sol = lamports / 1e9;
+      return sol * sol_price_usd;
+    };
+
+    const congestion: SolPriorityFeeData["congestion"] =
+      p50 === 0 ? "low" :
+      p50 < 1_000 ? "low" :
+      p50 < 10_000 ? "moderate" :
+      p50 < 100_000 ? "high" :
+      "extreme";
+
+    sol_priority_fees = {
+      p50_micro_lamports: p50,
+      p75_micro_lamports: p75,
+      p95_micro_lamports: p95,
+      p50_usd: toUsd(p50),
+      p95_usd: toUsd(p95),
+      congestion,
+      sol_price_usd,
+      slots_sampled: fees.length,
+    };
+
+    _solPriorityFeeCache = { data: sol_priority_fees, expires: Date.now() + SOL_PRIORITY_FEE_TTL };
+  } catch {
+    // Fall through with undefined
+  }
+
+  const result = sol_priority_fees ? buildPriorityFeeResult(sol_priority_fees) : "Solana priority fees temporarily unavailable";
+  return { service_type: "sol-priority-fees", result, sol_priority_fees, timestamp, delivered_to };
+}
+
+function buildPriorityFeeResult(pf: SolPriorityFeeData): string {
+  const fmt = (n: number) => n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}M` : n >= 1_000 ? `${(n / 1_000).toFixed(0)}K` : n.toString();
+  const usd = (n: number) => n < 0.0001 ? "<$0.0001" : `$${n.toFixed(4)}`;
+  return `Congestion: ${pf.congestion} · Median ${fmt(pf.p50_micro_lamports)} µL/CU (${usd(pf.p50_usd)}) · P95 ${fmt(pf.p95_micro_lamports)} µL/CU (${usd(pf.p95_usd)})`;
 }

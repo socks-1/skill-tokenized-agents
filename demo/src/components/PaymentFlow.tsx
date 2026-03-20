@@ -101,6 +101,7 @@ import type {
   DerivAssetStats,
   MacroSignalsData,
   MacroAssetData,
+  SolPriorityFeeData,
 } from "@/lib/services";
 
 interface InvoiceParams {
@@ -632,6 +633,13 @@ const SERVICE_OPTIONS: { id: ServiceType; label: string; description: string; pr
     description: "Compare 30-day and 7-day returns for Bitcoin, Ethereum, the S&P 500, and Gold. Includes BTC correlation to equities and commodities, plus a risk-on/risk-off signal derived from cross-asset performance. Macro-informed view for crypto traders.",
     price: "1 USDC",
     category: "Market Data",
+  },
+  {
+    id: "sol-priority-fees",
+    label: "Solana Priority Fee Tracker",
+    description: "Real-time Solana network congestion metrics derived from recent block priority fees. Shows median, P75, and P95 fee rates (in micro-lamports per Compute Unit) with estimated USD transaction cost, and a congestion level signal (low / moderate / high / extreme).",
+    price: "1 USDC",
+    category: "Solana",
   },
 ];
 
@@ -1637,6 +1645,17 @@ const MOCK_MACRO_SIGNALS: MacroSignalsData = {
   btc_gold_correlation_30d: -0.18,
   risk_signal: "risk-off",
   note: "Crypto via CoinGecko · Equities & Commodities via Stooq · 30 trading days analyzed",
+};
+
+const MOCK_SOL_PRIORITY_FEES: SolPriorityFeeData = {
+  p50_micro_lamports: 1000,
+  p75_micro_lamports: 5000,
+  p95_micro_lamports: 50000,
+  p50_usd: 0.000026,
+  p95_usd: 0.0013,
+  congestion: "moderate",
+  sol_price_usd: 130,
+  slots_sampled: 150,
 };
 
 const MOCK_SIGNATURE =
@@ -2921,6 +2940,16 @@ function buildTourSteps(serviceType: ServiceType, liveData?: ServiceResult): Pay
       service_type: "macro-signals",
       result: ms.assets.map((a) => `${a.symbol} ${a.return_30d_pct >= 0 ? "+" : ""}${a.return_30d_pct.toFixed(1)}%`).join(" · "),
       macro_signals: ms,
+      timestamp: new Date().toISOString(),
+      delivered_to: "Demo1234...abcd",
+    };
+  } else if (serviceType === "sol-priority-fees") {
+    const pf = liveData?.sol_priority_fees ?? MOCK_SOL_PRIORITY_FEES;
+    const fmt = (n: number) => n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}M` : n >= 1_000 ? `${(n / 1_000).toFixed(0)}K` : n.toString();
+    mockService = liveData ?? {
+      service_type: "sol-priority-fees",
+      result: `Congestion: ${pf.congestion} · Median ${fmt(pf.p50_micro_lamports)} µL/CU · P95 ${fmt(pf.p95_micro_lamports)} µL/CU`,
+      sol_priority_fees: pf,
       timestamp: new Date().toISOString(),
       delivered_to: "Demo1234...abcd",
     };
@@ -6583,6 +6612,81 @@ function ServiceResultTable({ service }: { service: ServiceResult }) {
           </tbody>
         </table>
         <p style={{ marginTop: 8, fontSize: 12, color: "#888" }}>{ms.note}</p>
+      </div>
+    );
+  }
+
+  if (service.service_type === "sol-priority-fees" && service.sol_priority_fees) {
+    const pf = service.sol_priority_fees;
+    const fmt = (n: number) =>
+      n >= 1_000_000 ? `${(n / 1_000_000).toFixed(2)}M` :
+      n >= 1_000 ? `${(n / 1_000).toFixed(1)}K` :
+      n.toString();
+    const usd = (n: number) => n < 0.0001 ? "<$0.0001" : `$${n.toFixed(4)}`;
+    const congestionColor =
+      pf.congestion === "low" ? "#16a34a" :
+      pf.congestion === "moderate" ? "#b45309" :
+      pf.congestion === "high" ? "#dc2626" :
+      "#7c3aed";
+    const congestionBg =
+      pf.congestion === "low" ? "#f0fdf4" :
+      pf.congestion === "moderate" ? "#fffbeb" :
+      pf.congestion === "high" ? "#fef2f2" :
+      "#f5f3ff";
+    const congestionBorder =
+      pf.congestion === "low" ? "#86efac" :
+      pf.congestion === "moderate" ? "#fcd34d" :
+      pf.congestion === "high" ? "#fca5a5" :
+      "#c4b5fd";
+    return (
+      <div>
+        {/* Congestion indicator + summary */}
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+          <div style={{ padding: "6px 14px", background: congestionBg, border: `1px solid ${congestionBorder}`, borderRadius: 6, textAlign: "center" }}>
+            <div style={{ fontSize: 10, color: "#888", textTransform: "uppercase", letterSpacing: "0.05em" }}>Network Load</div>
+            <div style={{ fontWeight: 800, fontSize: 16, color: congestionColor, textTransform: "capitalize" }}>{pf.congestion}</div>
+          </div>
+          <div style={{ fontSize: 12, color: "#555" }}>
+            SOL price <strong>${pf.sol_price_usd.toLocaleString()}</strong> · {pf.slots_sampled} slots sampled
+          </div>
+        </div>
+
+        {/* Fee metrics grid */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 12 }}>
+          <div style={{ padding: "8px 10px", background: "#fafafa", borderRadius: 6, border: "1px solid #e5e7eb", textAlign: "center" }}>
+            <div style={{ fontSize: 10, color: "#888", textTransform: "uppercase" }}>Median (P50)</div>
+            <div style={{ fontWeight: 700, fontSize: 14, color: "#111" }}>{fmt(pf.p50_micro_lamports)}</div>
+            <div style={{ fontSize: 10, color: "#888" }}>µL/CU</div>
+          </div>
+          <div style={{ padding: "8px 10px", background: "#fafafa", borderRadius: 6, border: "1px solid #e5e7eb", textAlign: "center" }}>
+            <div style={{ fontSize: 10, color: "#888", textTransform: "uppercase" }}>75th Pct</div>
+            <div style={{ fontWeight: 700, fontSize: 14, color: "#111" }}>{fmt(pf.p75_micro_lamports)}</div>
+            <div style={{ fontSize: 10, color: "#888" }}>µL/CU</div>
+          </div>
+          <div style={{ padding: "8px 10px", background: "#fafafa", borderRadius: 6, border: "1px solid #e5e7eb", textAlign: "center" }}>
+            <div style={{ fontSize: 10, color: "#888", textTransform: "uppercase" }}>95th Pct</div>
+            <div style={{ fontWeight: 700, fontSize: 14, color: "#111" }}>{fmt(pf.p95_micro_lamports)}</div>
+            <div style={{ fontSize: 10, color: "#888" }}>µL/CU</div>
+          </div>
+        </div>
+
+        {/* USD cost estimates */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
+          <div style={{ padding: "8px 10px", background: "#eff6ff", borderRadius: 6, border: "1px solid #bfdbfe", textAlign: "center" }}>
+            <div style={{ fontSize: 10, color: "#888" }}>Typical Tx Cost (P50)</div>
+            <div style={{ fontWeight: 700, fontSize: 14, color: "#2563eb" }}>{usd(pf.p50_usd)}</div>
+            <div style={{ fontSize: 10, color: "#888" }}>200K CU tx</div>
+          </div>
+          <div style={{ padding: "8px 10px", background: "#fef2f2", borderRadius: 6, border: "1px solid #fca5a5", textAlign: "center" }}>
+            <div style={{ fontSize: 10, color: "#888" }}>High-Priority Tx (P95)</div>
+            <div style={{ fontWeight: 700, fontSize: 14, color: "#dc2626" }}>{usd(pf.p95_usd)}</div>
+            <div style={{ fontSize: 10, color: "#888" }}>200K CU tx</div>
+          </div>
+        </div>
+
+        <p style={{ fontSize: 11, color: "#888", marginTop: 6 }}>
+          Fees in micro-lamports per Compute Unit · Via Solana RPC getRecentPrioritizationFees
+        </p>
       </div>
     );
   }

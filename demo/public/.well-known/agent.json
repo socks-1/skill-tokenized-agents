@@ -68,6 +68,7 @@
     "btc-treasury",
     "eth-blob",
     "eth-supply",
+    "sol-priority-fees",
     {
       "id": "dao-governance",
       "name": "DAO Governance Snapshot",
@@ -146,6 +147,18 @@
       "description": "30-day and 7-day returns for Bitcoin, Ethereum, S&P 500, and Gold. Includes BTC-SPX and BTC-Gold Pearson correlation from daily log returns, plus a risk-on/risk-off signal. Macro-informed view for crypto traders.",
       "dataSource": "CoinGecko market_chart API + Stooq.com free CSV (S&P 500 & Gold)",
       "category": "Market Data",
+      "pricing": {
+        "amount": "1",
+        "currency": "USDC",
+        "network": "solana"
+      }
+    },
+    {
+      "id": "sol-priority-fees",
+      "name": "Solana Priority Fee Tracker",
+      "description": "Real-time Solana network congestion metrics: P50, P75, and P95 priority fees in micro-lamports per Compute Unit, estimated USD cost for a 200K-CU transaction, and a congestion level (low/moderate/high/extreme). Sampled from the last 150 blocks.",
+      "dataSource": "Solana JSON-RPC getRecentPrioritizationFees + CoinGecko SOL price",
+      "category": "Solana",
       "pricing": {
         "amount": "1",
         "currency": "USDC",
