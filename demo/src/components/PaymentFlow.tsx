@@ -96,6 +96,7 @@ import type {
   ChainDevData,
   ChainDevEntry,
   ImpliedVolData,
+  AthDistanceData,
 } from "@/lib/services";
 
 interface InvoiceParams {
@@ -604,6 +605,13 @@ const SERVICE_OPTIONS: { id: ServiceType; label: string; description: string; pr
     id: "crypto-iv",
     label: "Crypto Implied Volatility",
     description: "BTC and ETH implied volatility from Deribit DVOL — hourly annualized IV with 7-day and 16-day averages. Shows current vol regime (elevated/normal/suppressed) relative to recent history. Forward-looking complement to realized volatility.",
+    price: "1 USDC",
+    category: "Market Data",
+  },
+  {
+    id: "ath-distance",
+    label: "Crypto ATH Distance Monitor",
+    description: "How far top cryptocurrencies are from their all-time highs — current price vs ATH, % below ATH, date of ATH, and 7-day performance. Coins sorted closest-to-ATH first, giving a quick read on which assets are recovering vs still deeply underwater.",
     price: "1 USDC",
     category: "Market Data",
   },
@@ -1568,6 +1576,22 @@ const MOCK_IMPLIED_VOL: ImpliedVolData = {
     { symbol: "ETH", iv_current: 60.1, iv_7d_avg: 63.2, iv_16d_avg: 68.4, regime: "suppressed" },
   ],
   note: "Via Deribit DVOL · hourly snapshots, annualized %",
+};
+
+const MOCK_ATH_DISTANCE: AthDistanceData = {
+  coins: [
+    { symbol: "BTC",  name: "Bitcoin",       current_price: 70455,  ath: 126080, ath_change_pct: -44.1, ath_date: "2025-10-06", change_7d_pct:  1.2, market_cap_rank: 1 },
+    { symbol: "ETH",  name: "Ethereum",      current_price:  2080,  ath:   4946, ath_change_pct: -57.9, ath_date: "2025-08-24", change_7d_pct: -1.8, market_cap_rank: 2 },
+    { symbol: "BNB",  name: "BNB",           current_price:   640,  ath:   1370, ath_change_pct: -53.3, ath_date: "2025-10-13", change_7d_pct:  0.5, market_cap_rank: 3 },
+    { symbol: "XRP",  name: "XRP",           current_price:  1.58,  ath:      4, ath_change_pct: -60.5, ath_date: "2025-07-18", change_7d_pct: -2.4, market_cap_rank: 4 },
+    { symbol: "SOL",  name: "Solana",        current_price:    87,  ath:    293, ath_change_pct: -70.3, ath_date: "2025-01-19", change_7d_pct: -3.1, market_cap_rank: 5 },
+    { symbol: "LINK", name: "Chainlink",     current_price:    12,  ath:     53, ath_change_pct: -77.4, ath_date: "2024-12-10", change_7d_pct: -1.5, market_cap_rank: 14 },
+    { symbol: "NEAR", name: "NEAR Protocol", current_price:  2.45,  ath:   20.4, ath_change_pct: -88.0, ath_date: "2022-01-16", change_7d_pct: -4.2, market_cap_rank: 20 },
+    { symbol: "ADA",  name: "Cardano",       current_price:  0.27,  ath:   3.10, ath_change_pct: -91.3, ath_date: "2021-09-02", change_7d_pct: -2.8, market_cap_rank: 10 },
+    { symbol: "AVAX", name: "Avalanche",     current_price:  8.50,  ath:    145, ath_change_pct: -94.1, ath_date: "2021-11-21", change_7d_pct: -3.5, market_cap_rank: 22 },
+    { symbol: "DOT",  name: "Polkadot",      current_price:  3.80,  ath:   55.0, ath_change_pct: -93.1, ath_date: "2021-11-04", change_7d_pct: -2.0, market_cap_rank: 18 },
+  ],
+  note: "Via CoinGecko · sorted closest to ATH first · prices updated hourly",
 };
 
 const MOCK_SIGNATURE =
@@ -2828,6 +2852,17 @@ function buildTourSteps(serviceType: ServiceType, liveData?: ServiceResult): Pay
       timestamp: new Date().toISOString(),
       delivered_to: "Demo1234...abcd",
     };
+  } else if (serviceType === "ath-distance") {
+    const ad = liveData?.ath_distance ?? MOCK_ATH_DISTANCE;
+    const closest = ad.coins[0];
+    mockService = liveData ?? {
+      service_type: "ath-distance",
+      result: ad.coins.slice(0, 3).map((c) => `${c.symbol} ${c.ath_change_pct.toFixed(1)}% from ATH`).join(" · "),
+      ath_distance: ad,
+      timestamp: new Date().toISOString(),
+      delivered_to: "Demo1234...abcd",
+    };
+    void closest;
   } else {
     const md = liveData?.market_data ?? MOCK_MARKET_DATA;
     mockService = liveData ?? {
@@ -6361,6 +6396,44 @@ function ServiceResultTable({ service }: { service: ServiceResult }) {
           </tbody>
         </table>
         <p style={{ marginTop: 8, fontSize: 12, color: "#888" }}>{iv.note}</p>
+      </div>
+    );
+  }
+
+  if (service.service_type === "ath-distance" && service.ath_distance) {
+    const ad = service.ath_distance;
+    const pctColor = (v: number) => v >= -20 ? "#16a34a" : v >= -50 ? "#d97706" : v >= -75 ? "#dc2626" : "#7c3aed";
+    const changeColor = (v: number) => v >= 0 ? "#16a34a" : "#dc2626";
+    const fmt = (n: number) => n >= 1000 ? `$${(n / 1000).toFixed(1)}K` : n >= 1 ? `$${n.toFixed(2)}` : `$${n.toFixed(4)}`;
+    return (
+      <div>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+          <thead>
+            <tr style={{ borderBottom: "2px solid #e8e8e8" }}>
+              <th style={{ padding: "5px 8px", textAlign: "left",  fontSize: 11, color: "#888", fontWeight: 600 }}>#</th>
+              <th style={{ padding: "5px 8px", textAlign: "left",  fontSize: 11, color: "#888", fontWeight: 600 }}>Coin</th>
+              <th style={{ padding: "5px 8px", textAlign: "right", fontSize: 11, color: "#888", fontWeight: 600 }}>Price</th>
+              <th style={{ padding: "5px 8px", textAlign: "right", fontSize: 11, color: "#888", fontWeight: 600 }}>ATH</th>
+              <th style={{ padding: "5px 8px", textAlign: "right", fontSize: 11, color: "#888", fontWeight: 600 }}>From ATH</th>
+              <th style={{ padding: "5px 8px", textAlign: "right", fontSize: 11, color: "#888", fontWeight: 600 }}>ATH Date</th>
+              <th style={{ padding: "5px 8px", textAlign: "right", fontSize: 11, color: "#888", fontWeight: 600 }}>7d</th>
+            </tr>
+          </thead>
+          <tbody>
+            {ad.coins.map((c, i) => (
+              <tr key={c.symbol} style={{ borderBottom: "1px solid #f0f0f0" }}>
+                <td style={{ padding: "6px 8px", color: "#aaa", fontSize: 11 }}>{i + 1}</td>
+                <td style={{ padding: "6px 8px", fontWeight: 700 }}>{c.symbol} <span style={{ fontWeight: 400, color: "#888", fontSize: 11 }}>{c.name}</span></td>
+                <td style={{ padding: "6px 8px", textAlign: "right" }}>{fmt(c.current_price)}</td>
+                <td style={{ padding: "6px 8px", textAlign: "right", color: "#555" }}>{fmt(c.ath)}</td>
+                <td style={{ padding: "6px 8px", textAlign: "right", fontWeight: 700, color: pctColor(c.ath_change_pct) }}>{c.ath_change_pct.toFixed(1)}%</td>
+                <td style={{ padding: "6px 8px", textAlign: "right", color: "#888", fontSize: 11 }}>{c.ath_date}</td>
+                <td style={{ padding: "6px 8px", textAlign: "right", color: changeColor(c.change_7d_pct), fontWeight: 600 }}>{c.change_7d_pct >= 0 ? "+" : ""}{c.change_7d_pct.toFixed(1)}%</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <p style={{ marginTop: 8, fontSize: 12, color: "#888" }}>{ad.note}</p>
       </div>
     );
   }

@@ -3,10 +3,10 @@
  * All functions are read-only calls to public APIs — no auth required.
  */
 
-export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season" | "btc-mining" | "bridge-volume" | "tvl-movers" | "lightning-network" | "eth-lst" | "realized-vol" | "lending-rates" | "protocol-revenue" | "btc-onchain" | "nft-market" | "market-breadth" | "perp-oi" | "stablecoin-chains" | "stablecoin-pegs" | "mining-pools" | "rwa-tvl" | "crypto-funding" | "chain-fees" | "chain-tvl" | "defi-exploits" | "global-dex" | "futures-basis" | "dex-aggregators" | "meme-coins" | "cross-chain-gas" | "hl-top-pairs" | "eth-beacon" | "restaking-tvl" | "btc-halving" | "sol-validators" | "stable-yields" | "btc-treasury" | "eth-blob" | "eth-supply" | "dao-governance" | "crypto-correlation" | "chain-dev" | "crypto-iv";
+export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season" | "btc-mining" | "bridge-volume" | "tvl-movers" | "lightning-network" | "eth-lst" | "realized-vol" | "lending-rates" | "protocol-revenue" | "btc-onchain" | "nft-market" | "market-breadth" | "perp-oi" | "stablecoin-chains" | "stablecoin-pegs" | "mining-pools" | "rwa-tvl" | "crypto-funding" | "chain-fees" | "chain-tvl" | "defi-exploits" | "global-dex" | "futures-basis" | "dex-aggregators" | "meme-coins" | "cross-chain-gas" | "hl-top-pairs" | "eth-beacon" | "restaking-tvl" | "btc-halving" | "sol-validators" | "stable-yields" | "btc-treasury" | "eth-blob" | "eth-supply" | "dao-governance" | "crypto-correlation" | "chain-dev" | "crypto-iv" | "ath-distance";
 
 /** All valid service type strings — use this for runtime validation instead of duplicating the list. */
-export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season", "btc-mining", "bridge-volume", "tvl-movers", "lightning-network", "eth-lst", "realized-vol", "lending-rates", "protocol-revenue", "btc-onchain", "nft-market", "market-breadth", "perp-oi", "stablecoin-chains", "stablecoin-pegs", "mining-pools", "rwa-tvl", "crypto-funding", "chain-fees", "chain-tvl", "defi-exploits", "global-dex", "futures-basis", "dex-aggregators", "meme-coins", "cross-chain-gas", "hl-top-pairs", "eth-beacon", "restaking-tvl", "btc-halving", "sol-validators", "stable-yields", "btc-treasury", "eth-blob", "eth-supply", "dao-governance", "crypto-correlation", "chain-dev", "crypto-iv"];
+export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season", "btc-mining", "bridge-volume", "tvl-movers", "lightning-network", "eth-lst", "realized-vol", "lending-rates", "protocol-revenue", "btc-onchain", "nft-market", "market-breadth", "perp-oi", "stablecoin-chains", "stablecoin-pegs", "mining-pools", "rwa-tvl", "crypto-funding", "chain-fees", "chain-tvl", "defi-exploits", "global-dex", "futures-basis", "dex-aggregators", "meme-coins", "cross-chain-gas", "hl-top-pairs", "eth-beacon", "restaking-tvl", "btc-halving", "sol-validators", "stable-yields", "btc-treasury", "eth-blob", "eth-supply", "dao-governance", "crypto-correlation", "chain-dev", "crypto-iv", "ath-distance"];
 
 export interface MarketData {
   symbol: string;
@@ -828,6 +828,7 @@ export interface ServiceResult {
   crypto_correlation?: CryptoCorrelationData;
   chain_dev?: ChainDevData;
   implied_vol?: ImpliedVolData;
+  ath_distance?: AthDistanceData;
   timestamp: string;
   delivered_to: string;
 }
@@ -857,6 +858,22 @@ export interface ImpliedVolEntry {
 
 export interface ImpliedVolData {
   assets: ImpliedVolEntry[];
+  note: string;
+}
+
+export interface AthDistanceEntry {
+  symbol: string;
+  name: string;
+  current_price: number;
+  ath: number;
+  ath_change_pct: number;   // negative: % below ATH
+  ath_date: string;         // ISO date string, e.g. "2025-10-06"
+  change_7d_pct: number;
+  market_cap_rank: number;
+}
+
+export interface AthDistanceData {
+  coins: AthDistanceEntry[];
   note: string;
 }
 
@@ -3475,6 +3492,7 @@ export async function deliverService(delivered_to: string, serviceType: ServiceT
   if (serviceType === "crypto-correlation") return deliverCryptoCorrelation(delivered_to, timestamp);
   if (serviceType === "chain-dev") return deliverChainDev(delivered_to, timestamp);
   if (serviceType === "crypto-iv") return deliverCryptoIV(delivered_to, timestamp);
+  if (serviceType === "ath-distance") return deliverAthDistance(delivered_to, timestamp);
   return deliverCryptoPrices(delivered_to, timestamp);
 }
 
@@ -5915,4 +5933,70 @@ export async function deliverCryptoIV(delivered_to: string, timestamp: string): 
 
   const result = assets.map((a) => `${a.symbol} IV: ${a.iv_current.toFixed(1)}% (${a.regime})`).join(" · ");
   return { service_type: "crypto-iv", result, implied_vol, timestamp, delivered_to };
+}
+
+// ---------------------------------------------------------------------------
+// Crypto ATH Distance Monitor — CoinGecko /coins/markets (free, no auth)
+// ---------------------------------------------------------------------------
+let _athCache: { data: AthDistanceData; expires: number } | null = null;
+const ATH_TTL = 60 * 60 * 1000; // 60 minutes
+
+export async function deliverAthDistance(delivered_to: string, timestamp: string): Promise<ServiceResult> {
+  if (_athCache && Date.now() < _athCache.expires) {
+    const d = _athCache.data;
+    const result = d.coins.slice(0, 3).map((c) => `${c.symbol.toUpperCase()} ${c.ath_change_pct.toFixed(1)}% from ATH`).join(" · ");
+    return { service_type: "ath-distance", result, ath_distance: d, timestamp, delivered_to };
+  }
+
+  const coinIds = "bitcoin,ethereum,binancecoin,ripple,solana,cardano,avalanche-2,polkadot,chainlink,uniswap,litecoin,near,aptos,sui,injective-protocol";
+
+  try {
+    const res = await fetch(
+      `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${coinIds}&order=market_cap_desc&per_page=15&sparkline=false&price_change_percentage=7d`,
+      {
+        headers: { Accept: "application/json", "User-Agent": "skill-tokenized-agents/1.0" },
+        signal: AbortSignal.timeout(12000),
+      }
+    );
+    if (!res.ok) throw new Error(`CoinGecko HTTP ${res.status}`);
+
+    const json = await res.json() as Array<{
+      id: string;
+      symbol: string;
+      name: string;
+      current_price: number;
+      ath: number;
+      ath_change_percentage: number;
+      ath_date: string;
+      price_change_percentage_7d_in_currency: number | null;
+      market_cap_rank: number;
+    }>;
+
+    const coins: AthDistanceEntry[] = json
+      .filter((c) => c.ath > 0 && c.current_price > 0)
+      .sort((a, b) => b.ath_change_percentage - a.ath_change_percentage) // closest to ATH first (least negative)
+      .map((c) => ({
+        symbol: c.symbol.toUpperCase(),
+        name: c.name,
+        current_price: c.current_price,
+        ath: c.ath,
+        ath_change_pct: parseFloat(c.ath_change_percentage.toFixed(1)),
+        ath_date: c.ath_date ? c.ath_date.slice(0, 10) : "",
+        change_7d_pct: parseFloat((c.price_change_percentage_7d_in_currency ?? 0).toFixed(1)),
+        market_cap_rank: c.market_cap_rank ?? 0,
+      }));
+
+    if (coins.length === 0) throw new Error("No ATH data returned");
+
+    const ath_distance: AthDistanceData = {
+      coins,
+      note: "Via CoinGecko · sorted closest to ATH first · prices updated hourly",
+    };
+    _athCache = { data: ath_distance, expires: Date.now() + ATH_TTL };
+
+    const result = coins.slice(0, 3).map((c) => `${c.symbol} ${c.ath_change_pct.toFixed(1)}% from ATH`).join(" · ");
+    return { service_type: "ath-distance", result, ath_distance, timestamp, delivered_to };
+  } catch {
+    return { service_type: "ath-distance", result: "ATH distance data temporarily unavailable", timestamp, delivered_to };
+  }
 }
