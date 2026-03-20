@@ -95,6 +95,7 @@ import type {
   CryptoCorrelationData,
   ChainDevData,
   ChainDevEntry,
+  ImpliedVolData,
 } from "@/lib/services";
 
 interface InvoiceParams {
@@ -596,6 +597,13 @@ const SERVICE_OPTIONS: { id: ServiceType; label: string; description: string; pr
     id: "chain-dev",
     label: "Blockchain Developer Activity",
     description: "GitHub commit activity for major blockchain core repos — go-ethereum, agave (Solana), Sui, Aptos, Avalanche. Shows 4-week commit counts, 13-week totals, and trend vs prior period. Sourced from GitHub stats/participation API.",
+    price: "1 USDC",
+    category: "Market Data",
+  },
+  {
+    id: "crypto-iv",
+    label: "Crypto Implied Volatility",
+    description: "BTC and ETH implied volatility from Deribit DVOL — hourly annualized IV with 7-day and 16-day averages. Shows current vol regime (elevated/normal/suppressed) relative to recent history. Forward-looking complement to realized volatility.",
     price: "1 USDC",
     category: "Market Data",
   },
@@ -1552,6 +1560,14 @@ const MOCK_CHAIN_DEV: ChainDevData = {
   ],
   fetched_at: new Date().toISOString(),
   period_note: "Last 4 weeks vs prior 4 weeks",
+};
+
+const MOCK_IMPLIED_VOL: ImpliedVolData = {
+  assets: [
+    { symbol: "BTC", iv_current: 46.2, iv_7d_avg: 48.5, iv_16d_avg: 52.3, regime: "suppressed" },
+    { symbol: "ETH", iv_current: 60.1, iv_7d_avg: 63.2, iv_16d_avg: 68.4, regime: "suppressed" },
+  ],
+  note: "Via Deribit DVOL · hourly snapshots, annualized %",
 };
 
 const MOCK_SIGNATURE =
@@ -2800,6 +2816,15 @@ function buildTourSteps(serviceType: ServiceType, liveData?: ServiceResult): Pay
       service_type: "chain-dev",
       result: cdResult,
       chain_dev: cd,
+      timestamp: new Date().toISOString(),
+      delivered_to: "Demo1234...abcd",
+    };
+  } else if (serviceType === "crypto-iv") {
+    const iv = liveData?.implied_vol ?? MOCK_IMPLIED_VOL;
+    mockService = liveData ?? {
+      service_type: "crypto-iv",
+      result: iv.assets.map((a) => `${a.symbol} IV: ${a.iv_current.toFixed(1)}% (${a.regime})`).join(" · "),
+      implied_vol: iv,
       timestamp: new Date().toISOString(),
       delivered_to: "Demo1234...abcd",
     };
@@ -6288,6 +6313,54 @@ function ServiceResultTable({ service }: { service: ServiceResult }) {
         </div>
 
         <p style={{ marginTop: 6, fontSize: 12, color: "#888" }}>GitHub commit activity for core blockchain repos (4-week window) · Via GitHub stats/participation API</p>
+      </div>
+    );
+  }
+
+  if (service.service_type === "crypto-iv" && service.implied_vol) {
+    const iv = service.implied_vol;
+    const regimeColor = (r: string) => r === "elevated" ? "#dc2626" : r === "suppressed" ? "#16a34a" : "#888";
+    const regimeBg = (r: string) => r === "elevated" ? "#fff5f5" : r === "suppressed" ? "#f0fdf4" : "#fafafa";
+    const regimeBorder = (r: string) => r === "elevated" ? "#fca5a5" : r === "suppressed" ? "#86efac" : "#e5e7eb";
+    return (
+      <div>
+        {/* Summary cards */}
+        <div style={{ display: "flex", gap: 10, marginBottom: 14 }}>
+          {iv.assets.map((a) => (
+            <div key={a.symbol} style={{ flex: 1, padding: "10px 14px", background: regimeBg(a.regime), borderRadius: 8, border: `1px solid ${regimeBorder(a.regime)}` }}>
+              <div style={{ fontSize: 11, color: "#666", fontWeight: 600, marginBottom: 3 }}>{a.symbol} Implied Vol</div>
+              <div style={{ fontSize: 24, fontWeight: 800, color: regimeColor(a.regime), marginBottom: 2 }}>{a.iv_current.toFixed(1)}%</div>
+              <div style={{ fontSize: 10, color: regimeColor(a.regime), fontWeight: 700, textTransform: "uppercase", marginBottom: 6 }}>{a.regime}</div>
+              <div style={{ fontSize: 11, color: "#555" }}>7d avg: {a.iv_7d_avg.toFixed(1)}%</div>
+              <div style={{ fontSize: 11, color: "#555" }}>16d avg: {a.iv_16d_avg.toFixed(1)}%</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Comparison table */}
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+          <thead>
+            <tr style={{ borderBottom: "2px solid #e8e8e8" }}>
+              <th style={{ padding: "6px 8px", textAlign: "left", fontSize: 12, color: "#888", fontWeight: 600 }}>Asset</th>
+              <th style={{ padding: "6px 8px", textAlign: "right", fontSize: 12, color: "#888", fontWeight: 600 }}>Current IV</th>
+              <th style={{ padding: "6px 8px", textAlign: "right", fontSize: 12, color: "#888", fontWeight: 600 }}>7d Avg</th>
+              <th style={{ padding: "6px 8px", textAlign: "right", fontSize: 12, color: "#888", fontWeight: 600 }}>16d Avg</th>
+              <th style={{ padding: "6px 8px", textAlign: "right", fontSize: 12, color: "#888", fontWeight: 600 }}>Regime</th>
+            </tr>
+          </thead>
+          <tbody>
+            {iv.assets.map((a) => (
+              <tr key={a.symbol} style={{ borderBottom: "1px solid #f0f0f0" }}>
+                <td style={{ padding: "7px 8px", fontWeight: 700 }}>{a.symbol}</td>
+                <td style={{ padding: "7px 8px", textAlign: "right", fontWeight: 700 }}>{a.iv_current.toFixed(1)}%</td>
+                <td style={{ padding: "7px 8px", textAlign: "right", color: "#555" }}>{a.iv_7d_avg.toFixed(1)}%</td>
+                <td style={{ padding: "7px 8px", textAlign: "right", color: "#555" }}>{a.iv_16d_avg.toFixed(1)}%</td>
+                <td style={{ padding: "7px 8px", textAlign: "right", fontWeight: 700, color: regimeColor(a.regime) }}>{a.regime.charAt(0).toUpperCase() + a.regime.slice(1)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <p style={{ marginTop: 8, fontSize: 12, color: "#888" }}>{iv.note}</p>
       </div>
     );
   }

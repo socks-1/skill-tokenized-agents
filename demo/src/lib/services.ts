@@ -3,10 +3,10 @@
  * All functions are read-only calls to public APIs — no auth required.
  */
 
-export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season" | "btc-mining" | "bridge-volume" | "tvl-movers" | "lightning-network" | "eth-lst" | "realized-vol" | "lending-rates" | "protocol-revenue" | "btc-onchain" | "nft-market" | "market-breadth" | "perp-oi" | "stablecoin-chains" | "stablecoin-pegs" | "mining-pools" | "rwa-tvl" | "crypto-funding" | "chain-fees" | "chain-tvl" | "defi-exploits" | "global-dex" | "futures-basis" | "dex-aggregators" | "meme-coins" | "cross-chain-gas" | "hl-top-pairs" | "eth-beacon" | "restaking-tvl" | "btc-halving" | "sol-validators" | "stable-yields" | "btc-treasury" | "eth-blob" | "eth-supply" | "dao-governance" | "crypto-correlation" | "chain-dev";
+export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season" | "btc-mining" | "bridge-volume" | "tvl-movers" | "lightning-network" | "eth-lst" | "realized-vol" | "lending-rates" | "protocol-revenue" | "btc-onchain" | "nft-market" | "market-breadth" | "perp-oi" | "stablecoin-chains" | "stablecoin-pegs" | "mining-pools" | "rwa-tvl" | "crypto-funding" | "chain-fees" | "chain-tvl" | "defi-exploits" | "global-dex" | "futures-basis" | "dex-aggregators" | "meme-coins" | "cross-chain-gas" | "hl-top-pairs" | "eth-beacon" | "restaking-tvl" | "btc-halving" | "sol-validators" | "stable-yields" | "btc-treasury" | "eth-blob" | "eth-supply" | "dao-governance" | "crypto-correlation" | "chain-dev" | "crypto-iv";
 
 /** All valid service type strings — use this for runtime validation instead of duplicating the list. */
-export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season", "btc-mining", "bridge-volume", "tvl-movers", "lightning-network", "eth-lst", "realized-vol", "lending-rates", "protocol-revenue", "btc-onchain", "nft-market", "market-breadth", "perp-oi", "stablecoin-chains", "stablecoin-pegs", "mining-pools", "rwa-tvl", "crypto-funding", "chain-fees", "chain-tvl", "defi-exploits", "global-dex", "futures-basis", "dex-aggregators", "meme-coins", "cross-chain-gas", "hl-top-pairs", "eth-beacon", "restaking-tvl", "btc-halving", "sol-validators", "stable-yields", "btc-treasury", "eth-blob", "eth-supply", "dao-governance", "crypto-correlation", "chain-dev"];
+export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season", "btc-mining", "bridge-volume", "tvl-movers", "lightning-network", "eth-lst", "realized-vol", "lending-rates", "protocol-revenue", "btc-onchain", "nft-market", "market-breadth", "perp-oi", "stablecoin-chains", "stablecoin-pegs", "mining-pools", "rwa-tvl", "crypto-funding", "chain-fees", "chain-tvl", "defi-exploits", "global-dex", "futures-basis", "dex-aggregators", "meme-coins", "cross-chain-gas", "hl-top-pairs", "eth-beacon", "restaking-tvl", "btc-halving", "sol-validators", "stable-yields", "btc-treasury", "eth-blob", "eth-supply", "dao-governance", "crypto-correlation", "chain-dev", "crypto-iv"];
 
 export interface MarketData {
   symbol: string;
@@ -827,6 +827,7 @@ export interface ServiceResult {
   dao_governance?: DaoGovernanceData;
   crypto_correlation?: CryptoCorrelationData;
   chain_dev?: ChainDevData;
+  implied_vol?: ImpliedVolData;
   timestamp: string;
   delivered_to: string;
 }
@@ -844,6 +845,19 @@ export interface VolatilityEntry {
 export interface RealizedVolData {
   assets: VolatilityEntry[];
   market_regime: "escalating" | "stable" | "cooling";
+}
+
+export interface ImpliedVolEntry {
+  symbol: string;        // "BTC" | "ETH"
+  iv_current: number;    // latest hourly IV (annualized %)
+  iv_7d_avg: number;     // 7-day average IV
+  iv_16d_avg: number;    // ~16-day average (full dataset available from Deribit)
+  regime: "elevated" | "normal" | "suppressed";  // relative to 16d avg
+}
+
+export interface ImpliedVolData {
+  assets: ImpliedVolEntry[];
+  note: string;
 }
 
 export interface LendingRateEntry {
@@ -3460,6 +3474,7 @@ export async function deliverService(delivered_to: string, serviceType: ServiceT
   if (serviceType === "dao-governance") return deliverDaoGovernance(delivered_to, timestamp);
   if (serviceType === "crypto-correlation") return deliverCryptoCorrelation(delivered_to, timestamp);
   if (serviceType === "chain-dev") return deliverChainDev(delivered_to, timestamp);
+  if (serviceType === "crypto-iv") return deliverCryptoIV(delivered_to, timestamp);
   return deliverCryptoPrices(delivered_to, timestamp);
 }
 
@@ -5839,4 +5854,65 @@ export async function deliverChainDev(delivered_to: string, timestamp: string): 
   const top = entries[0];
   const result = `${top.chain} most active: ${top.commits_4w} commits/4w · avg ${Math.round(entries.reduce((s, e) => s + e.commits_4w, 0) / entries.length)} commits/chain · ${entries.length} chains`;
   return { service_type: "chain-dev", result, chain_dev, timestamp, delivered_to };
+}
+
+// ---------------------------------------------------------------------------
+// Crypto Implied Volatility — Deribit DVOL (BTC & ETH)
+// ---------------------------------------------------------------------------
+let _ivCache: { data: ImpliedVolData; expires: number } | null = null;
+const IV_TTL = 30 * 60 * 1000; // 30 minutes
+
+export async function deliverCryptoIV(delivered_to: string, timestamp: string): Promise<ServiceResult> {
+  if (_ivCache && Date.now() < _ivCache.expires) {
+    const d = _ivCache.data;
+    const result = d.assets.map((a) => `${a.symbol} IV: ${a.iv_current.toFixed(1)}% (${a.regime})`).join(" · ");
+    return { service_type: "crypto-iv", result, implied_vol: d, timestamp, delivered_to };
+  }
+
+  const currencies = ["BTC", "ETH"];
+  const assets: ImpliedVolEntry[] = [];
+
+  for (const currency of currencies) {
+    try {
+      const res = await fetch(
+        `https://www.deribit.com/api/v2/public/get_historical_volatility?currency=${currency}`,
+        {
+          headers: { Accept: "application/json", "User-Agent": "skill-tokenized-agents/1.0" },
+          signal: AbortSignal.timeout(10000),
+        }
+      );
+      if (!res.ok) continue;
+      const json = (await res.json()) as { result: [number, number][] };
+      const data = json.result;
+      if (!data || data.length < 24) continue;
+
+      const iv_current = parseFloat(data[data.length - 1][1].toFixed(1));
+      const last168 = data.slice(-168); // 7 days × 24h
+      const avg = (arr: [number, number][]) =>
+        parseFloat((arr.reduce((s, d) => s + d[1], 0) / arr.length).toFixed(1));
+      const iv_7d_avg = avg(last168);
+      const iv_16d_avg = avg(data);
+
+      const regime: ImpliedVolEntry["regime"] =
+        iv_current > iv_16d_avg * 1.15 ? "elevated" :
+        iv_current < iv_16d_avg * 0.85 ? "suppressed" : "normal";
+
+      assets.push({ symbol: currency, iv_current, iv_7d_avg, iv_16d_avg, regime });
+    } catch {
+      // skip on error
+    }
+  }
+
+  if (assets.length === 0) {
+    return { service_type: "crypto-iv", result: "Implied volatility data temporarily unavailable", timestamp, delivered_to };
+  }
+
+  const implied_vol: ImpliedVolData = {
+    assets,
+    note: "Via Deribit DVOL · hourly snapshots, annualized %",
+  };
+  _ivCache = { data: implied_vol, expires: Date.now() + IV_TTL };
+
+  const result = assets.map((a) => `${a.symbol} IV: ${a.iv_current.toFixed(1)}% (${a.regime})`).join(" · ");
+  return { service_type: "crypto-iv", result, implied_vol, timestamp, delivered_to };
 }
