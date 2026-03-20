@@ -93,6 +93,8 @@ import type {
   EthSupplyData,
   DaoGovernanceData,
   CryptoCorrelationData,
+  ChainDevData,
+  ChainDevEntry,
 } from "@/lib/services";
 
 interface InvoiceParams {
@@ -587,6 +589,13 @@ const SERVICE_OPTIONS: { id: ServiceType; label: string; description: string; pr
     id: "crypto-correlation",
     label: "Crypto Asset Correlations",
     description: "30-day Pearson correlation coefficients of top crypto assets (ETH, SOL, BNB, XRP, DOGE, LINK, AVAX, SUI) vs BTC. Computed from daily log returns. Shows which assets move with Bitcoin and which are decorrelated. Via CoinGecko market chart API.",
+    price: "1 USDC",
+    category: "Market Data",
+  },
+  {
+    id: "chain-dev",
+    label: "Blockchain Developer Activity",
+    description: "GitHub commit activity for major blockchain core repos — go-ethereum, agave (Solana), Sui, Aptos, Avalanche. Shows 4-week commit counts, 13-week totals, and trend vs prior period. Sourced from GitHub stats/participation API.",
     price: "1 USDC",
     category: "Market Data",
   },
@@ -1531,6 +1540,18 @@ const MOCK_CRYPTO_CORRELATION: CryptoCorrelationData = {
   ],
   btc_price_usd: 84200,
   period_days: 30,
+};
+
+const MOCK_CHAIN_DEV: ChainDevData = {
+  chains: [
+    { chain: "Solana",    repo: "anza-xyz/agave",          commits_4w: 142, commits_13w: 438, trend_pct: 12.7,  activity_level: "high" },
+    { chain: "Sui",       repo: "MystenLabs/sui",           commits_4w: 118, commits_13w: 362, trend_pct: 5.4,   activity_level: "high" },
+    { chain: "Aptos",     repo: "aptos-labs/aptos-core",    commits_4w:  96, commits_13w: 291, trend_pct: -3.1,  activity_level: "high" },
+    { chain: "Ethereum",  repo: "ethereum/go-ethereum",     commits_4w:  72, commits_13w: 219, trend_pct: 8.2,   activity_level: "moderate" },
+    { chain: "Avalanche", repo: "ava-labs/avalanchego",     commits_4w:  41, commits_13w: 128, trend_pct: -9.5,  activity_level: "moderate" },
+  ],
+  fetched_at: new Date().toISOString(),
+  period_note: "Last 4 weeks vs prior 4 weeks",
 };
 
 const MOCK_SIGNATURE =
@@ -2766,6 +2787,19 @@ function buildTourSteps(serviceType: ServiceType, liveData?: ServiceResult): Pay
       service_type: "crypto-correlation",
       result: ccResult,
       crypto_correlation: cc,
+      timestamp: new Date().toISOString(),
+      delivered_to: "Demo1234...abcd",
+    };
+  } else if (serviceType === "chain-dev") {
+    const cd = liveData?.chain_dev ?? MOCK_CHAIN_DEV;
+    const top = cd.chains[0];
+    const cdResult = top
+      ? `${top.chain} most active: ${top.commits_4w} commits/4w · avg ${Math.round(cd.chains.reduce((s, e) => s + e.commits_4w, 0) / cd.chains.length)} commits/chain · ${cd.chains.length} chains`
+      : "Developer activity unavailable";
+    mockService = liveData ?? {
+      service_type: "chain-dev",
+      result: cdResult,
+      chain_dev: cd,
       timestamp: new Date().toISOString(),
       delivered_to: "Demo1234...abcd",
     };
@@ -6183,6 +6217,77 @@ function ServiceResultTable({ service }: { service: ServiceResult }) {
         </div>
 
         <p style={{ marginTop: 6, fontSize: 12, color: "#888" }}>Pearson correlation of daily log returns (30 days) vs BTC · Via CoinGecko market chart API</p>
+      </div>
+    );
+  }
+
+  if (service.service_type === "chain-dev" && service.chain_dev) {
+    const cd = service.chain_dev;
+    const totalCommits = cd.chains.reduce((s, e) => s + e.commits_4w, 0);
+
+    const activityColor = (level: ChainDevEntry["activity_level"]) => {
+      if (level === "high") return "#16a34a";
+      if (level === "moderate") return "#d97706";
+      return "#6b7280";
+    };
+    const activityBg = (level: ChainDevEntry["activity_level"]) => {
+      if (level === "high") return "#f0fdf4";
+      if (level === "moderate") return "#fffbeb";
+      return "#f9fafb";
+    };
+    const activityBorder = (level: ChainDevEntry["activity_level"]) => {
+      if (level === "high") return "#86efac";
+      if (level === "moderate") return "#fcd34d";
+      return "#e5e7eb";
+    };
+    const trendStr = (pct: number) => {
+      if (pct > 5) return `▲ +${pct.toFixed(1)}%`;
+      if (pct < -5) return `▼ ${pct.toFixed(1)}%`;
+      return `→ ${pct >= 0 ? "+" : ""}${pct.toFixed(1)}%`;
+    };
+    const trendColor = (pct: number) => (pct >= 5 ? "#16a34a" : pct <= -5 ? "#dc2626" : "#6b7280");
+    const barPct = (commits: number) => `${Math.round((commits / Math.max(1, cd.chains[0]?.commits_4w ?? 1)) * 100)}%`;
+
+    return (
+      <div>
+        {/* Summary header */}
+        <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
+          <div style={{ padding: "8px 14px", background: "#eff6ff", borderRadius: 6, border: "1px solid #bfdbfe", textAlign: "center" }}>
+            <div style={{ fontWeight: 700, fontSize: 20, color: "#2563eb" }}>{totalCommits}</div>
+            <div style={{ fontSize: 11, color: "#888" }}>Total Commits/4w</div>
+          </div>
+          <div style={{ padding: "8px 14px", background: "#f0fdf4", borderRadius: 6, border: "1px solid #86efac", textAlign: "center" }}>
+            <div style={{ fontWeight: 700, fontSize: 20, color: "#16a34a" }}>{cd.chains.filter((e) => e.activity_level === "high").length}</div>
+            <div style={{ fontSize: 11, color: "#888" }}>High Activity</div>
+          </div>
+          <div style={{ flex: 1, padding: "8px 12px", background: "#fafafa", borderRadius: 6, border: "1px solid #e5e7eb", display: "flex", alignItems: "center" }}>
+            <span style={{ fontSize: 12, color: "#555" }}>
+              {cd.chains[0]?.chain ?? "—"} leads · {cd.period_note}
+            </span>
+          </div>
+        </div>
+
+        {/* Per-chain rows */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 10 }}>
+          {cd.chains.map((e) => (
+            <div key={e.chain}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 3 }}>
+                <span style={{ width: 72, fontSize: 12, fontWeight: 700, color: "#222" }}>{e.chain}</span>
+                <div style={{ flex: 1, background: "#f3f4f6", borderRadius: 4, height: 14, overflow: "hidden" }}>
+                  <div style={{ width: barPct(e.commits_4w), background: activityColor(e.activity_level), height: "100%", borderRadius: 4 }} />
+                </div>
+                <span style={{ width: 40, fontSize: 12, fontWeight: 600, color: "#222", textAlign: "right" }}>{e.commits_4w}</span>
+                <span style={{ width: 70, fontSize: 11, color: trendColor(e.trend_pct), textAlign: "right", fontWeight: 500 }}>{trendStr(e.trend_pct)}</span>
+                <span style={{ padding: "1px 6px", background: activityBg(e.activity_level), border: `1px solid ${activityBorder(e.activity_level)}`, borderRadius: 4, fontSize: 10, fontWeight: 700, color: activityColor(e.activity_level), width: 68, textAlign: "center" }}>
+                  {e.activity_level.toUpperCase()}
+                </span>
+              </div>
+              <div style={{ marginLeft: 80, fontSize: 10, color: "#aaa" }}>{e.repo} · {e.commits_13w} commits/13w</div>
+            </div>
+          ))}
+        </div>
+
+        <p style={{ marginTop: 6, fontSize: 12, color: "#888" }}>GitHub commit activity for core blockchain repos (4-week window) · Via GitHub stats/participation API</p>
       </div>
     );
   }

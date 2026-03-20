@@ -3,10 +3,10 @@
  * All functions are read-only calls to public APIs — no auth required.
  */
 
-export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season" | "btc-mining" | "bridge-volume" | "tvl-movers" | "lightning-network" | "eth-lst" | "realized-vol" | "lending-rates" | "protocol-revenue" | "btc-onchain" | "nft-market" | "market-breadth" | "perp-oi" | "stablecoin-chains" | "stablecoin-pegs" | "mining-pools" | "rwa-tvl" | "crypto-funding" | "chain-fees" | "chain-tvl" | "defi-exploits" | "global-dex" | "futures-basis" | "dex-aggregators" | "meme-coins" | "cross-chain-gas" | "hl-top-pairs" | "eth-beacon" | "restaking-tvl" | "btc-halving" | "sol-validators" | "stable-yields" | "btc-treasury" | "eth-blob" | "eth-supply" | "dao-governance" | "crypto-correlation";
+export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season" | "btc-mining" | "bridge-volume" | "tvl-movers" | "lightning-network" | "eth-lst" | "realized-vol" | "lending-rates" | "protocol-revenue" | "btc-onchain" | "nft-market" | "market-breadth" | "perp-oi" | "stablecoin-chains" | "stablecoin-pegs" | "mining-pools" | "rwa-tvl" | "crypto-funding" | "chain-fees" | "chain-tvl" | "defi-exploits" | "global-dex" | "futures-basis" | "dex-aggregators" | "meme-coins" | "cross-chain-gas" | "hl-top-pairs" | "eth-beacon" | "restaking-tvl" | "btc-halving" | "sol-validators" | "stable-yields" | "btc-treasury" | "eth-blob" | "eth-supply" | "dao-governance" | "crypto-correlation" | "chain-dev";
 
 /** All valid service type strings — use this for runtime validation instead of duplicating the list. */
-export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season", "btc-mining", "bridge-volume", "tvl-movers", "lightning-network", "eth-lst", "realized-vol", "lending-rates", "protocol-revenue", "btc-onchain", "nft-market", "market-breadth", "perp-oi", "stablecoin-chains", "stablecoin-pegs", "mining-pools", "rwa-tvl", "crypto-funding", "chain-fees", "chain-tvl", "defi-exploits", "global-dex", "futures-basis", "dex-aggregators", "meme-coins", "cross-chain-gas", "hl-top-pairs", "eth-beacon", "restaking-tvl", "btc-halving", "sol-validators", "stable-yields", "btc-treasury", "eth-blob", "eth-supply", "dao-governance", "crypto-correlation"];
+export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season", "btc-mining", "bridge-volume", "tvl-movers", "lightning-network", "eth-lst", "realized-vol", "lending-rates", "protocol-revenue", "btc-onchain", "nft-market", "market-breadth", "perp-oi", "stablecoin-chains", "stablecoin-pegs", "mining-pools", "rwa-tvl", "crypto-funding", "chain-fees", "chain-tvl", "defi-exploits", "global-dex", "futures-basis", "dex-aggregators", "meme-coins", "cross-chain-gas", "hl-top-pairs", "eth-beacon", "restaking-tvl", "btc-halving", "sol-validators", "stable-yields", "btc-treasury", "eth-blob", "eth-supply", "dao-governance", "crypto-correlation", "chain-dev"];
 
 export interface MarketData {
   symbol: string;
@@ -743,6 +743,21 @@ export interface CryptoCorrelationData {
   period_days: number;
 }
 
+export interface ChainDevEntry {
+  chain: string;           // display name e.g. "Ethereum"
+  repo: string;            // GitHub "{owner}/{repo}"
+  commits_4w: number;      // commits in last 4 weeks
+  commits_13w: number;     // commits in last 13 weeks
+  trend_pct: number;       // % change vs prior 4-week window (positive = more active)
+  activity_level: "high" | "moderate" | "low";
+}
+
+export interface ChainDevData {
+  chains: ChainDevEntry[];   // sorted by commits_4w descending
+  fetched_at: string;        // ISO timestamp
+  period_note: string;       // e.g. "Last 4 weeks vs prior 4 weeks"
+}
+
 export interface ServiceResult {
   service_type: ServiceType;
   result: string;
@@ -811,6 +826,7 @@ export interface ServiceResult {
   eth_supply?: EthSupplyData;
   dao_governance?: DaoGovernanceData;
   crypto_correlation?: CryptoCorrelationData;
+  chain_dev?: ChainDevData;
   timestamp: string;
   delivered_to: string;
 }
@@ -3443,6 +3459,7 @@ export async function deliverService(delivered_to: string, serviceType: ServiceT
   if (serviceType === "eth-supply") return deliverEthSupply(delivered_to, timestamp);
   if (serviceType === "dao-governance") return deliverDaoGovernance(delivered_to, timestamp);
   if (serviceType === "crypto-correlation") return deliverCryptoCorrelation(delivered_to, timestamp);
+  if (serviceType === "chain-dev") return deliverChainDev(delivered_to, timestamp);
   return deliverCryptoPrices(delivered_to, timestamp);
 }
 
@@ -5718,4 +5735,108 @@ export async function deliverCryptoCorrelation(delivered_to: string, timestamp: 
     : "No correlation data";
 
   return { service_type: "crypto-correlation", result, crypto_correlation, timestamp, delivered_to };
+}
+
+// ---------------------------------------------------------------------------
+// Chain Developer Activity — GitHub participation stats (66th service)
+// Uses the GitHub stats/participation endpoint (no auth required).
+// 60 req/hour unauthenticated — kept safe by a 2-hour cache.
+// ---------------------------------------------------------------------------
+
+interface GhParticipation {
+  all: number[];    // 52 weekly commit counts (all contributors), most-recent last
+  owner: number[];  // same, owner only
+}
+
+const CHAIN_DEV_REPOS: { chain: string; repo: string }[] = [
+  { chain: "Ethereum",  repo: "ethereum/go-ethereum" },
+  { chain: "Solana",    repo: "anza-xyz/agave" },
+  { chain: "Sui",       repo: "MystenLabs/sui" },
+  { chain: "Aptos",     repo: "aptos-labs/aptos-core" },
+  { chain: "Avalanche", repo: "ava-labs/avalanchego" },
+];
+
+const CHAIN_DEV_TTL = 2 * 60 * 60 * 1000; // 2 hours
+let _chainDevCache: { data: ChainDevData; expires: number } | null = null;
+
+function devActivityLevel(commits4w: number): ChainDevEntry["activity_level"] {
+  if (commits4w >= 80) return "high";
+  if (commits4w >= 30) return "moderate";
+  return "low";
+}
+
+async function fetchGhParticipation(repo: string): Promise<GhParticipation | null> {
+  const url = `https://api.github.com/repos/${repo}/stats/participation`;
+  // GitHub returns 202 while computing stats — retry once after a short delay
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const res = await fetch(url, {
+      headers: { "Accept": "application/vnd.github+json", "User-Agent": "skill-tokenized-agents/1.0" },
+      signal: AbortSignal.timeout(10000),
+    });
+    if (res.status === 202) {
+      await new Promise((r) => setTimeout(r, 2000));
+      continue;
+    }
+    if (!res.ok) return null;
+    return (await res.json()) as GhParticipation;
+  }
+  return null;
+}
+
+export async function deliverChainDev(delivered_to: string, timestamp: string): Promise<ServiceResult> {
+  if (_chainDevCache && Date.now() < _chainDevCache.expires) {
+    const d = _chainDevCache.data;
+    const top = d.chains[0];
+    const result = top
+      ? `${top.chain} most active: ${top.commits_4w} commits/4w · ${d.chains.length} chains tracked`
+      : "Developer activity cached";
+    return { service_type: "chain-dev", result, chain_dev: d, timestamp, delivered_to };
+  }
+
+  const entries: ChainDevEntry[] = [];
+
+  for (const { chain, repo } of CHAIN_DEV_REPOS) {
+    try {
+      // Small gap between requests to be polite to GitHub rate limiter
+      if (entries.length > 0) await new Promise((r) => setTimeout(r, 300));
+      const data = await fetchGhParticipation(repo);
+      if (!data || data.all.length < 13) continue;
+
+      const weeks = data.all;
+      const commits_4w = weeks.slice(-4).reduce((s, n) => s + n, 0);
+      const prev_4w  = weeks.slice(-8, -4).reduce((s, n) => s + n, 0);
+      const commits_13w = weeks.slice(-13).reduce((s, n) => s + n, 0);
+      const trend_pct = prev_4w > 0
+        ? parseFloat((((commits_4w - prev_4w) / prev_4w) * 100).toFixed(1))
+        : 0;
+
+      entries.push({
+        chain,
+        repo,
+        commits_4w,
+        commits_13w,
+        trend_pct,
+        activity_level: devActivityLevel(commits_4w),
+      });
+    } catch {
+      // Skip this chain if fetch fails
+    }
+  }
+
+  if (entries.length === 0) {
+    return { service_type: "chain-dev", result: "Developer activity data temporarily unavailable", timestamp, delivered_to };
+  }
+
+  entries.sort((a, b) => b.commits_4w - a.commits_4w);
+
+  const chain_dev: ChainDevData = {
+    chains: entries,
+    fetched_at: timestamp,
+    period_note: "Last 4 weeks vs prior 4 weeks",
+  };
+  _chainDevCache = { data: chain_dev, expires: Date.now() + CHAIN_DEV_TTL };
+
+  const top = entries[0];
+  const result = `${top.chain} most active: ${top.commits_4w} commits/4w · avg ${Math.round(entries.reduce((s, e) => s + e.commits_4w, 0) / entries.length)} commits/chain · ${entries.length} chains`;
+  return { service_type: "chain-dev", result, chain_dev, timestamp, delivered_to };
 }
