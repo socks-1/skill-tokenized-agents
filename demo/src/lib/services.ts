@@ -3,10 +3,10 @@
  * All functions are read-only calls to public APIs — no auth required.
  */
 
-export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season" | "btc-mining" | "bridge-volume" | "tvl-movers" | "lightning-network" | "eth-lst" | "realized-vol" | "lending-rates" | "protocol-revenue" | "btc-onchain" | "nft-market" | "market-breadth" | "perp-oi" | "stablecoin-chains" | "stablecoin-pegs" | "mining-pools" | "rwa-tvl" | "crypto-funding" | "chain-fees" | "chain-tvl" | "defi-exploits" | "global-dex" | "futures-basis" | "dex-aggregators" | "meme-coins" | "cross-chain-gas" | "hl-top-pairs" | "eth-beacon" | "restaking-tvl" | "btc-halving" | "sol-validators" | "stable-yields" | "btc-treasury" | "eth-blob" | "eth-supply" | "dao-governance" | "crypto-correlation" | "chain-dev" | "crypto-iv" | "ath-distance" | "deriv-overview" | "macro-signals" | "sol-priority-fees" | "sui-network" | "aptos-network" | "near-network";
+export type ServiceType = "crypto-prices" | "solana-stats" | "defi-yields" | "fear-greed" | "solana-ecosystem" | "ai-models" | "trending-coins" | "top-gainers" | "dex-volume" | "pumpfun-tokens" | "pump-new" | "funding-rates" | "btc-mempool" | "stablecoins" | "sol-protocol-tvl" | "ai-agent-tokens" | "sol-revenue" | "eth-gas" | "global-market" | "l2-tvl" | "sol-lst" | "polymarket" | "narratives" | "defi-fees" | "cex-volume" | "options-oi" | "options-max-pain" | "btc-rainbow" | "altcoin-season" | "btc-mining" | "bridge-volume" | "tvl-movers" | "lightning-network" | "eth-lst" | "realized-vol" | "lending-rates" | "protocol-revenue" | "btc-onchain" | "nft-market" | "market-breadth" | "perp-oi" | "stablecoin-chains" | "stablecoin-pegs" | "mining-pools" | "rwa-tvl" | "crypto-funding" | "chain-fees" | "chain-tvl" | "defi-exploits" | "global-dex" | "futures-basis" | "dex-aggregators" | "meme-coins" | "cross-chain-gas" | "hl-top-pairs" | "eth-beacon" | "restaking-tvl" | "btc-halving" | "sol-validators" | "stable-yields" | "btc-treasury" | "eth-blob" | "eth-supply" | "dao-governance" | "crypto-correlation" | "chain-dev" | "crypto-iv" | "ath-distance" | "deriv-overview" | "macro-signals" | "sol-priority-fees" | "sui-network" | "aptos-network" | "near-network" | "cosmos-ecosystem";
 
 /** All valid service type strings — use this for runtime validation instead of duplicating the list. */
-export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season", "btc-mining", "bridge-volume", "tvl-movers", "lightning-network", "eth-lst", "realized-vol", "lending-rates", "protocol-revenue", "btc-onchain", "nft-market", "market-breadth", "perp-oi", "stablecoin-chains", "stablecoin-pegs", "mining-pools", "rwa-tvl", "crypto-funding", "chain-fees", "chain-tvl", "defi-exploits", "global-dex", "futures-basis", "dex-aggregators", "meme-coins", "cross-chain-gas", "hl-top-pairs", "eth-beacon", "restaking-tvl", "btc-halving", "sol-validators", "stable-yields", "btc-treasury", "eth-blob", "eth-supply", "dao-governance", "crypto-correlation", "chain-dev", "crypto-iv", "ath-distance", "deriv-overview", "macro-signals", "sol-priority-fees", "sui-network", "aptos-network", "near-network"];
+export const ALL_SERVICE_TYPES: ServiceType[] = ["crypto-prices", "solana-stats", "defi-yields", "fear-greed", "solana-ecosystem", "ai-models", "trending-coins", "top-gainers", "dex-volume", "pumpfun-tokens", "pump-new", "funding-rates", "btc-mempool", "stablecoins", "sol-protocol-tvl", "ai-agent-tokens", "sol-revenue", "eth-gas", "global-market", "l2-tvl", "sol-lst", "polymarket", "narratives", "defi-fees", "cex-volume", "options-oi", "options-max-pain", "btc-rainbow", "altcoin-season", "btc-mining", "bridge-volume", "tvl-movers", "lightning-network", "eth-lst", "realized-vol", "lending-rates", "protocol-revenue", "btc-onchain", "nft-market", "market-breadth", "perp-oi", "stablecoin-chains", "stablecoin-pegs", "mining-pools", "rwa-tvl", "crypto-funding", "chain-fees", "chain-tvl", "defi-exploits", "global-dex", "futures-basis", "dex-aggregators", "meme-coins", "cross-chain-gas", "hl-top-pairs", "eth-beacon", "restaking-tvl", "btc-halving", "sol-validators", "stable-yields", "btc-treasury", "eth-blob", "eth-supply", "dao-governance", "crypto-correlation", "chain-dev", "crypto-iv", "ath-distance", "deriv-overview", "macro-signals", "sol-priority-fees", "sui-network", "aptos-network", "near-network", "cosmos-ecosystem"];
 
 export interface MarketData {
   symbol: string;
@@ -68,6 +68,17 @@ export interface NearNetworkData {
   near_price_usd: number;
   near_change_24h: number;  // percent
   defi_tvl_usd: number;
+}
+
+export interface CosmosEcosystemData {
+  atom_price_usd: number;
+  atom_change_24h: number;   // percent
+  bonded_tokens: number;     // ATOM staked (not uatom)
+  total_tokens: number;      // ATOM total (bonded + unbonded in staking pool)
+  bonded_ratio: number;      // percent staked
+  cosmos_hub_tvl_usd: number;
+  osmosis_tvl_usd: number;
+  total_cosmos_tvl_usd: number;  // sum of major Cosmos ecosystem chains
 }
 
 export interface SolanaToken {
@@ -865,6 +876,7 @@ export interface ServiceResult {
   sui_network?: SuiNetworkData;
   aptos_network?: AptosNetworkData;
   near_network?: NearNetworkData;
+  cosmos_ecosystem?: CosmosEcosystemData;
   timestamp: string;
   delivered_to: string;
 }
@@ -3576,6 +3588,7 @@ export async function deliverService(delivered_to: string, serviceType: ServiceT
   if (serviceType === "sui-network") return deliverSuiNetwork(delivered_to, timestamp);
   if (serviceType === "aptos-network") return deliverAptosNetwork(delivered_to, timestamp);
   if (serviceType === "near-network") return deliverNearNetwork(delivered_to, timestamp);
+  if (serviceType === "cosmos-ecosystem") return deliverCosmosEcosystem(delivered_to, timestamp);
   return deliverCryptoPrices(delivered_to, timestamp);
 }
 
@@ -6586,4 +6599,85 @@ export async function deliverNearNetwork(delivered_to: string, timestamp: string
     : "NEAR network data temporarily unavailable";
 
   return { service_type: "near-network", result, near_network, timestamp, delivered_to };
+}
+
+/**
+ * Fetches Cosmos IBC Ecosystem stats: ATOM price, staking ratio, bonded tokens,
+ * and DeFi TVL across major Cosmos ecosystem chains (CosmosHub, Osmosis, Celestia,
+ * Injective, dYdX). Uses CoinGecko, Cosmos Hub REST API, and DeFi Llama.
+ */
+export async function deliverCosmosEcosystem(delivered_to: string, timestamp: string): Promise<ServiceResult> {
+  let cosmos_ecosystem: CosmosEcosystemData | undefined;
+
+  try {
+    const COSMOS_HUB_API = "https://cosmos-rest.publicnode.com";
+
+    const [priceRaw, stakingRaw, chainsRaw] = await Promise.all([
+      fetch(
+        "https://api.coingecko.com/api/v3/simple/price?ids=cosmos&vs_currencies=usd&include_24hr_change=true",
+        { signal: AbortSignal.timeout(8000), headers: { "User-Agent": "skill-tokenized-agents/1.0" } }
+      ).then((r) => r.json()),
+      fetch(`${COSMOS_HUB_API}/cosmos/staking/v1beta1/pool`, {
+        signal: AbortSignal.timeout(8000),
+        headers: { "User-Agent": "skill-tokenized-agents/1.0" },
+      }).then((r) => r.json()),
+      fetch("https://api.llama.fi/v2/chains", {
+        signal: AbortSignal.timeout(8000),
+        headers: { "User-Agent": "skill-tokenized-agents/1.0" },
+      }).then((r) => r.json()),
+    ]);
+
+    const atom_price_usd: number = priceRaw?.cosmos?.usd ?? 0;
+    const atom_change_24h: number = priceRaw?.cosmos?.usd_24h_change ?? 0;
+
+    // Staking pool returns values in uatom (1 ATOM = 1,000,000 uatom)
+    const bonded_uatom: number = Number(stakingRaw?.pool?.bonded_tokens ?? 0);
+    const not_bonded_uatom: number = Number(stakingRaw?.pool?.not_bonded_tokens ?? 0);
+    const bonded_tokens: number = bonded_uatom / 1e6;
+    const total_tokens: number = (bonded_uatom + not_bonded_uatom) / 1e6;
+    const bonded_ratio: number = total_tokens > 0 ? (bonded_tokens / total_tokens) * 100 : 0;
+
+    // Aggregate TVL across major Cosmos ecosystem chains on DeFi Llama
+    const COSMOS_CHAINS = ["CosmosHub", "Osmosis", "Celestia", "Injective", "dYdX", "Kava", "Neutron", "Stride"];
+    let cosmos_hub_tvl_usd = 0;
+    let osmosis_tvl_usd = 0;
+    let total_cosmos_tvl_usd = 0;
+
+    if (Array.isArray(chainsRaw)) {
+      for (const chain of chainsRaw as Array<{ name?: string; tvl?: number }>) {
+        const chainName = chain.name ?? "";
+        if (COSMOS_CHAINS.some((c) => c.toLowerCase() === chainName.toLowerCase())) {
+          const tvl = chain.tvl ?? 0;
+          total_cosmos_tvl_usd += tvl;
+          if (chainName.toLowerCase() === "cosmoshub") cosmos_hub_tvl_usd = tvl;
+          if (chainName.toLowerCase() === "osmosis") osmosis_tvl_usd = tvl;
+        }
+      }
+    }
+
+    cosmos_ecosystem = {
+      atom_price_usd,
+      atom_change_24h,
+      bonded_tokens,
+      total_tokens,
+      bonded_ratio,
+      cosmos_hub_tvl_usd,
+      osmosis_tvl_usd,
+      total_cosmos_tvl_usd,
+    };
+  } catch {
+    // Fall through with undefined
+  }
+
+  const fmtTvl = (v: number) =>
+    v >= 1e9 ? `$${(v / 1e9).toFixed(2)}B` : v >= 1e6 ? `$${(v / 1e6).toFixed(0)}M` : `$${v.toFixed(0)}`;
+  const fmtAtom = (n: number) =>
+    n >= 1e9 ? `${(n / 1e9).toFixed(2)}B` : n >= 1e6 ? `${(n / 1e6).toFixed(0)}M` : n.toLocaleString();
+  const sign = (n: number) => (n >= 0 ? "+" : "") + n.toFixed(2);
+
+  const result = cosmos_ecosystem
+    ? `ATOM $${cosmos_ecosystem.atom_price_usd.toFixed(3)} (${sign(cosmos_ecosystem.atom_change_24h)}%) · ${fmtAtom(cosmos_ecosystem.bonded_tokens)} staked (${cosmos_ecosystem.bonded_ratio.toFixed(1)}%) · IBC TVL ${fmtTvl(cosmos_ecosystem.total_cosmos_tvl_usd)} · Hub ${fmtTvl(cosmos_ecosystem.cosmos_hub_tvl_usd)} · Osmosis ${fmtTvl(cosmos_ecosystem.osmosis_tvl_usd)}`
+    : "Cosmos ecosystem data temporarily unavailable";
+
+  return { service_type: "cosmos-ecosystem", result, cosmos_ecosystem, timestamp, delivered_to };
 }

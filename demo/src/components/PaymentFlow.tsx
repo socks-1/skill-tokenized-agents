@@ -104,6 +104,7 @@ import type {
   SolPriorityFeeData,
   SuiNetworkData,
   NearNetworkData,
+  CosmosEcosystemData,
 } from "@/lib/services";
 
 interface InvoiceParams {
@@ -661,6 +662,13 @@ const SERVICE_OPTIONS: { id: ServiceType; label: string; description: string; pr
     id: "near-network",
     label: "NEAR Protocol Network",
     description: "Live NEAR blockchain stats: block height, protocol version, active validator count, average block time, DeFi TVL, and NEAR token price with 24h change. Data from NEAR RPC, NearBlocks.io, CoinGecko, and DeFi Llama.",
+    price: "1 USDC",
+    category: "Market Data",
+  },
+  {
+    id: "cosmos-ecosystem",
+    label: "Cosmos IBC Ecosystem",
+    description: "Live Cosmos ecosystem stats: ATOM price, bonded staking ratio, total ATOM staked, and aggregated DeFi TVL across major IBC-connected chains (CosmosHub, Osmosis, Celestia, Injective, dYdX). Data from Cosmos Hub REST API, CoinGecko, and DeFi Llama.",
     price: "1 USDC",
     category: "Market Data",
   },
@@ -3019,6 +3027,27 @@ function buildTourSteps(serviceType: ServiceType, liveData?: ServiceResult): Pay
       service_type: "near-network",
       result: `NEAR $${nn.near_price_usd.toFixed(3)} (${sign(nn.near_change_24h)}%) · ${nn.nodes_online} validators · ${nn.avg_block_time.toFixed(2)}s blocks · TVL ${fmtTvl(nn.defi_tvl_usd)} · Block ${fmtNum(nn.block_height)}`,
       near_network: nn,
+      timestamp: new Date().toISOString(),
+      delivered_to: "Demo1234...abcd",
+    };
+  } else if (serviceType === "cosmos-ecosystem") {
+    const ce = liveData?.cosmos_ecosystem ?? {
+      atom_price_usd: 4.32,
+      atom_change_24h: 1.87,
+      bonded_tokens: 383000000,
+      total_tokens: 1100000000,
+      bonded_ratio: 61.5,
+      cosmos_hub_tvl_usd: 7500000,
+      osmosis_tvl_usd: 115000000,
+      total_cosmos_tvl_usd: 195000000,
+    };
+    const fmtTvl = (v: number) => v >= 1e9 ? `$${(v / 1e9).toFixed(2)}B` : `$${(v / 1e6).toFixed(0)}M`;
+    const fmtAtom = (n: number) => n >= 1e9 ? `${(n / 1e9).toFixed(2)}B` : n >= 1e6 ? `${(n / 1e6).toFixed(0)}M` : n.toLocaleString();
+    const sign2 = (n: number) => (n >= 0 ? "+" : "") + n.toFixed(2);
+    mockService = liveData ?? {
+      service_type: "cosmos-ecosystem",
+      result: `ATOM $${ce.atom_price_usd.toFixed(3)} (${sign2(ce.atom_change_24h)}%) · ${fmtAtom(ce.bonded_tokens)} staked (${ce.bonded_ratio.toFixed(1)}%) · IBC TVL ${fmtTvl(ce.total_cosmos_tvl_usd)} · Hub ${fmtTvl(ce.cosmos_hub_tvl_usd)} · Osmosis ${fmtTvl(ce.osmosis_tvl_usd)}`,
+      cosmos_ecosystem: ce,
       timestamp: new Date().toISOString(),
       delivered_to: "Demo1234...abcd",
     };
@@ -6900,6 +6929,54 @@ function ServiceResultTable({ service }: { service: ServiceResult }) {
 
         <p style={{ fontSize: 11, color: "#888", marginTop: 6 }}>
           NEAR RPC · NearBlocks.io · CoinGecko · DeFi Llama
+        </p>
+      </div>
+    );
+  }
+
+  if (service.service_type === "cosmos-ecosystem" && service.cosmos_ecosystem) {
+    const ce = service.cosmos_ecosystem;
+    const fmtTvl = (v: number) => v >= 1e9 ? `$${(v / 1e9).toFixed(2)}B` : `$${(v / 1e6).toFixed(0)}M`;
+    const fmtAtom = (n: number) => n >= 1e9 ? `${(n / 1e9).toFixed(2)}B` : n >= 1e6 ? `${(n / 1e6).toFixed(0)}M` : n.toLocaleString();
+    const priceColor = ce.atom_change_24h >= 0 ? "#16a34a" : "#dc2626";
+    const sign = (n: number) => (n >= 0 ? "+" : "") + n.toFixed(2);
+    return (
+      <div>
+        {/* Price header */}
+        <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 12 }}>
+          <div style={{ fontWeight: 800, fontSize: 22, color: "#111" }}>${ce.atom_price_usd.toFixed(3)}</div>
+          <div style={{ fontWeight: 600, fontSize: 14, color: priceColor }}>{sign(ce.atom_change_24h)}% 24h</div>
+          <div style={{ fontSize: 12, color: "#888", marginLeft: "auto" }}>ATOM / USD</div>
+        </div>
+
+        {/* Stats grid */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 }}>
+          <div style={{ padding: "8px 10px", background: "#fafafa", borderRadius: 6, border: "1px solid #e5e7eb" }}>
+            <div style={{ fontSize: 10, color: "#888", textTransform: "uppercase" }}>IBC Ecosystem TVL</div>
+            <div style={{ fontWeight: 700, fontSize: 16, color: "#111" }}>{fmtTvl(ce.total_cosmos_tvl_usd)}</div>
+          </div>
+          <div style={{ padding: "8px 10px", background: "#fafafa", borderRadius: 6, border: "1px solid #e5e7eb" }}>
+            <div style={{ fontSize: 10, color: "#888", textTransform: "uppercase" }}>Staked ATOM</div>
+            <div style={{ fontWeight: 700, fontSize: 16, color: "#111" }}>{fmtAtom(ce.bonded_tokens)}</div>
+          </div>
+          <div style={{ padding: "8px 10px", background: "#fafafa", borderRadius: 6, border: "1px solid #e5e7eb" }}>
+            <div style={{ fontSize: 10, color: "#888", textTransform: "uppercase" }}>Cosmos Hub TVL</div>
+            <div style={{ fontWeight: 700, fontSize: 16, color: "#111" }}>{fmtTvl(ce.cosmos_hub_tvl_usd)}</div>
+          </div>
+          <div style={{ padding: "8px 10px", background: "#fafafa", borderRadius: 6, border: "1px solid #e5e7eb" }}>
+            <div style={{ fontSize: 10, color: "#888", textTransform: "uppercase" }}>Osmosis TVL</div>
+            <div style={{ fontWeight: 700, fontSize: 16, color: "#111" }}>{fmtTvl(ce.osmosis_tvl_usd)}</div>
+          </div>
+        </div>
+
+        {/* Staking ratio */}
+        <div style={{ padding: "8px 10px", background: "#fdf4ff", borderRadius: 6, border: "1px solid #d8b4fe", marginBottom: 8 }}>
+          <div style={{ fontSize: 10, color: "#888", textTransform: "uppercase" }}>Bonded / Staking Ratio</div>
+          <div style={{ fontWeight: 700, fontSize: 15, color: "#7e22ce" }}>{ce.bonded_ratio.toFixed(1)}% of staking pool</div>
+        </div>
+
+        <p style={{ fontSize: 11, color: "#888", marginTop: 6 }}>
+          Cosmos Hub REST API · CoinGecko · DeFi Llama
         </p>
       </div>
     );
